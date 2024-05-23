@@ -1,4 +1,4 @@
-# Inventory-Management-System
+# Inventory Management System
 
 The Inventory Management System is a comprehensive solution designed to streamline and automate the management of inventory. 
 This system helps businesses track their stock levels, orders, sales, and deliveries efficiently. 
