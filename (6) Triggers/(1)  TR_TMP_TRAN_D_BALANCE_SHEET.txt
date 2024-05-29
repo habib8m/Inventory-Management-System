@@ -1,0 +1,47 @@
+
+create or replace TRIGGER "TR_TMP_TRAN_D_BALANCE_SHEET" 
+before
+insert or update or delete on "TMP_TRAN_D"
+for each row
+
+DECLARE
+    V_VALUE VARCHAR2(500);
+
+begin
+    NULL;
+
+  IF INSERTING THEN
+  null;
+
+     	select TMP_TRAN_D_SEQ.nextval 
+	into :new.pk_id 
+	from dual;
+
+        V_VALUE := ins_acc_balance(:NEW.ORG_ID, :NEW.TRAN_ID, :NEW.TRANS_CODE, :NEW.TRANS_CODE, :NEW.damount, :NEW.camount,:NEW.PK_ID);
+
+  END IF;
+
+    IF UPDATING THEN
+    if :old.trans_code = :new.trans_code then
+        UPDATE ACC_BALANCE
+        SET DR_AMOUNT = :NEW.damount,
+            CR_AMOUNT = :NEW.camount
+        WHERE TRAN_ID = :OLD.TRAN_ID
+        AND ACC_PK_ID = :OLD.PK_ID;
+
+        ELSE 
+        DELETE ACC_BALANCE
+        WHERE TRAN_ID = :OLD.TRAN_ID
+        AND ACC_PK_ID = :OLD.PK_ID;
+
+        V_VALUE := ins_acc_balance(:NEW.ORG_ID,:NEW.TRAN_ID, :NEW.TRANS_CODE, :NEW.TRANS_CODE, :NEW.damount, :NEW.camount,:NEW.PK_ID);
+         end if;
+
+    END IF;
+    IF DELETING THEN
+        DELETE ACC_BALANCE
+        WHERE TRAN_ID = :OLD.TRAN_ID;
+    END IF;
+end;
+/
+
