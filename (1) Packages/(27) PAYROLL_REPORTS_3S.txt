@@ -1,0 +1,191 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "PAYROLL_REPORTS_3S" as 
+ 
+procedure country_salary_reports(p_org_id number, p_warehouse_id number,p_salry_period number); 
+ 
+end "PAYROLL_REPORTS_3S"; 
+/
+
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "PAYROLL_REPORTS_3S" as 
+procedure country_salary_reports(p_org_id number, p_warehouse_id number,p_salry_period number) 
+IS 
+	v_sl                number    := 0; 
+	v_tot_sl            number    := 0; 
+    v_basic             number    := 0; 
+    v_total_basic       number    := 0; 
+    v_rent              number    := 0; 
+    v_total_rent        number    := 0; 
+    v_conv              number    := 0; 
+    v_total_conv        number    := 0; 
+    v_medical           number    := 0; 
+    v_total_medical     number    := 0; 
+    v_sp_all            number    := 0; 
+    v_total_sp_all      number    := 0; 
+    v_total             number    := 0; 
+    v_g_total           number    := 0; 
+    v_pf                number    := 0; 
+    v_total_pf          number    := 0; 
+    v_gross             number    := 0; 
+    v_total_gross       number    := 0; 
+    v_bonus             number    := 0; 
+    v_total_bonus       number    := 0; 
+    v_advance_d         number    := 0; 
+    v_advance_total_d   number    := 0; 
+    v_tds               number    := 0; 
+    v_total_tds         number    := 0; 
+    v_n_s_payable       number    := 0; 
+    v_n_s_total_payable number    := 0; 
+    v_gross             number    := 0; 
+    v_payable           number    := 0; 
+    v_count             number    := 0; 
+ 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Country Salary Reports'); 
+ 
+        --select title into v_salry_title FROM ERP_SALARY_INFO where pk_id = p_salry_period; 
+ 
+       -- htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(v_salry_title)||'</h4>'); 
+ 
+        FOR wh in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE = p_org_id||'00067' --warehouse 
+                    and org_id = p_org_id 
+                    and code = nvl(p_warehouse_id,code) 
+                    ORDER BY CODE) 
+       loop 
+ 
+	        htp.p('<h3> '||htf.escape_sc(wh.CODE_DESC)||'</h3>'); 
+			htp.p('<table style="width:100%"><tr>             
+    			<th style="width:5%">SL</th> 
+    			<th style="width:5%">EC</th> 
+    			<th style="width:10%">Employee Name</th>  
+                <th style="width:10%">Designation</th> 
+    			<th style="width:5%">Date Of Join</th> 
+    			<th style="width:5%">Teritory</th> 
+                <th style="width:5%">Basic</th> 
+    			<th style="width:5%">HRA</th> 
+                <th style="width:5%">Conv.</th> 
+                <th style="width:5%">Medical</th> 
+                <th style="width:5%">Spl. All.</th> 
+                <th style="width:5%">Total</th> 
+    			<th style="width:5%">P.F.</th> 
+                <th style="width:5%">Gross S. P.</th> 
+                <th style="width:5%">Bonus</th> 
+                <th style="width:5%">Adv. Adj.</th> 
+                <th style="width:5%">TDS</th> 
+                <th style="width:5%">N.S. Payable</th> 
+                <th style="width:5%">Status</th> 
+    			</tr>'); 
+            v_sl := 0; 
+        
+              
+ 
+            for i in (select  eps.sp_id 
+                            ,emp.uid_no 
+                    		,emp.emp_name 
+                    		,desi.code_desc Designation 
+                    		,war.code_desc Warehouse 
+                            ,ter.code_desc territory 
+                    		,emp.joining_date 
+                    		,eps.SALARY_FROM_DT 
+                    		,eps.SALARY_TO_DT 
+                    		,trunc(eps.SALARY_TO_DT-eps.SALARY_FROM_DT) day_count 
+                    		,emp.PRESENT_SAL BASIC_SAL 
+                    		,eps.HRA HOUSE_RENT 
+                    		,eps.CONVANCE 
+                    		,eps.MEDICAL 
+                    		,eps.SP_ALL 
+                            ,eps.total_salary 
+                            ,eps.Additional_salary 
+                    		,eps.P_F 
+                            ,eps.Additional_P_F 
+                            ,eps. total_p_f 
+                    		,eps.ADV_DEDUCTION 
+                            ,Gross_salary 
+                            ,EMP.TDS 
+                            ,eps.net_payable_salary 
+                            ,emp.MODE_OF_PAYMENT 
+                    from ERP_PROCESSED_SALARY eps 
+                    join emp_info emp on emp.cid_no = eps.cid_no 
+                    left join g_uni_codes desi on emp.desig_code = desi.code and emp.org_id = desi.org_id 
+                    left join g_uni_codes ter on emp.territory_id=ter.code 
+                    left join sales_chanel sl on sl.TERRITORY_ID = emp.TERRITORY_ID and emp.org_id = sl.org_id 
+                    left join g_uni_codes war on war.CODE = sl.WAREHOUSE_ID 
+                        ) 
+            loop 
+ 
+                v_sl := v_sl + 1; 
+             	 
+                HTP.p ('<tr> 
+                       <td style="text-align: center">' 
+                   || HTF.escape_sc (V_SL) 
+                   || '</td>                  
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.UID_NO) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (i.EMP_NAME) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (i.Designation) 
+                   || '</td>                     
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (i.JOINING_DATE) 
+                   || '</td> 
+                   <td style="text-align: CENTER">' 
+                   || HTF.escape_sc(I.territory) 
+                   || '</td> 
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (i.BASIC_SAL) 
+                   || '</td> 
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (i.HOUSE_RENT) 
+                   || '</td> 
+                   <td style="text-align: left">'|| HTF.escape_sc (i.CONVANCE) 
+                   ||'</td> 
+                    <td>'||HTF.escape_sc (i.MEDICAL) 
+                   ||'</td> 
+                    <td>'||HTF.escape_sc (i.SP_ALL) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.total_salary) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.P_F) 
+                   ||'</td>                    
+                   <td>'||HTF.escape_sc (i.Additional_P_F) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.total_p_f) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.ADV_DEDUCTION) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.TDS) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.net_payable_salary) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.MODE_OF_PAYMENT) 
+                   ||'</td> 
+                    </tr>'); 
+    			end loop; 
+                       
+            HTP.p ('<tr> 
+                <td colspan="12" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_basic,'99,99,999')) 
+               ||'</b></td> 
+                 
+                </tr>');    
+             htp.p('</table>');              
+        end loop;  
+     
+    END; 
+
+--*****************************
+
+end "PAYROLL_REPORTS_3S"; 
+/
+

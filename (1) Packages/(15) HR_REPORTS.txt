@@ -1,0 +1,481 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "HR_REPORTS" as 
+ 
+procedure Department_and_section_wise_employee_listing (p_company_name varchar2,v_section_code number,v_shift_code number,p_from_date date,p_to_date date,p_org_id number); 
+procedure Department_and_section (p_company_name varchar2,v_section_code number,v_shift_code number,p_from_date date,p_to_date date,p_org_id number); 
+procedure Department_and_section_wise_employee_listing_12(p_company_name varchar2,v_section_code number,v_shift_code number,p_from_date date,p_to_date date,p_org_id number);
+procedure Department_and_section_wise_employee_listing_4 (p_company_name varchar2,p_section_code number,v_shift_code number,p_from_date date,p_to_date date,p_org_id number);
+procedure attendance_report_4 (p_company_id number,p_section_code number,p_shift_code number,p_org_id number,P_FROM_DATE DATE,P_TO_DATE DATE) ;
+procedure attendance_report_4_new (p_company_id number,p_section_code number,p_shift_code number,p_org_id number,P_FROM_DATE DATE,P_TO_DATE DATE) ;--page no 487
+end "HR_REPORTS";
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "HR_REPORTS" as 
+ 
+ procedure Department_and_section_wise_employee_listing (p_company_name varchar2,v_section_code number,v_shift_code number,p_from_date date,p_to_date date,p_org_id number) 
+    is 
+	v_sl number := 0; 
+	v_sl_g number := 0; 
+    v_count number:=0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' Department Wise Employee Listing '); 
+		 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE = p_org_id||'0002' 
+                    --AND code = nvl(v_section_code,code) 
+                    AND org_id = p_org_id 
+                    ORDER BY code_level ) 
+		LOOP 
+          
+         select count(*) into v_count 
+                    from emp_info e,g_uni_codes g ,g_uni_codes gi 
+	                        where e.DESIG_CODE=g.code 
+                            and e.WAREHOUSE_ID = gi.CODE (+)
+                            --and g.p_code = 7||'0004' 
+                            AND e.joining_date BETWEEN nvl(p_from_date,e.joining_date) AND nvl(p_to_date,sysdate) 
+                            AND e.DEPT_CODE=r.code 
+                            AND e.DEPT_CODE =nvl(v_section_code,e.DEPT_CODE) 
+                            --AND e.project_code=nvl(p_company_name,e.project_code) 
+                            AND E.org_id = p_org_id; 
+        IF v_count > 0 then 
+ 
+			htp.p('<h3> Department : '||htf.escape_sc(r.CODE_DESC)||'</h3>'); 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:5%">SL NO.</th> 
+			<th style="width:10%">ID No.</th> 
+			<th style="width:25%">Employee Name</th>  
+			<th style="width:20%">Designation</th> 
+			<th style="width:10%">Joining Date</th> 
+            <th style="width:10%">Present Salary</th> 
+            <th style="width:20%">Warehouse</th> 
+             
+			</tr>'); 
+            end IF; 
+			v_sl := 0; 
+			FOR i in ( select e.uid_no, 
+	                        e.emp_name, 
+	                        g.code_desc, 
+	                        e.joining_date, 
+                            e.joining_sal, 
+	                        e.present_sal, 
+                            gi.code_desc warehouse 
+ 
+	                        from emp_info e,g_uni_codes g ,g_uni_codes gi 
+	                        where e.DESIG_CODE=g.code 
+                            and e.WAREHOUSE_ID = gi.CODE (+)
+                            --and g.p_code = 7||'0004' 
+                            AND e.joining_date BETWEEN nvl(p_from_date,e.joining_date) AND nvl(p_to_date,sysdate) 
+                            AND e.DEPT_CODE=r.code 
+                            AND e.DEPT_CODE =nvl(v_section_code,e.DEPT_CODE) 
+                            --AND e.project_code=nvl(p_company_name,e.project_code) 
+                            AND E.org_id = p_org_id 
+                            order by uid_no 
+                            ) 
+			LOOP 
+			v_sl := v_sl+1;
+            v_sl_g := v_sl_g + 1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||v_sl||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.UID_NO)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.emp_name)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.CODE_DESC)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.joining_date)||'</td> 
+                <td style="text-align: right">'||htf.escape_sc(to_char(i.present_sal,'99,99,999.99'))||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.warehouse)||'</td> 
+				 
+				</tr>'); 
+		 
+			END LOOP; 
+            if v_count > 0 then 
+				htp.p('<tr> 
+				<td colspan="7" style="text-align: left"><b>Total Employee: '||v_sl_g||'</b></td>  
+				 
+				</tr>');
+            end if;
+            htp.p('</table>'); 
+		end loop; 
+            -- htp.p('</table>');
+		report_utils.footer; 
+	END; 
+
+--*****************************
+     
+ procedure Department_and_section (p_company_name varchar2,v_section_code number,v_shift_code number,p_from_date date,p_to_date date,p_org_id number) 
+is 
+	v_sl number := 0; 
+    v_count number:=0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' Department Wise Employee Listing '); 
+		 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE = p_org_id||'0002' 
+                    --AND code = nvl(v_section_code,code) 
+                    AND org_id = p_org_id 
+                    ORDER BY code_level ) 
+		LOOP 
+          
+         select count(*) into v_count 
+                    from emp_info e,g_uni_codes g ,g_uni_codes gi 
+	                        where e.DESIG_CODE=g.code 
+                            and e.WAREHOUSE_ID = gi.CODE 
+                            --and g.p_code = 7||'0004' 
+                            AND e.joining_date BETWEEN nvl(p_from_date,e.joining_date) AND nvl(p_to_date,sysdate) 
+                            AND e.DEPT_CODE=r.code 
+                            AND e.DEPT_CODE =nvl(v_section_code,e.DEPT_CODE) 
+                            --AND e.project_code=nvl(p_company_name,e.project_code) 
+                            AND E.org_id = p_org_id; 
+        IF v_count > 0 then 
+ 
+			htp.p('<h3> Department : '||htf.escape_sc(r.CODE_DESC)||'</h3>'); 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:5%">SL NO.</th> 
+			<th style="width:10%">ID No.</th> 
+			<th style="width:25%">Employee Name</th>  
+			<th style="width:20%">Designation</th> 
+			<th style="width:10%">Joining Date</th> 
+            <th style="width:10%">Present Salary</th> 
+            <th style="width:20%">Warehouse</th> 
+             
+			</tr>'); 
+            end IF; 
+			v_sl := 0; 
+			FOR i in ( select e.uid_no, 
+	                        e.emp_name, 
+	                        g.code_desc, 
+	                        e.joining_date, 
+                            e.joining_sal, 
+	                        e.present_sal, 
+                            gi.code_desc warehouse 
+ 
+	                        from emp_info e,g_uni_codes g ,g_uni_codes gi 
+	                        where e.DESIG_CODE=g.code 
+                            and e.WAREHOUSE_ID = gi.CODE 
+                            --and g.p_code = 7||'0004' 
+                            AND e.joining_date BETWEEN nvl(p_from_date,e.joining_date) AND nvl(p_to_date,sysdate) 
+                            AND e.DEPT_CODE=r.code 
+                            AND e.DEPT_CODE =nvl(v_section_code,e.DEPT_CODE) 
+                            --AND e.project_code=nvl(p_company_name,e.project_code) 
+                            AND E.org_id = p_org_id 
+                            order by uid_no 
+                            ) 
+			LOOP 
+			v_sl := v_sl+1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||v_sl||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.UID_NO)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.emp_name)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.CODE_DESC)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.joining_date)||'</td> 
+                <td style="text-align: right">'||htf.escape_sc(to_char(i.present_sal,'99,99,999.99'))||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.warehouse)||'</td> 
+				 
+				</tr>'); 
+		 
+			END LOOP; 
+            htp.p('</table>'); 
+		end loop; 
+		report_utils.footer; 
+	END; 
+
+--*******************************
+        
+   procedure Department_and_section_wise_employee_listing_12 (p_company_name varchar2,v_section_code number,v_shift_code number,p_from_date date,p_to_date date,p_org_id number) 
+    is 
+	v_sl number := 0; 
+    v_sl_total number := 0;
+    v_count number:=0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' Section Wise Employee Listing '); 
+		 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE = p_org_id||'0003' 
+                    AND code = nvl(v_section_code,code) 
+                    AND org_id = p_org_id 
+                    ORDER BY code_level ) 
+		LOOP 
+          
+         select count(*) into v_count 
+                    from emp_info e,g_uni_codes g
+	                        where e.desig_code=g.code 
+                            -- and e.WAREHOUSE_ID = gi.CODE 
+                            --and g.p_code = 7||'0004' 
+                            AND e.joining_date BETWEEN nvl(p_from_date,e.joining_date) AND nvl(p_to_date,sysdate) 
+                            AND e.sec_code=r.code 
+                            -- AND e.DEPT_CODE =nvl(v_section_code,e.DEPT_CODE) 
+                            --AND e.project_code=nvl(p_company_name,e.project_code) 
+                            and e.sec_code = nvl(v_section_code,e.sec_code)
+                            AND E.org_id = p_org_id; 
+        IF v_count > 0 then 
+ 
+			htp.p('<h3> Section : '||htf.escape_sc(r.CODE_DESC)||'</h3>'); 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%">SL NO.</th> 
+			<th style="width:1%">ID No.</th> 
+			<th style="width:25%">Employee Name</th>  
+			<th style="width:30%">Designation</th> 
+			<th style="width:6%">Joining Date</th> 
+            <th style="width:8%">Present Salary</th>
+             
+			</tr>'); 
+            end IF; 
+			v_sl := 0; 
+			FOR i in ( select e.uid_no, 
+	                        e.emp_name, 
+	                        g.code_desc, 
+	                        e.joining_date, 
+                            e.joining_sal, 
+	                        e.present_sal
+                            -- gi.code_desc warehouse 
+ 
+	                        from emp_info e,g_uni_codes g
+	                        where e.desig_code=g.code 
+                            -- and e.WAREHOUSE_ID = gi.CODE 
+                            --and g.p_code = 7||'0004' 
+                            AND e.joining_date BETWEEN nvl(p_from_date,e.joining_date) AND nvl(p_to_date,sysdate) 
+                            AND e.sec_code=r.code 
+                              AND NVL (e.emp_out, 'N') <> 'Y' 
+                            -- AND e.DEPT_CODE =nvl(v_section_code,e.DEPT_CODE) 
+                            --AND e.project_code=nvl(p_company_name,e.project_code) 
+                            AND E.org_id = p_org_id 
+                            and e.sec_code = nvl(v_section_code,e.sec_code)
+                            order by uid_no 
+                            ) 
+			LOOP 
+			v_sl := v_sl+1; 
+            v_sl_total := v_sl_total + 1;
+				htp.p('<tr> 
+				<td style="text-align: center">'||v_sl||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.UID_NO)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.emp_name)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.CODE_DESC)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(to_char(i.joining_date,'dd-mm-yy'))||'</td> 
+                <td style="text-align: right">'||htf.escape_sc(to_char(i.present_sal,'99,99,999.99'))||'</td> 
+				 
+				</tr>'); 
+		 
+			END LOOP; 
+            if v_count > 0 then
+            htp.p('<tr> 
+        				<td colspan="6" style="text-align: left"><b>Total Employee: '||htf.escape_sc(v_sl_total)||'</b></td>  
+				   </tr>');
+            htp.p('</table>');
+          end if;
+		end loop;  
+		report_utils.footer; 
+	END;
+
+--****************************
+
+    procedure Department_and_section_wise_employee_listing_4 (p_company_name varchar2,p_section_code number,v_shift_code number,p_from_date date,p_to_date date,p_org_id number) 
+    is 
+	v_sl number := 0; 
+    v_count number:=0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' Section Wise Employee Listing '); 
+		 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE = p_org_id||'0003' 
+                    --AND code = nvl(v_section_code,code) 
+                    AND org_id = p_org_id 
+                    ORDER BY code_level ) 
+		LOOP 
+          
+         select count(*) into v_count 
+                    from emp_info e,g_uni_codes g --,g_uni_codes gi 
+	                        where e.DESIG_CODE=g.code 
+                            -- and e.WAREHOUSE_ID = gi.CODE (+)
+                            --and g.p_code = 7||'0004' 
+                            AND e.joining_date BETWEEN nvl(p_from_date,e.joining_date) AND nvl(p_to_date,sysdate) 
+                            AND e.sec_code=r.code 
+                            AND e.sec_code =nvl(p_section_code,e.sec_code) 
+                            --AND e.project_code=nvl(p_company_name,e.project_code) 
+                            AND E.org_id = p_org_id; 
+        IF v_count > 0 then 
+ 
+			htp.p('<h3> Section : '||htf.escape_sc(r.CODE_DESC)||'</h3>'); 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:5%">SL NO.</th> 
+			<th style="width:10%">ID No.</th> 
+			<th style="width:25%">Employee Name</th>  
+			<th style="width:20%">Designation</th> 
+			<th style="width:10%">Joining Date</th> 
+            <th style="width:10%">Present Salary</th> 
+             
+			</tr>'); 
+            end IF; 
+			v_sl := 0; 
+			FOR i in ( select e.uid_no, 
+	                        e.emp_name, 
+	                        g.code_desc, 
+	                        e.joining_date, 
+                            e.joining_sal, 
+	                        e.present_sal 
+                            --gi.code_desc warehouse 
+ 
+	                        from emp_info e,g_uni_codes g --,g_uni_codes gi 
+	                        where e.DESIG_CODE=g.code 
+                            -- and e.WAREHOUSE_ID = gi.CODE (+)
+                            --and g.p_code = 7||'0004' 
+                            AND e.joining_date BETWEEN nvl(p_from_date,e.joining_date) AND nvl(p_to_date,sysdate) 
+                            AND e.sec_code=r.code 
+                            AND e.sec_code =nvl(p_section_code,e.sec_code) 
+                            --AND e.project_code=nvl(p_company_name,e.project_code) 
+                            AND E.org_id = p_org_id 
+                            order by uid_no 
+                            ) 
+			LOOP 
+			v_sl := v_sl+1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||v_sl||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.UID_NO)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.emp_name)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.CODE_DESC)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.joining_date)||'</td> 
+                <td style="text-align: right">'||htf.escape_sc(to_char(i.present_sal,'99,99,999.99'))||'</td>
+				 
+				</tr>'); 
+		 
+			END LOOP; 
+            htp.p('</table>'); 
+		end loop; 
+		report_utils.footer; 
+	END; 
+
+--********************************
+
+    procedure attendance_report_4 (p_company_id number,p_section_code number,p_shift_code number,p_org_id number,P_FROM_DATE DATE,P_TO_DATE DATE) 
+    is 
+	v_sl number := 0; 
+    v_count number:=0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_id, ' Attendance Report');
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>');
+        
+         htp.p('<table style="width:80%;font-size:px;margin:auto;">
+                    <tr> 
+            			<th style="width:2%">SL</th>
+            			<th style="width:4%">ID No</th> 
+            			<th style="width:12%">Name</th> 
+            			<th style="width:8%">Section</th>
+            			<th style="width:5%">Salary Count</th> 
+            			<th style="width:5%">Present Salary</th> 
+            			<th style="width:5%">Day</th> 
+			        </tr>');  
+
+                    v_sl  := 0;
+         for i in (	select td.EMP_ID_NO,
+                            sum(tm.Day) day,
+                            count(Day) salary_count,
+                            td.EMP_NAME,
+                            (select code_desc from g_uni_codes where code = ei.sec_code)	section,
+                            ei.present_sal
+                    from tmp11 tm
+                    join tmp2 td on (tm.EMPID = td.id)
+                    join emp_info ei on(td.emp_id_no  = ei.uid_no)
+                    where ei.org_id = p_org_id
+                    and ei.sec_code = nvl(p_section_code,ei.sec_code)
+                    and NVL (ei.emp_out, 'N') <> 'Y' 
+                    AND CREATED_AT BETWEEN P_FROM_DATE AND P_TO_DATE
+                    group by td.EMP_ID_NO,td.EMP_NAME,ei.sec_code,ei.present_sal 
+                    order by to_number(td.EMP_ID_NO)
+                ) 
+                    loop 
+                    v_sl  := v_sl + 1; 
+         	 
+            HTP.p ('<tr> 
+                        <td style="text-align: center">' || HTF.escape_sc (v_sl) || '</td> 
+                        <td style="text-align: center">' || HTF.escape_sc(i.EMP_ID_NO) || '</td> 
+                        <td style="text-align: left">' || HTF.escape_sc (i.emp_name) || '</td> 
+                        <td style="text-align: center">' || HTF.escape_sc (i.section) || '</td> 
+                        <td style="text-align: center">' || HTF.escape_sc (i.salary_count) || '</td> 
+                        <td style="text-align: center">' || HTF.escape_sc (i.present_sal) || '</td> 
+                        <td style="text-align: center">' || HTF.escape_sc (i.day)|| '</td>  
+                    <tr>');  
+			end loop;
+                 
+			htp.p('</table>'); 
+ 
+		--report_utils.footer; 
+	END;
+
+--*******************************
+
+    procedure attendance_report_4_new (p_company_id number,p_section_code number,p_shift_code number,p_org_id number,P_FROM_DATE DATE,P_TO_DATE DATE)
+     is 
+	v_sl number := 0; 
+    v_count number:=0; 
+    v_days  number := 0;
+    v_tot_days number := 0;
+	BEGIN 
+		report_utils.header_without_boarder(p_company_id, ' Attendance Report');
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>');
+        
+         htp.p('<table style="width:80%;font-size:px;margin:auto;">
+                    <tr> 
+            			<th style="width:2%">SL</th>
+            			<th style="width:4%">ID No</th> 
+            			<th style="width:12%">Name</th> 
+            			<th style="width:8%">Section</th>
+            			<th style="width:5%">Salary Count</th> 
+            			<th style="width:5%">Present Salary</th> 
+            			<th style="width:5%">Day</th> 
+			        </tr>');  
+                    v_sl  := 0;
+         for i in (select pr.UID_NO,
+                            sum(pr.Day) day,
+                            count(pr.Day) salary_count,
+                            ei.EMP_NAME,
+                            (select code_desc from g_uni_codes where code = ei.sec_code)	section,
+                            ei.present_sal
+                    from ERP_PROCESSED_SALARY pr
+                    join emp_info ei on(ei.cid_no  = pr.cid_no)
+                    where ei.org_id = p_org_id
+                    -- and ei.sec_code = nvl(p_section_code,ei.sec_code)
+                    and NVL (ei.emp_out, 'N') <> 'Y' 
+                    -- AND CREATED_AT BETWEEN P_FROM_DATE AND P_TO_DATE
+                    group by pr.UID_NO,ei.EMP_NAME,ei.sec_code,ei.present_sal 
+                    order by to_number(pr.UID_NO)
+                    ) 
+                    loop 
+                    select sum(nvl(day,0)) into v_days from tmp11
+                    where EMPID = i.uid_no
+                    ;
+                    v_sl  := v_sl + 1; 
+                    v_tot_days := v_days + i.day;
+         	 
+            HTP.p ('<tr> 
+                        <td style="text-align: center">' || HTF.escape_sc (v_sl) || '</td> 
+                        <td style="text-align: center">' || HTF.escape_sc(i.UID_NO) || '</td> 
+                        <td style="text-align: left">' || HTF.escape_sc (i.emp_name) || '</td> 
+                        <td style="text-align: center">' || HTF.escape_sc (i.section) || '</td> 
+                        <td style="text-align: center">' || HTF.escape_sc (i.salary_count) || '</td> 
+                        <td style="text-align: center">' || HTF.escape_sc (i.present_sal) || '</td> 
+                        <td style="text-align: center">' || HTF.escape_sc (v_tot_days)|| '</td>  
+                    <tr>'); 
+			end loop;
+                 
+			htp.p('</table>'); 
+ 
+	END;
+
+--*************************
+
+end "HR_REPORTS";
+/
+
+
+
+

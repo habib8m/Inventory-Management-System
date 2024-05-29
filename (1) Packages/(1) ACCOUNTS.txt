@@ -1,0 +1,1343 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "ACCOUNTS" as
+
+FUNCTION GET_BALANCE(p_ACC_code number, p_from_date date, p_to_date date, p_org_id number) RETURN NUMBER; 
+FUNCTION GET_BALANCE_M(p_ACC_code number, p_from_date date, p_to_date date, p_org_id number) RETURN NUMBER; 
+FUNCTION GET_PRO_BALANCE(p_ACC_code number, p_from_date date, p_to_date date, P_TYPE VARCHAR2) RETURN NUMBER; 
+FUNCTION GET_PRO_BALANCE_M(p_ACC_code number, p_from_date date, p_to_date date, P_TYPE VARCHAR2) RETURN NUMBER;
+ 
+procedure  Chart_of_Accounts_Tree_View (P_PROJECT_CODE NUMBER, p_catagory number, p_org_id number);  
+procedure  COA_Tree_with_balance (P_PROJECT_CODE NUMBER, p_catagory number, p_org_id number, p_from_date date, p_to_date date); 
+PROCEDURE Voucher_report (P_PROJECT_CODE NUMBER, P_VOUCHER VARCHAR2, P_FROM_DATE DATE, P_TO_DATE DATE, P_ORG_ID NUMBER ); 
+PROCEDURE customer_wise_report (P_PROJECT_CODE NUMBER, p_customer number, p_warehouse_id number, p_area_id number, p_from_date DATE, p_to_date DATE , p_org_id number); 
+PROCEDURE customer_wise_sum_report (P_PROJECT_CODE NUMBER, p_customer varchar2, p_warehouse_id number, p_area_id number, p_from_date DATE, p_to_date DATE); 
+PROCEDURE balance_sheet (p_project_code number, p_from_date date, p_to_date date); 
+PROCEDURE income_statement;
+procedure cash_sheet(p_org_id number,p_from_date date,p_to_date date); 
+procedure cash_sheet_two(p_org_id number,p_from_date date,p_to_date date);     
+procedure cash_sheet_11(p_org_id number,p_from_date date,p_to_date date);
+procedure cash_sheet_9(p_org_id number,p_from_date date,p_to_date date);
+PROCEDURE Voucher_report_11 (P_PROJECT_CODE NUMBER, P_VOUCHER VARCHAR2, P_FROM_DATE DATE, P_TO_DATE DATE, P_ORG_ID NUMBER);
+
+end "ACCOUNTS";
+/
+
+
+
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "ACCOUNTS" as
+ 
+FUNCTION GET_BALANCE(p_ACC_code number, p_from_date date, p_to_date date, p_org_id number) RETURN NUMBER 
+IS  
+    V_RETURN NUMBER := 0;
+ 
+BEGIN 
+    BEGIN 
+        select sum(NVL(dr_amount, 0)) - sum(NVL(cr_amount, 0)) 
+        into V_RETURN  
+        from ACC_BALANCE 
+        WHERE trans_code = p_ACC_code 
+        AND ORG_ID = p_org_id 
+        AND trunc(TRAN_DATE) BETWEEN P_FROM_DATE AND P_TO_DATE; 
+
+    	EXCEPTION WHEN NO_DATA_FOUND THEN 
+	V_RETURN := 0; 
+    END; 
+     
+    RETURN V_RETURN; 
+END;
+
+--***********************************
+ 
+FUNCTION GET_BALANCE_M(p_ACC_code number, p_from_date date, p_to_date date, p_org_id number) RETURN NUMBER 
+IS  
+    V_RETURN NUMBER := 0;
+ 
+BEGIN 
+    BEGIN 
+    select NVL(sum(dr_amount),0) - NVL(sum(cr_amount),0) 
+    INTO V_RETURN 
+    from ACC_BALANCE 
+    where trans_code in (select code from g_acc_codes where org_id = 7 and p_code = p_ACC_code) 
+    AND ORG_ID = p_org_id 
+    AND TRAN_DATE BETWEEN P_FROM_DATE AND P_TO_DATE;
+ 
+    EXCEPTION WHEN NO_DATA_FOUND THEN 
+    V_RETURN := 0; 
+    END;
+ 
+    RETURN V_RETURN; 
+END; 
+ 
+--************************************
+ 
+FUNCTION GET_PRO_BALANCE(p_ACC_code number, p_from_date date, p_to_date date, P_TYPE VARCHAR2) RETURN NUMBER 
+IS  
+    V_RETURN NUMBER := 0;
+ 
+BEGIN 
+    BEGIN 
+    select NVL(sum(damount),0) - NVL(sum(camount),0)  
+    into V_RETURN 
+    from tmp_tran_d D, TMP_TRAN_M M 
+    WHERE D.TRAN_ID = M.TRAN_ID 
+    AND trans_code = p_ACC_code 
+    AND TDATE BETWEEN P_FROM_DATE AND P_TO_DATE; 
+
+    EXCEPTION WHEN NO_DATA_FOUND THEN 
+    V_RETURN := 0; 
+    END;
+ 
+    RETURN V_RETURN; 
+END; 
+ 
+--***********************************
+
+FUNCTION GET_PRO_BALANCE_M(p_ACC_code number, p_from_date date, p_to_date date, P_TYPE VARCHAR2) RETURN NUMBER 
+IS  
+    V_RETURN NUMBER := 0;
+ 
+BEGIN 
+    BEGIN 
+    select NVL(sum(damount),0) - NVL(sum(camount),0) 
+    into V_RETURN 
+    from tmp_tran_d D, TMP_TRAN_M M 
+    where D.TRAN_ID = M.TRAN_ID 
+    AND TDATE BETWEEN P_FROM_DATE AND P_TO_DATE 
+    AND trans_code in (select code from g_acc_codes where org_id =7 and p_code = p_ACC_code);
+ 
+    EXCEPTION WHEN NO_DATA_FOUND THEN 
+    V_RETURN := 0; 
+    END;
+ 
+    RETURN V_RETURN; 
+END; 
+
+--************************************
+ 
+procedure  Chart_of_Accounts_Tree_View (P_PROJECT_CODE NUMBER, p_catagory number, p_org_id number) 
+	is 
+    	v_count number := 0; 
+
+	BEGIN 
+        for pro in (select CODE, CODE_DESC, OTHER_DESC 
+			from g_uni_codes  
+                        where p_code = p_org_id||'0001'  
+                        and code = nvl(P_PROJECT_CODE, code)  
+                        and org_id = p_org_id  
+                        order by code)
+ 
+        loop 
+        v_count := v_count + 1;
+ 
+            htp.p('<h3 style="margin-top: 0px; margin-bottom: 0px; text-align: left;">' ||v_count|| ' : : ' ||htf.escape_sc(pro.CODE_DESC)|| '</h3>'); 
+ 
+            for cat in (select CODE, CODE_DESC, b_code 
+                        from G_ACC_CODES 
+			WHERE P_CODE = 0 
+			AND P_CODE != -1 
+                        and org_id = p_org_id  
+                        and code = nvl(p_catagory, code) 
+                        order by 1) 
+						 
+            loop 
+            htp.p('<h5 style="margin-left: 40px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#9830; '||htf.escape_sc(cat.CODE_DESC)||'</h5>'); 
+                 
+                for l2 in (select CODE, CODE_DESC,b_code 
+			    from G_ACC_CODES 
+                            where 1 = 1 -- ACC_LEVEL = 2 
+                            and org_id = p_org_id 
+                            and p_code = cat.code 
+			    order by 1) 
+                loop 
+                htp.p('<h6 style="margin-left: 80px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x25C7; '||htf.escape_sc(nvl(l2.CODE_DESC,l2.CODE))||'</h6>'); 
+                 
+                    for l3 in (select CODE, CODE_DESC, b_code 
+				from G_ACC_CODES 
+                                where 1 = 1 -- ACC_LEVEL  = 3 
+                                and org_id = p_org_id  
+                                and p_code = l2.code 
+				order by 1) 
+                    loop 
+                    htp.p('<p style="margin-left: 120px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; '||htf.escape_sc(nvl(l3.CODE_DESC, l3.CODE))||'</p>'); 
+                         
+                        for l4 in (select CODE, CODE_DESC,b_code from G_ACC_CODES 
+                                    where 1=1 -- ACC_LEVEL  = 4 
+                                    and org_id = p_org_id  
+                                    and p_code = l3.code 
+				    order by 1) 
+                        loop 
+                        htp.p('<p style="margin-left: 140px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; '||htf.escape_sc(nvl(l4.CODE_DESC, l4.CODE))||'</p>'); 
+                         
+                            for l5 in (select CODE, CODE_DESC, b_code 
+					from G_ACC_CODES 
+                                        where 1 = 1 -- ACC_LEVEL  = 5 
+                                        and org_id = p_org_id  
+                                        and p_code = l4.code 
+					order by 1) 
+                            loop 
+                            htp.p('<p style="margin-left: 160px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; '||htf.escape_sc(nvl(l5.CODE_DESC,l5.CODE))||'</p>'); 
+                             
+                                for l6 in (select CODE, CODE_DESC, b_code 
+					    from G_ACC_CODES 
+                                            where 1=1 -- ACC_LEVEL  = 6 
+                                            and org_id = p_org_id  
+                                            and p_code = l5.code 
+					    order by 1) 
+                                loop 
+                                htp.p('<p style="margin-left: 180px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; '||htf.escape_sc(nvl(l6.CODE_DESC, l6.CODE))||'</p>'); 
+                                 
+                                    for l7 in (select CODE, CODE_DESC, b_code 
+						from G_ACC_CODES 
+                                                where 1 = 1 -- ACC_LEVEL  = 7 
+                                                and org_id = p_org_id 
+                                                and p_code = l6.code 
+						order by 1) 
+                                    loop 
+                                    htp.p('<p style="margin-left: 200px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; '||htf.escape_sc(nvl(l7.CODE_DESC, l7.CODE))||'</p>');
+ 
+                                        for l8 in (select CODE, CODE_DESC, b_code 
+						    from G_ACC_CODES 
+                                                    where 1 = 1 -- ACC_LEVEL  = 8 
+                                                    and org_id = p_org_id  
+                                                    and p_code = l7.code 
+						    order by 1) 
+                                        loop 
+                                        htp.p('<p style="margin-left: 220px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; '||htf.escape_sc(nvl(l8.CODE_DESC, l8.CODE))||'</p>'); 
+                                        end loop; 
+                                    end loop; 
+                                end loop; 
+                            end loop; 
+                        end loop; 
+                    end loop; 
+                end loop; 
+            end loop; 
+        end loop; 
+     end;  
+
+--**************************************
+ 
+procedure  COA_Tree_with_balance (P_PROJECT_CODE  NUMBER, p_catagory number, p_org_id number, p_from_date date, p_to_date date) 
+	is 
+    	v_count number := 0; 
+
+	BEGIN 
+        for pro in (select CODE, CODE_DESC, OTHER_DESC 
+			from g_uni_codes  
+                        where p_code = p_org_id||'0001'  
+                        and code = nvl(P_PROJECT_CODE, code)  
+                        and org_id = p_org_id  
+                        order by code) 
+        loop 
+        v_count := v_count + 1;
+ 
+            htp.p('<h3 style="margin-top: 0px; margin-bottom: 0px; text-align: left;">'||v_count|| ' : : '||htf.escape_sc(pro.CODE_DESC)||'</h3>'); 
+ 
+            for cat in (select CODE, CODE_DESC, b_code, abs(sum(nvl(dr_amount,0) - nvl(cr_amount,0))) bal 
+                        from G_ACC_CODES acc 
+			join ACC_BALANCE ab on acc.code = ab.trans_code and acc.org_id = ab.org_id 
+                        and trunc(ab.tran_date) between p_from_date and p_to_date 
+			WHERE P_CODE = 0 
+			AND P_CODE != -1 
+                        and acc.org_id = p_org_id  
+                        and ab.PROJECT_CODE = nvl(P_PROJECT_CODE,pro.code) 
+                        GROUP BY CODE, CODE_DESC,b_code 
+                        order by 1) 
+						 
+            loop 
+            htp.p('<h5 style="margin-left: 40px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#9830; ' 
+                ||htf.escape_sc(cat.CODE_DESC)||' ('||to_char(cat.bal, '99,99,99,99,990.00')||')</h5>'); 
+                 
+                for l2 in (select CODE, CODE_DESC,b_code ,abs(sum(nvl(dr_amount,0) - nvl(cr_amount,0))) bal 
+                            from G_ACC_CODES acc 
+			    join ACC_BALANCE ab on acc.code = ab.trans_code and acc.org_id = ab.org_id 
+                            and trunc(ab.tran_date) between p_from_date and p_to_date 
+                            where acc.org_id = p_org_id 
+                            and p_code = cat.code and ab.PROJECT_CODE = nvl(P_PROJECT_CODE, pro.code) 
+                            GROUP BY CODE, CODE_DESC, b_code 
+                            order by 1)
+ 
+                loop 
+                htp.p('<h6 style="margin-left: 80px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x25C7; ' 
+                    ||htf.escape_sc(nvl(l2.CODE_DESC, l2.CODE))||' ('||to_char(l2.bal,'99,99,99,99,990.00')||')</h6>'); 
+                 
+                    for l3 in (select CODE, CODE_DESC,b_code ,abs(sum(nvl(dr_amount,0)-nvl(cr_amount,0))) bal 
+                            from G_ACC_CODES acc join ACC_BALANCE ab  
+                            on acc.code = ab.trans_code and acc.org_id = ab.org_id 
+                            and trunc(ab.tran_date) between p_from_date and p_to_date 
+                            where acc.org_id = p_org_id 
+                                and p_code = l2.code and ab.PROJECT_CODE = nvl(P_PROJECT_CODE,pro.code) 
+                        GROUP BY CODE, CODE_DESC,b_code 
+                            order by 1) 
+
+                    loop 
+                    htp.p('<p style="margin-left: 120px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; ' 
+                        ||htf.escape_sc(nvl(l3.CODE_DESC,l3.CODE))||' ('||to_char(l3.bal,'99,99,99,99,990.00')||')</p>'); 
+                         
+                        for l4 in (select CODE, CODE_DESC,b_code ,abs(sum(nvl(dr_amount,0)-nvl(cr_amount,0))) bal --abs means absulate value
+                            from G_ACC_CODES acc join ACC_BALANCE ab  
+                            on acc.code = ab.trans_code and acc.org_id = ab.org_id 
+                            and trunc(ab.tran_date) between p_from_date and p_to_date 
+                            where acc.org_id = p_org_id 
+                                    and p_code = l3.code and ab.PROJECT_CODE = nvl(P_PROJECT_CODE,pro.code) 
+                        GROUP BY CODE, CODE_DESC,b_code 
+                            order by 1) 
+                        loop 
+                        htp.p('<p style="margin-left: 140px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; ' 
+                            ||htf.escape_sc(nvl(l4.CODE_DESC,l4.CODE))||' ('||to_char(l4.bal,'99,99,99,99,990.00')||')</p>'); 
+                         
+                            for l5 in (select CODE, CODE_DESC,b_code ,abs(sum(nvl(dr_amount,0)-nvl(cr_amount,0))) bal 
+                            from G_ACC_CODES acc join ACC_BALANCE ab  
+                            on acc.code = ab.trans_code and acc.org_id = ab.org_id 
+                            and trunc(ab.tran_date) between p_from_date and p_to_date 
+                            where acc.org_id = p_org_id 
+                                        and p_code = l4.code and ab.PROJECT_CODE = nvl(P_PROJECT_CODE,pro.code) 
+                        GROUP BY CODE, CODE_DESC,b_code 
+                            order by 1) 
+
+                            loop 
+                            htp.p('<p style="margin-left: 160px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; ' 
+                                ||htf.escape_sc(nvl(l5.CODE_DESC,l5.CODE))||' ('||to_char(l5.bal,'99,99,99,99,990.00')||')</p>'); 
+                             
+                                for l6 in (select CODE, CODE_DESC,b_code ,abs(sum(nvl(dr_amount,0)-nvl(cr_amount,0))) bal 
+                            from G_ACC_CODES acc join ACC_BALANCE ab  
+                            on acc.code = ab.trans_code and acc.org_id = ab.org_id 
+                            and trunc(ab.tran_date) between p_from_date and p_to_date 
+                            where acc.org_id = p_org_id 
+                                            and p_code = l5.code and ab.PROJECT_CODE = nvl(P_PROJECT_CODE,pro.code) 
+                        GROUP BY CODE, CODE_DESC,b_code 
+                            order by 1) 
+
+                                loop 
+                                htp.p('<p style="margin-left: 180px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; ' 
+                                    ||htf.escape_sc(nvl(l6.CODE_DESC,l6.CODE))||' ('||to_char(l6.bal,'99,99,99,99,990.00')||')</p>'); 
+                                 
+                                    for l7 in (select CODE, CODE_DESC,b_code ,abs(sum(nvl(dr_amount,0)-nvl(cr_amount,0))) bal 
+                            from G_ACC_CODES acc join ACC_BALANCE ab  
+                            on acc.code = ab.trans_code and acc.org_id = ab.org_id 
+                            and trunc(ab.tran_date) between p_from_date and p_to_date 
+                            where acc.org_id = p_org_id 
+                                                and p_code = l6.code and ab.PROJECT_CODE = nvl(P_PROJECT_CODE,pro.code) 
+                        GROUP BY CODE, CODE_DESC,b_code 
+                            order by 1)
+ 
+                                    loop 
+                                    htp.p('<p style="margin-left: 200px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; ' 
+                                        ||htf.escape_sc(nvl(l7.CODE_DESC,l7.CODE))||' ('||to_char(l7.bal,'99,99,99,99,990.00')||')</p>'); 
+
+                                        for l8 in (select CODE, CODE_DESC,b_code  ,abs(sum(nvl(dr_amount,0)-nvl(cr_amount,0))) bal 
+                            from G_ACC_CODES acc join ACC_BALANCE ab  
+                            on acc.code = ab.trans_code and acc.org_id = ab.org_id 
+                            and trunc(ab.tran_date) between p_from_date and p_to_date 
+                            where acc.org_id = p_org_id 
+                                                    and p_code = l7.code and ab.PROJECT_CODE = nvl(P_PROJECT_CODE,pro.code) 
+                        GROUP BY CODE, CODE_DESC,b_code 
+                            order by 1)
+ 
+                                        loop 
+                                        htp.p('<p style="margin-left: 220px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; ' 
+                                            ||htf.escape_sc(nvl(l8.CODE_DESC,l8.CODE))||' ('||to_char(l8.bal,'99,99,99,99,990.00')||')</p>'); 
+                                        end loop; 
+ 
+                                    end loop; 
+                                 
+                                end loop; 
+                            end loop; 
+                        end loop; 
+                    end loop; 
+                end loop; 
+            end loop; 
+        end loop; 
+	end;
+  
+--******************************
+
+    PROCEDURE Voucher_report (P_PROJECT_CODE NUMBER, P_VOUCHER VARCHAR2, P_FROM_DATE DATE, P_TO_DATE DATE, P_ORG_ID NUMBER) 
+    is 
+    V_COUNT   NUMBER := 0; 
+    V_T_ID    NUMBER := 0; 
+    v_dept    NUMBER := 0; 
+    v_crd     NUMBER := 0; 
+    v_dept_g  NUMBER := 0; 
+    v_crd_g   NUMBER := 0;
+ 
+	BEGIN 
+		report_utils.header_without_boarder(p_PROJECT_CODE, 'Voucher Report '); 
+       			 
+            htp.p('<table style="width:100%">');
+ 
+		FOR r in ( SELECT DISTINCT TDATE tr_date
+			FROM TMP_TRAN_M M 
+                        WHERE M.ORG_ID = P_ORG_ID 
+                        and m.delete_status != 1 
+                        and m.project_code = nvl(P_PROJECT_CODE, m.project_code) 
+                        and m.TTYPE = nvl(P_VOUCHER, m.TTYPE) 
+                        and m.TDATE between nvl(P_FROM_DATE, m.TDATE) and nvl(P_TO_DATE, sysdate) 
+			ORDER BY TDATE) 
+ 
+		LOOP 
+          		select count(M.TRAN_ID) 
+			      into V_COUNT 
+			      FROM TMP_TRAN_M M, TMP_TRAN_D D, G_ACC_CODES G 
+			      WHERE M.TRAN_ID = D.TRAN_ID 
+                              AND M.ORG_ID = P_ORG_ID 
+                              and m.delete_status != 1 
+                              and trunc(m.TDATE) = trunc(r.tr_date) 
+                              and m.TTYPE = nvl(P_VOUCHER, m.TTYPE) 
+                              and m.TDATE between nvl(P_FROM_DATE, m.TDATE) and nvl(P_TO_DATE, sysdate) 
+                              and m.project_code = nvl(P_PROJECT_CODE, m.project_code) 
+			      AND D.TRANS_CODE = G.CODE(+); 
+
+                    v_dept   := 0; 
+                    v_crd    := 0; 
+ 
+if V_COUNT > 0 then            
+		htp.p('<tr style="border-top: 1px solid white; border-left: 1px solid white; border-right: 1px solid white;"> 
+		<td colspan="5" style="text-align: LEFT; border-top: 1px solid white; border-left: 1px solid white; border-right: 1px solid white;"> 
+                <B> Date : </B>'||htf.escape_sc(r.tr_date)||'</td>             			 
+		</tr>'); 
+
+            htp.p('<tr> 
+            	<th style="width:20%"> Voucher No </th> 
+            	<th style="width:25%">Account Name </th>  
+            	<th style="width:25%">Narration</th> 
+                <th style="width:15%">Debit</th> 
+                <th style="width:15%">Credit</th>
+            	</tr>');
+ 
+END if; 
+ 
+            FOR i in ( 	SELECT 	M.TRAN_ID, 
+			SUBSTR(M.VOUCHER_NO,5) VOUCHER, 
+			M.TTYPE, 
+                        D.TD_DESC, 
+			G.CODE_DESC, 
+			D.TRANS_CODE, 
+			D.DAMOUNT, 
+			D.CAMOUNT 
+			FROM TMP_TRAN_M M, TMP_TRAN_D D, G_ACC_CODES G 
+			WHERE M.TRAN_ID = D.TRAN_ID 
+                        AND M.ORG_ID = P_ORG_ID 
+                        and m.delete_status != 1
+                        and m.project_code = nvl(P_PROJECT_CODE,m.project_code) 
+                        and trunc(m.TDATE) = trunc(r.tr_date) 
+                        and m.TTYPE = nvl(P_VOUCHER, m.TTYPE) 
+                        and m.TDATE between nvl(P_FROM_DATE,m.TDATE) and nvl(P_TO_DATE,sysdate) 
+			AND D.TRANS_CODE = G.CODE(+) 
+                        order by M.VOUCHER_NO, D.DAMOUNT, D.CAMOUNT)
+ 
+            LOOP 
+            v_dept :=v_dept + nvl(i.DAMOUNT,0); 
+            v_crd  := v_crd + nvl(i.CAMOUNT,0);  
+            v_dept_g :=v_dept_g + nvl(i.DAMOUNT,0); 
+            v_crd_g  := v_crd_g + nvl(i.CAMOUNT,0); 
+ 
+		htp.p('<tr> 
+		<td style="text-align: center"> '||htf.escape_sc(i.VOUCHER)||'</td> 
+		<td style="text-align: left;"> '||htf.escape_sc(i.CODE_DESC)||'</td> 
+                <td style="text-align: left;"> '||htf.escape_sc(i.TD_DESC)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(i.DAMOUNT)||'</td> 
+		<td style="text-align: CENTER;">'||htf.escape_sc(i.CAMOUNT)||'</td>               			 
+		</tr>'); 
+		 
+	    END LOOP;
+   
+if V_COUNT > 0 then 
+            	htp.p('<tr> 
+		<td  colspan="3" style="text-align: right"> <b>Total :</b> </td> 
+		<td style="text-align: center;"><b> '||htf.escape_sc(to_char(v_dept,'99,99,99,99,99,999'))||'</b></td>  
+                <td style="text-align: center"><b> '||htf.escape_sc(to_char(v_crd,'99,99,99,999'))||'</b></td> 
+                </tr>');         
+end if;     
+           
+		end loop;
+  
+                htp.p('<tr> 
+        	<td  colspan="3" style="text-align: right"> <b>Grand Total :</b> </td> 
+        	<td style="text-align: center;"><b> '||htf.escape_sc(to_char(v_dept_g,'99,99,99,99,99,99,999'))||'</b></td>  
+                <td style="text-align: center"><b> '||htf.escape_sc(to_char(v_crd_g,'99,99,99,99,99,99,999'))||'</b></td> 
+                </tr>');   
+                 
+                htp.p('</table>');
+ 
+		report_utils.footer; 
+	END;
+	 
+--********************************
+ 
+PROCEDURE customer_wise_report (P_PROJECT_CODE NUMBER, p_customer number, p_warehouse_id number, p_area_id number, p_from_date DATE, p_to_date DATE, p_org_id number) 
+    is 
+    V_COUNT NUMBER := 0; 
+    V_T_ID  NUMBER := 0; 
+    v_bil  NUMBER := 0; 
+    v_pay   NUMBER := 0; 
+    v_due   NUMBER := 0; 
+    v_party varchar2 (100) := '';
+ 
+	BEGIN 
+		report_utils.header_without_boarder(p_project_code, 'Customer Wise Report '); 
+       			 
+		FOR r in ( SELECT DISTINCT party_name 
+			FROM v_all_inv 
+                        WHERE  trans_type = 'SV' 
+                        and org_id=p_org_id 
+                        and party_code=nvl(p_customer, party_code) 
+                        and warehouse_id=nvl(p_warehouse_id,warehouse_id) 
+                        and area_id     =nvl(p_area_id,area_id) 
+                        and trans_date between P_FROM_DATE and P_TO_DATE)
+ 
+		LOOP 
+          		select count(trans_id)
+			into V_COUNT 
+			FROM  v_all_inv 
+                        WHERE party_name = r.party_name 
+                        and org_id = p_org_id 
+                        and party_code = nvl(p_customer, party_code) 
+                        and warehouse_id = nvl(p_warehouse_id, warehouse_id) 
+                        and area_id = nvl(p_area_id, area_id); 
+
+            if V_COUNT > 0 then 
+                        htp.p('<h5> <b> Customer : '||htf.escape_sc(r.party_name)||'</b> </h5>');
+ 
+                        htp.p('<table style="width:100%"><tr> 
+                        <th style="width:10%"> Invoice No</th> 
+                        <th style="width:5%">Bill</th>  
+                        <th style="width:5%">Payment</th> 
+                        <th style="width:5%">Due</th> 
+                        <th style="width:10%">Warehouse</th> 
+                        <th style="width:10%">Area</th>			 
+                        </tr>'); 
+
+            end if; 
+                    v_bil   := 0; 
+                    v_pay   := 0; 
+                    v_due   := 0;  
+ 
+            FOR i in (select TRANS_ID, 
+                        TRANS_TYPE, 
+			SUBSTR(invoice_no,5) invoice_no, 
+                        WAREHOUSE_NAME, 
+                        AREA_NAME, 
+                        TOATAL, 
+                        RECEIVE_AMOUNT, 
+                        (nvl(toatal,0)) - (nvl(RECEIVE_AMOUNT,0)) due_amount 
+                        from v_all_inv 
+                        where trans_type='SV' 
+                        and org_id=p_org_id 
+                        and party_code=nvl(p_customer,party_code) 
+                        and warehouse_id=nvl(p_warehouse_id,warehouse_id) 
+                        and area_id     =nvl(p_area_id,area_id)
+                        order by invoice_no)
+ 
+            	LOOP 
+                    v_bil   := v_bil+nvl(i.TOATAL,0); 
+                    v_pay    := v_pay+nvl(i.RECEIVE_AMOUNT,0); 
+                    v_due    := v_due+nvl(i.due_amount,0);  
+            
+				htp.p('<tr> 
+				<td style="text-align: center"> '||htf.escape_sc(i.invoice_no)||'</td> 
+				<td style="text-align: center;"> '||htf.escape_sc(i.TOATAL)||'</td> 
+                		<td style="text-align: center;"> '||htf.escape_sc(i.RECEIVE_AMOUNT)||'</td> 
+                		<td style="text-align: center">'||htf.escape_sc(i.due_amount)||'</td> 
+                		<td style="text-align: center">'||htf.escape_sc(i.WAREHOUSE_NAME)||'</td> 
+                		<td style="text-align: center">'||htf.escape_sc(i.AREA_NAME)||'</td>               			 
+				</tr>'); 
+		 
+	    	END LOOP;   
+             
+            			htp.p('<tr> 
+				<td style="text-align: right"> <b>Total</b> </td> 
+				<td style="text-align: center;"><b> '||htf.escape_sc(to_char(v_bil,'99,99,99,999'))||'</b></td>  
+                		<td style="text-align: center"><b> '||htf.escape_sc(to_char(v_pay,'99,99,99,999'))||'</b></td> 
+                		<td style="text-align: center"><b> '||htf.escape_sc(to_char(v_due,'99,99,99,999'))||'</b></td> 
+				<td  colspan="2";style="text-align: right"></td> 
+                		</tr>');   
+ 
+            htp.p('</table>'); 
+	end loop; 
+                 
+	report_utils.footer; 
+	END;
+	 
+--********************************
+ 
+PROCEDURE customer_wise_sum_report (P_PROJECT_CODE NUMBER, p_customer varchar2, p_warehouse_id number, p_area_id number, p_from_date DATE, p_to_date DATE ) 
+    is 
+    V_COUNT   NUMBER := 0; 
+    V_T_ID    NUMBER := 0; 
+    v_bil     NUMBER := 0; 
+    v_pay     NUMBER := 0; 
+    v_out     number := 0; 
+    v_due     NUMBER := 0; 
+    v_party   varchar2 (100) := ''; 
+    v_op      number := 0; 
+    v_op_t    number := 0; 
+    v_bil_g   NUMBER := 0; 
+    v_pay_g   NUMBER := 0; 
+    v_due_g   NUMBER := 0; 
+    v_op_g    number := 0;
+ 
+	BEGIN 
+		report_utils.header_without_boarder(p_project_code, 'Officer Wise Customer Outstanding'); 
+       			 
+		FOR r in (select distinct nvl(USER_NAME,'admin') USER_NAME, ENTRY_BY 
+			from v_all_inv 
+                        WHERE  trans_type = 'SV' 
+                        and org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                        and ENTRY_BY=nvl(p_customer,ENTRY_BY) 
+                        and TERRITORY_ID=nvl(p_warehouse_id,TERRITORY_ID) 
+                        and trans_date between nvl(P_FROM_DATE,trans_date) and nvl(P_TO_DATE,sysdate))
+ 
+		LOOP 
+          	select count(trans_id) 
+			into V_COUNT 
+			from v_all_inv 
+                        where trans_type='SV' 
+                        and org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                        and ENTRY_BY= r.ENTRY_BY 
+                        and TERRITORY_ID=nvl(p_warehouse_id, TERRITORY_ID) 
+                        and area_id = nvl(p_area_id, area_id) 
+                        and trans_date between nvl(P_FROM_DATE,trans_date) and nvl(P_TO_DATE,sysdate) 
+                        group by PARTY_CODE, PARTY_NAME, TERRITORY_NAME, PARTY_ADDRESS;
+ 
+            if V_COUNT > 0 then                        
+				htp.p('<table style="width:100%">
+				<tr> 
+                        	<th style="width:10%"> Customer<br> Code</th> 
+                        	<th style="width:10%"> Customer</th> 
+                        	<th style="width:10%"> Teritory</th> 
+                        	<th style="width:5%">Address</th>  
+                        	<th style="width:5%">Opening<br> Balance</th> 
+                                <th style="width:5%">Total Sales</th>		 
+                                <th style="width:5%">Received</th>		 
+                                <th style="width:5%">Outstanding</th>		 
+                        	</tr>'); 
+
+            end if; 
+                    v_bil    := 0; 
+                    v_pay    := 0; 
+                    v_due    := 0;  
+                    v_out    := 0; 
+                    v_op_t   := 0; 
+
+            FOR i in (select PARTY_CODE, PARTY_NAME, TERRITORY_NAME, PARTY_ADDRESS, 
+                        nvl(sum(TOATAL),0) TOATAL, 
+                        nvl(sum(RECEIVE_AMOUNT),0) RECEIVE_AMOUNT, 
+                        (nvl(sum(toatal),0))-(nvl(sum(RECEIVE_AMOUNT),0)) due_amount 
+                        from v_all_inv 
+                        where trans_type = 'SV' 
+                        and org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                        and ENTRY_BY = r.ENTRY_BY 
+                        and TERRITORY_ID = nvl(p_warehouse_id,TERRITORY_ID) 
+                        and area_id = nvl(p_area_id,area_id) 
+                        and trans_date between nvl(P_FROM_DATE,trans_date) and nvl(P_TO_DATE,sysdate) 
+                        group by PARTY_CODE, PARTY_NAME, TERRITORY_NAME, PARTY_ADDRESS)
+ 
+            LOOP 
+                    SELECT sum(NVL (TD.DAMOUNT, 0) - NVL (TD.CAMOUNT, 0)) BALANCE 
+		    into v_op 
+                    FROM TMP_TRAN_M TM, TMP_TRAN_D TD 
+                    WHERE TM.TRAN_ID = TD.TRAN_ID 
+                    and tm.ENTRY_BY= r.ENTRY_BY 
+                    AND TM.TDATE < P_FROM_DATE 
+                    AND TD.TRANS_CODE = i.PARTY_CODE; --7754
+ 
+                v_bil   := v_bil+nvl(i.TOATAL,0); 
+                v_pay    := v_pay+nvl(i.RECEIVE_AMOUNT,0); 
+                v_out   := nvl(v_op,0)+nvl(i.TOATAL,0)-nvl(i.RECEIVE_AMOUNT,0); 
+                v_due    := v_due+nvl(v_out,0); 
+                v_op_t  := nvl(v_op_t,0)+nvl(v_op,0); 
+                v_bil_g  := nvl(v_bil_g,0)+nvl(v_bil,0); 
+                v_pay_g  := nvl(v_pay_g,0)+nvl(v_pay,0); 
+                v_due_g  := nvl(v_due_g,0)+nvl(v_due,0); 
+                v_op_g   := nvl(v_op_g,0)+nvl(v_op_t,0); 
+
+            if V_COUNT > 0 then            
+                htp.p('<tr><td colspan="8" style="text-align: left"> '||htf.escape_sc(r.USER_NAME)||'</td></tr>'); 
+            end if;
+ 
+		htp.p('<tr><td style="text-align: center"> '||htf.escape_sc(i.PARTY_CODE)||'</td> 
+		<td style="text-align: center"> '||htf.escape_sc(i.PARTY_NAME)||'</td> 
+		<td style="text-align: center;"> '||htf.escape_sc(i.TERRITORY_NAME)||'</td> 
+                <td style="text-align: center;"> '||htf.escape_sc(i.PARTY_ADDRESS)||'</td>   
+                <td style="text-align: center">'||htf.escape_sc(nvl(v_op,0))||'</td>   
+                <td style="text-align: center">'||htf.escape_sc(i.TOATAL)||'</td>   
+                <td style="text-align: center">'||htf.escape_sc(i.RECEIVE_AMOUNT)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(v_out)||'</td>             			 
+		</tr>'); 
+		 
+		END LOOP;   
+             
+            htp.p('<tr> 
+		<td  colspan="4" style="text-align: right"> <b>Total :</b> </td> 
+		<td style="text-align: center;"><b> '||htf.escape_sc(to_char(v_op_t,'99,99,999'))||'</b></td>  
+		<td style="text-align: center;"><b> '||htf.escape_sc(to_char(v_bil,'99,99,999'))||'</b></td>  
+                <td style="text-align: center"><b> '||htf.escape_sc(to_char(v_pay,'99,99,999'))||'</b></td> 
+                <td style="text-align: center"><b> '||htf.escape_sc(to_char(v_due,'99,99,999'))||'</b></td> 
+                </tr>');   
+                 
+		end loop; 
+            htp.p('<tr> 
+		<td  colspan="4" style="text-align: right"> <b>Grand Total :</b> </td> 
+		<td style="text-align: center;"><b> '||htf.escape_sc(to_char(v_op_g,'99,99,999'))||'</b></td>  
+		<td style="text-align: center;"><b> '||htf.escape_sc(to_char(v_bil_g,'99,99,999'))||'</b></td>  
+                <td style="text-align: center"><b> '||htf.escape_sc(to_char(v_pay_g,'99,99,999'))||'</b></td> 
+                <td style="text-align: center"><b> '||htf.escape_sc(to_char(v_due_g,'99,99,999'))||'</b></td> 
+                </tr>');   
+                 
+            htp.p('</table>'); 
+                 
+		report_utils.footer; 
+	END; 
+
+--*******************************
+ 
+    PROCEDURE balance_sheet (p_project_code number,p_from_date date,p_to_date date) 
+    is 
+    V_COUNT NUMBER := 0; 
+    V_T_ID  NUMBER := 0; 
+    v_dept  NUMBER := 0; 
+    v_crd   NUMBER := 0; 
+    v_dept_g  NUMBER := 0; 
+    v_crd_g   NUMBER := 0;
+ 
+	BEGIN 
+	report_utils.header_without_logo(p_PROJECT_CODE, 'Balance Sheet'); 
+        htp.p('<h4 style="margin-top: 5px; text-align: center">'||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+        htp.p(' <hr width="100%" size="1" color="black" noshade>'); 
+        htp.p(' <hr width="100%" size="1" color="black" noshade>'); 
+       	htp.p('<h3 style=""><u>Sources of Funds:</u></h3>')	; 
+        htp.p('<h3 style="margin-top:15px">Shareholders Equity</h3>');
+	END; 
+
+--*******************************
+ 
+    PROCEDURE income_statement 
+    is 
+    begin 
+        null; 
+    end; 
+
+--******************************* 
+ 
+    procedure cash_sheet(p_org_id number,p_from_date date,p_to_date date) 
+    is 
+        v_opening number := 0; 
+        v_closing number := 0; 
+        v_receipt number := 0; 
+        v_payment number := 0; 
+    BEGIN 
+		report_utils.header_without_boarder(NULL ,'Cash Sheet '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' To '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+		htp.p('<table style="width:100%;"><tr> 
+		<th >Receipt</th> 
+        <th style="width: 112px;">Amount</th> 
+        <th >Payment</th> 
+        <th style="width: 112px;">Amount</th>         
+		</tr>'); 
+         
+        select sum(nvl(d.damount,0)-nvl(d.camount,0)) 
+        into v_opening 
+    	from tmp_tran_d D, TMP_TRAN_M M 
+    	WHERE D.TRAN_ID = M.TRAN_ID 
+        and m.delete_status != 1 
+        and d.org_id = p_org_id 
+        and d.trans_code in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+    	--and d.TRANS_CODE = 7006479 --hard coded, needs to query for dynamically handle... 
+        AND m.TDATE < p_from_date; 
+ 
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Opening Balance:</b> </td> 
+            <td style="width:; 104px;text-align:right;"><b>'||to_char(v_opening,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"></td> 
+            <td style="text-align:right;"></td>             
+            </tr><tr><td style="width: 25px; vertical-align:top" colspan="2">');   
+ 
+        -- for the receipt 
+        htp.p('<table style="border:none;width:100%;"> 
+                <tr style="border:none;"> 
+                <th style="border:none;text-align:left;"></th> 
+                <th style="border:none;width:110px;"></th>             
+                </tr>'); 
+        v_receipt := 0; 
+        for r in (	select sum(nvl(d.camount,0)) cr, g.CODE_DESC account_name 
+                    from tmp_tran_d D, TMP_TRAN_M M, g_acc_codes g 
+                    WHERE D.TRAN_ID = M.TRAN_ID 
+                    and m.delete_status != 1 
+                    and g.code = d.TRANS_CODE 
+                    and d.org_id = p_org_id 
+                    and d.trans_code not in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+                    --and d.TRANS_CODE != 7006479 --hard coded, needs to query for dynamically handle... 
+                    and M.TRAN_ID in (select distinct M2.TRAN_ID  
+                                        from tmp_tran_d D2,TMP_TRAN_M M2  
+                                        where D2.TRAN_ID = M2.TRAN_ID and  m2.TDATE between p_from_date and p_to_date
+                                        and m2.delete_status != 1  
+                                        and d2.org_id = p_org_id 
+                                        and d2.trans_code in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+                                         --and d2.TRANS_CODE = 7006479 --hard coded, needs to query for dynamically handle... 
+                                        ) 
+                    group by g.CODE_DESC 
+                    having sum(nvl(d.camount,0)) > 0                                                   
+                ) 
+        loop 
+              v_receipt := v_receipt+r.cr;         	 
+              HTP.p ('<tr> 
+                <td style="text-align:left;">'||r.account_name||'</td> 
+                <td style="text-align:right;">'||to_char(r.cr,'99,99,99,999')||'</td>             
+                </tr>');   
+	    end loop; 
+        htp.p('</table></td><td style="width: 25px; vertical-align:top" colspan="2">'); 
+ 
+        -- for the payment 
+        htp.p('<table style="border:none;width:100%;"> 
+                <tr style="border:none;"> 
+                <th style="border:none;text-align:left;"></th> 
+                <th style="border:none;width: 110px;"></th>             
+                </tr>'); 
+        v_payment := 0; 
+        for p in (	select sum(nvl(d.damount,0)) dr, g.CODE_DESC account_name 
+                    from tmp_tran_d D, TMP_TRAN_M M, g_acc_codes g 
+                    WHERE D.TRAN_ID = M.TRAN_ID 
+                    and g.code = d.TRANS_CODE
+                    and m.delete_status != 1  
+                    and d.org_id = p_org_id 
+                    and d.trans_code not in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+                    --and d.TRANS_CODE != 7006479 --hard coded, needs to query for dynamically handle... 
+                    and M.TRAN_ID in (select distinct M2.TRAN_ID  
+                                        from tmp_tran_d D2,TMP_TRAN_M M2  
+                                        where D2.TRAN_ID = M2.TRAN_ID and  m2.TDATE between p_from_date and p_to_date 
+                                         and m2.delete_status != 1 
+                                        and d2.org_id = p_org_id 
+                                        and d2.trans_code in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+                                         --and d2.TRANS_CODE = 7006479 --hard coded, needs to query for dynamically handle... 
+                                        ) 
+                    group by g.CODE_DESC 
+                    having sum(nvl(d.damount,0)) > 0                                                   
+                ) 
+        loop 
+              v_payment := v_payment+p.dr;         	 
+              HTP.p ('<tr> 
+                <td style="text-align:left;">'||p.account_name||'</td> 
+                <td style="text-align:right;">'||to_char(p.dr,'99,99,99,999')||'</td>             
+                </tr>');   
+	    end loop; 
+        htp.p('</table></td>'); 
+ 
+        v_closing := v_opening + v_receipt - v_payment; 
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Total Receipt:</b> </td> 
+            <td style="text-align:right;"><b>'||to_char(v_receipt,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"><b>Total Payment:</b></td>      
+            <td style="text-align:right;"><b>'||to_char(v_payment,'99,99,99,999')||'</b></td>             
+            </tr>');  
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Closing Balance:</b> </td> 
+            <td style="text-align:right;"><b>'||to_char(v_closing,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"></td>      
+            <td style="text-align:right;"></td>             
+            </tr>');         
+		htp.p('</table>'); 
+ 
+		report_utils.footer; 
+	END;
+ 
+--**********************************  
+ 
+    procedure cash_sheet_two(p_org_id number,p_from_date date,p_to_date date) 
+    is 
+        v_opening number := 0; 
+        v_closing number := 0; 
+        v_receipt number := 0; 
+        v_payment number := 0; 
+        v_office_cash number := 0;
+    BEGIN 
+		report_utils.header_without_boarder(NULL ,'Cash Sheet With Bank'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' To '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+		htp.p('<table style="width:100%;"><tr> 
+		<th >Receipt</th> 
+        <th style="width: 112px;">Amount</th> 
+        <th >Payment</th> 
+        <th style="width: 112px;">Amount</th>         
+		</tr>'); 
+         -- no need opening...
+        select sum(nvl(d.damount,0)-nvl(d.camount,0)) 
+        into v_opening 
+    	from tmp_tran_d D, TMP_TRAN_M M 
+    	WHERE D.TRAN_ID = M.TRAN_ID 
+        -- and ttype in ('BR','CR','CN')
+        and m.delete_status != 1 
+        and d.org_id = p_org_id 
+        and d.trans_code in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+    	--and d.TRANS_CODE = 7006479 --hard coded, needs to query for dynamically handle... 
+        AND m.TDATE < p_from_date; 
+ 
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Opening Balance:</b> </td> 
+            <td style="width:; 104px;text-align:right;"><b>'||to_char(v_opening,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"></td> 
+            <td style="text-align:right;"></td>             
+            </tr>');
+            HTP.p ('<tr><td style="width: 25px; vertical-align:top" colspan="2">');   
+ 
+        -- for the receipt 
+        htp.p('<table style="border:none;width:100%;"> 
+                <tr style="border:none;"> 
+                <th style="border:none;text-align:left;width:60px;"></th>
+                <th style="border:none;text-align:left;"></th> 
+                <th style="border:none;width:110px;"></th>             
+                </tr>'); 
+        v_receipt := 0; 
+        for r in (	select  substr(m.voucher_no,5) voucher_no,sum(nvl(d.camount,0)+nvl(d.damount,0)) amt, g.CODE_DESC account_name 
+                    from tmp_tran_d D, TMP_TRAN_M M, g_acc_codes g 
+                    where ttype in ('BR','CR','CN') and D.TRAN_ID = M.TRAN_ID  
+                    and  m.TDATE between p_from_date and p_to_date 
+                    and g.code = d.TRANS_CODE
+                    and m.delete_status != 1  
+                    -- and g.code = 11001134
+                    and exists (select 1 from TMP_TRAN_M M2 join tmp_tran_d d2 on D2.TRAN_ID = M2.TRAN_ID 
+                    where substr(m.voucher_no,5) = substr(m2.voucher_no,5) and d2.TRANS_CODE = 11001134 --hard coded for the Cash In Hand
+                     )
+                    and d.org_id = p_org_id                    
+                    group by g.CODE_DESC ,m.voucher_no
+                    having sum(nvl(d.camount,0)) > 0 
+                    order by g.CODE_DESC                                                   
+                ) 
+        loop 
+              v_receipt := v_receipt+r.amt;         	 
+              HTP.p ('<tr> 
+                <td style="text-align:left;">'||r.voucher_no||'</td>
+                <td style="text-align:left;">'||r.account_name||'</td> 
+                <td style="text-align:right;">'||to_char(r.amt,'99,99,99,999')||'</td>             
+                </tr>');   
+	    end loop; 
+        htp.p('</table></td><td style="width: 25px; vertical-align:top" colspan="2">'); 
+ 
+        -- for the payment 
+        htp.p('<table style="border:none;width:100%;"> 
+                <tr style="border:none;"> 
+                <th style="border:none;text-align:left;width:60px;"></th>
+                <th style="border:none;text-align:left;"></th> 
+                <th style="border:none;width: 110px;"></th>             
+                </tr>'); 
+        v_payment := 0; 
+        for p in (	select  substr(m.voucher_no,5) voucher_no,sum(nvl(d.camount,0)+nvl(d.damount,0)) amt, g.CODE_DESC account_name 
+                    from tmp_tran_d D, TMP_TRAN_M M, g_acc_codes g 
+                    where ttype in ('BP','CP','BR') and D.TRAN_ID = M.TRAN_ID 
+                    and  m.TDATE between p_from_date and p_to_date  
+                    and g.code = d.TRANS_CODE
+                    and m.delete_status != 1  
+                --    and g.code = 11001134
+                    and exists (select 1 from TMP_TRAN_M M2 join tmp_tran_d d2 on D2.TRAN_ID = M2.TRAN_ID 
+                    where substr(m.voucher_no,5) = substr(m2.voucher_no,5) and d2.TRANS_CODE = 11001134 --hard coded for the Cash In Hand
+                     )
+                    and d.org_id = p_org_id                    
+                    group by g.CODE_DESC ,m.voucher_no
+                    having sum(nvl(d.damount,0)) > 0   
+                    order by g.CODE_DESC                                                 
+                ) 
+        loop 
+              v_payment := v_payment+p.amt;         	 
+              HTP.p ('<tr> 
+                <td style="text-align:left;">'||p.voucher_no||'</td>
+                <td style="text-align:left;">'||p.account_name||'</td> 
+                <td style="text-align:right;">'||to_char(p.amt,'99,99,99,999')||'</td>             
+                </tr>');   
+	    end loop; 
+        htp.p('</table></td>'); 
+ 
+        v_closing := v_opening + v_receipt - v_payment; 
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Total Receipt:</b> </td> 
+            <td style="text-align:right;"><b>'||to_char(v_receipt,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"><b>Total Payment:</b></td>      
+            <td style="text-align:right;"><b>'||to_char(v_payment,'99,99,99,999')||'</b></td>             
+            </tr>'); 
+        v_office_cash :=  v_receipt - v_payment;
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Office Cash:</b> </td> 
+            <td style="text-align:right;"><b>'||to_char(v_office_cash,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"></td>      
+            <td style="text-align:right;"></td>             
+            </tr>');  
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Closing Balance:</b> </td> 
+            <td style="text-align:right;"><b>'||to_char(v_closing,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"></td>      
+            <td style="text-align:right;"></td>             
+            </tr>');         
+		htp.p('</table>'); 
+ 
+		report_utils.footer; 
+	END;
+
+--********************************
+  
+    procedure cash_sheet_11(p_org_id number,p_from_date date,p_to_date date) 
+    is 
+        v_opening number := 0; 
+        v_closing number := 0; 
+        v_receipt number := 0; 
+        v_payment number := 0; 
+    BEGIN 
+		report_utils.header_without_boarder(NULL ,'Cash Sheet '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' To '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+		htp.p('<table style="width:100%;"><tr> 
+		<th >Receipt</th> 
+        <th style="width: 112px;">Amount</th> 
+        <th >Payment</th> 
+        <th style="width: 112px;">Amount</th>         
+		</tr>'); 
+         
+        select sum(nvl(d.damount,0)-nvl(d.camount,0)) 
+        into v_opening 
+    	from tmp_tran_d D, TMP_TRAN_M M 
+    	WHERE D.TRAN_ID = M.TRAN_ID 
+        and m.delete_status != 1 
+        and d.org_id = p_org_id 
+        and d.trans_code in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+    	--and d.TRANS_CODE = 7006479 --hard coded, needs to query for dynamically handle... 
+        AND m.TDATE < p_from_date; 
+ 
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Opening Balance:</b> </td> 
+            <td style="width:; 104px;text-align:right;"><b>'||to_char(v_opening,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"></td> 
+            <td style="text-align:right;"></td>             
+            </tr><tr><td style="width: 25px; vertical-align:top" colspan="2">');   
+ 
+        -- for the receipt 
+        htp.p('<table style="border:none;width:100%;"> 
+                <tr style="border:none;"> 
+                <th style="border:none;text-align:left;width:60px;"></th>
+                <th style="border:none;text-align:left;"></th> 
+                <th style="border:none;width:110px;"></th>             
+                </tr>'); 
+        v_receipt := 0; 
+        for r in (	select substr(m.voucher_no,5) voucher_no,sum(nvl(d.camount,0)) cr, g.CODE_DESC account_name 
+                    from tmp_tran_d D, TMP_TRAN_M M, g_acc_codes g 
+                    WHERE D.TRAN_ID = M.TRAN_ID 
+                    and m.delete_status != 1 
+                    and g.code = d.TRANS_CODE 
+                    and d.org_id = p_org_id 
+                    and d.trans_code not in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+                    --and d.TRANS_CODE != 7006479 --hard coded, needs to query for dynamically handle... 
+                    and M.TRAN_ID in (select distinct M2.TRAN_ID  
+                                        from tmp_tran_d D2,TMP_TRAN_M M2  
+                                        where D2.TRAN_ID = M2.TRAN_ID and  m2.TDATE between p_from_date and p_to_date
+                                        and m2.delete_status != 1  
+                                        and d2.org_id = p_org_id 
+                                        and d2.trans_code in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+                                         --and d2.TRANS_CODE = 7006479 --hard coded, needs to query for dynamically handle... 
+                                        ) 
+                    group by g.CODE_DESC ,m.voucher_no
+                    having sum(nvl(d.camount,0)) > 0                                                   
+                ) 
+        loop 
+              v_receipt := v_receipt+r.cr;         	 
+              HTP.p ('<tr> 
+                <td style="text-align:left;">'||r.voucher_no||'</td>
+                <td style="text-align:left;">'||r.account_name||'</td> 
+                <td style="text-align:right;">'||to_char(r.cr,'99,99,99,999')||'</td>             
+                </tr>');    
+	    end loop; 
+        htp.p('</table></td><td style="width: 25px; vertical-align:top" colspan="2">'); 
+ 
+        -- for the payment 
+        htp.p('<table style="border:none;width:100%;"> 
+                <tr style="border:none;"> 
+                <th style="border:none;text-align:left;width:60px;"></th>
+                <th style="border:none;text-align:left;"></th> 
+                <th style="border:none;width: 110px;"></th>             
+                </tr>');  
+        v_payment := 0; 
+        for p in (	select substr(m.voucher_no,5) voucher_no,sum(nvl(d.damount,0)) dr, g.CODE_DESC account_name 
+                    from tmp_tran_d D, TMP_TRAN_M M, g_acc_codes g 
+                    WHERE D.TRAN_ID = M.TRAN_ID 
+                    and g.code = d.TRANS_CODE
+                    and m.delete_status != 1  
+                    and d.org_id = p_org_id 
+                    and d.trans_code not in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+                    --and d.TRANS_CODE != 7006479 --hard coded, needs to query for dynamically handle... 
+                    and M.TRAN_ID in (select distinct M2.TRAN_ID  
+                                        from tmp_tran_d D2,TMP_TRAN_M M2  
+                                        where D2.TRAN_ID = M2.TRAN_ID and  m2.TDATE between p_from_date and p_to_date 
+                                         and m2.delete_status != 1 
+                                        and d2.org_id = p_org_id 
+                                        and d2.trans_code in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+                                         --and d2.TRANS_CODE = 7006479 --hard coded, needs to query for dynamically handle... 
+                                        ) 
+                    group by g.CODE_DESC ,m.voucher_no
+                    having sum(nvl(d.damount,0)) > 0                                                   
+                ) 
+        loop 
+              v_payment := v_payment+p.dr;         	 
+              HTP.p ('<tr> 
+                <td style="text-align:left;">'||p.voucher_no||'</td>
+                <td style="text-align:left;">'||p.account_name||'</td> 
+                <td style="text-align:right;">'||to_char(p.dr,'99,99,99,999')||'</td>             
+                </tr>');   
+	    end loop; 
+        htp.p('</table></td>'); 
+ 
+        v_closing := v_opening + v_receipt - v_payment; 
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Total Receipt:</b> </td> 
+            <td style="text-align:right;"><b>'||to_char(v_receipt,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"><b>Total Payment:</b></td>      
+            <td style="text-align:right;"><b>'||to_char(v_payment,'99,99,99,999')||'</b></td>             
+            </tr>');  
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Closing Balance:</b> </td> 
+            <td style="text-align:right;"><b>'||to_char(v_closing,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"></td>      
+            <td style="text-align:right;"></td>             
+            </tr>');         
+		htp.p('</table>'); 
+ 
+		report_utils.footer; 
+	END;
+
+--************************************
+ 
+    procedure cash_sheet_9(p_org_id number,p_from_date date,p_to_date date) 
+    is 
+        v_opening number := 0; 
+        v_closing number := 0; 
+        v_receipt number := 0; 
+        v_payment number := 0; 
+        v_trans_code    number; 
+    BEGIN 
+		report_utils.header_without_boarder(NULL ,'Cash Sheet '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' To '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+		htp.p('<table style="width:100%;"><tr> 
+		<th >Receipt</th> 
+        <th style="width: 112px;">Amount</th> 
+        <th >Payment</th> 
+        <th style="width: 112px;">Amount</th>         
+		</tr>'); 
+         
+        select sum(nvl(d.damount,0)-nvl(d.camount,0)) 
+        into v_opening 
+    	from tmp_tran_d D, TMP_TRAN_M M 
+    	WHERE D.TRAN_ID = M.TRAN_ID 
+        and d.org_id = p_org_id 
+        and d.trans_code in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+    	--and d.TRANS_CODE = 7006479 --hard coded, needs to query for dynamically handle... 
+        AND m.TDATE < p_from_date; 
+ 
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Opening Balance:</b> </td> 
+            <td style="width:; 104px;text-align:right;"><b>'||to_char(v_opening,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"></td> 
+            <td style="text-align:right;"></td>             
+            </tr><tr><td style="width: 25px; vertical-align:top" colspan="2">');   
+ 
+        -- for the receipt 
+        htp.p('<table style="border:none;width:100%;"> 
+                <tr style="border:none;"> 
+                <th style="border:none;text-align:left;"></th> 
+                <th style="border:none;text-align:left;"></th> 
+                <th style="border:none;width:110px;"></th>             
+                </tr>'); 
+        v_receipt := 0; 
+        v_trans_code    :=0; 
+        for r in (	select g.CODE_DESC account_name, D.TD_DESC, d.camount cr, m.ttype, G.B_CODE, d.TRANS_CODE 
+                    from tmp_tran_d D, TMP_TRAN_M M, g_acc_codes g 
+                    WHERE D.TRAN_ID = M.TRAN_ID 
+                    and g.code = d.TRANS_CODE 
+                    and d.org_id = 9 
+                    and m.ttype in ('CR','BR')   
+                    and b_code not in (9005)     
+                    order by d.trans_code                                           
+                ) 
+        loop 
+              v_receipt := v_receipt+r.cr;     
+              if r.TRANS_CODE != v_trans_code then 
+              HTP.p ('<tr> 
+                <td style="text-align:left;">'||r.TRANS_CODE||'</td> 
+                <td style="text-align:left;">'||r.account_name||'</td> 
+                <td style="text-align:right;">'||to_char(r.cr,'99,99,99,999')||'</td>             
+                </tr>');   
+              end if; 
+                v_trans_code    := r.TRANS_CODE;   	 
+              HTP.p ('<tr> 
+                <td style="text-align:left;">'||r.TD_DESC||'</td> 
+                <td style="text-align:right;">'||to_char(r.cr,'99,99,99,999')||'</td>             
+                </tr>');   
+	    end loop; 
+        htp.p('</table></td><td style="width: 25px; vertical-align:top" colspan="2">'); 
+ 
+        -- for the payment 
+        htp.p('<table style="border:none;width:100%;"> 
+                <tr style="border:none;"> 
+                <th style="border:none;text-align:left;"></th> 
+                <th style="border:none;width: 110px;"></th>             
+                </tr>'); 
+        v_payment := 0; 
+        for p in (	select sum(nvl(d.damount,0)) dr, g.CODE_DESC account_name 
+                    from tmp_tran_d D, TMP_TRAN_M M, g_acc_codes g 
+                    WHERE D.TRAN_ID = M.TRAN_ID 
+                    and g.code = d.TRANS_CODE 
+                    and d.org_id = p_org_id 
+                    and d.trans_code not in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+                    --and d.TRANS_CODE != 7006479 --hard coded, needs to query for dynamically handle... 
+                    and M.TRAN_ID in (select distinct M2.TRAN_ID  
+                                        from tmp_tran_d D2,TMP_TRAN_M M2  
+                                        where D2.TRAN_ID = M2.TRAN_ID and  m2.TDATE between p_from_date and p_to_date 
+                                        and d2.org_id = p_org_id 
+                                        and d2.trans_code in (select code from g_acc_codes where b_code = p_org_id||'005' and org_id = p_org_id) 
+                                         --and d2.TRANS_CODE = 7006479 --hard coded, needs to query for dynamically handle... 
+                                        ) 
+                    group by g.CODE_DESC 
+                    having sum(nvl(d.damount,0)) > 0                                                   
+                ) 
+        loop 
+              v_payment := v_payment+p.dr;         	 
+              HTP.p ('<tr> 
+                <td style="text-align:left;">'||p.account_name||'</td> 
+                <td style="text-align:right;">'||to_char(p.dr,'99,99,99,999')||'</td>             
+                </tr>');   
+	    end loop; 
+        htp.p('</table></td>'); 
+ 
+        v_closing := v_opening + v_receipt - v_payment; 
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Total Receipt:</b> </td> 
+            <td style="text-align:right;"><b>'||to_char(v_receipt,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"><b>Total Payment:</b></td>      
+            <td style="text-align:right;"><b>'||to_char(v_payment,'99,99,99,999')||'</b></td>             
+            </tr>');  
+        HTP.p ('<tr> 
+            <td style="text-align:right;"><b>Closing Balance:</b> </td> 
+            <td style="text-align:right;"><b>'||to_char(v_closing,'99,99,99,999')||'</b></td> 
+            <td style="text-align:right;"></td>      
+            <td style="text-align:right;"></td>             
+            </tr>');         
+		htp.p('</table>'); 
+ 
+		--report_utils.footer; 
+	END;
+ 
+--***********************************
+
+    PROCEDURE Voucher_report_11 (P_PROJECT_CODE NUMBER, P_VOUCHER VARCHAR2, P_FROM_DATE DATE, P_TO_DATE DATE, P_ORG_ID NUMBER) 
+    is 
+    V_COUNT NUMBER := 0; 
+    V_T_ID  NUMBER := 0; 
+    v_dept  NUMBER := 0; 
+    v_crd   NUMBER := 0; 
+    v_dept_g  NUMBER := 0; 
+    v_crd_g   NUMBER := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_PROJECT_CODE, 'Voucher Report '); 
+       			 
+            htp.p('<table style="width:100%">'); 
+		FOR r in ( SELECT DISTINCT TDATE tr_date --, M.PROJECT_CODE 
+						FROM TMP_TRAN_M M 
+                        WHERE M.ORG_ID = P_ORG_ID 
+                        -- AND  M.PROJECT_CODE = P_PROJECT_CODE 
+                        and m.delete_status != 1 
+                        and m.project_code = nvl(P_PROJECT_CODE,m.project_code) 
+                        and m.TTYPE = nvl(P_VOUCHER, m.TTYPE) 
+                        and m.TDATE between nvl(P_FROM_DATE,m.TDATE) and nvl(P_TO_DATE,sysdate) 
+						ORDER BY TDATE) 
+ 
+		LOOP 
+          select count(M.TRAN_ID) into V_COUNT 
+						  FROM TMP_TRAN_M M 
+                            , TMP_TRAN_D D 
+                            , G_ACC_CODES G 
+						  WHERE M.TRAN_ID = D.TRAN_ID 
+                          AND M.ORG_ID = P_ORG_ID 
+                        and m.delete_status != 1 
+                        -- and m.project_code = P_PROJECT_CODE 
+                          and trunc(m.TDATE) = trunc(r.tr_date) 
+                          and m.TTYPE = nvl(P_VOUCHER, m.TTYPE) 
+                        and m.TDATE between nvl(P_FROM_DATE,m.TDATE) and nvl(P_TO_DATE,sysdate) 
+                        and m.project_code = nvl(P_PROJECT_CODE,m.project_code) 
+						  AND D.TRANS_CODE = G.CODE(+); 
+                    v_dept   := 0; 
+                    v_crd    := 0;  
+if V_COUNT > 0 then            
+				htp.p('<tr style="border-top: 1px solid white; border-left: 1px solid white; border-right: 1px solid white;"> 
+				<td colspan="5" style="text-align: LEFT; border-top: 1px solid white; border-left: 1px solid white; border-right: 1px solid white;"> 
+                    <B> Date : </B>'||htf.escape_sc(r.tr_date)||'</td>             			 
+				</tr>'); 
+            htp.p('<tr> 
+            		<th style="width:20%"> Voucher No	</th> 
+            		<th style="width:25%">Account Name </th>  
+            		<th style="width:15%">Job Name</th>  
+            		<th style="width:25%">Narration</th> 
+                    <th style="width:15%">Debit</th> 
+                    <th style="width:15%">Credit</th>			 
+            		</tr>'); 
+END if; 
+ 
+            FOR i in ( 	SELECT 	M.TRAN_ID, 
+								SUBSTR(M.VOUCHER_NO,5) VOUCHER, 
+								M.TTYPE, 
+                                D.TD_DESC, 
+								G.CODE_DESC, 
+								D.TRANS_CODE, 
+								D.DAMOUNT, 
+								D.CAMOUNT,
+                                (select code_desc from g_uni_codes where code = d.job_id) job_name 
+						  FROM TMP_TRAN_M M 
+                            , TMP_TRAN_D D 
+                            , G_ACC_CODES G 
+						  WHERE M.TRAN_ID = D.TRAN_ID 
+                          AND M.ORG_ID = P_ORG_ID 
+                        and m.delete_status != 1 
+                        -- and m.project_code = P_PROJECT_CODE 
+                        and m.project_code = nvl(P_PROJECT_CODE,m.project_code) 
+                          and trunc(m.TDATE) = trunc(r.tr_date) 
+                          and m.TTYPE = nvl(P_VOUCHER, m.TTYPE) 
+                        and m.TDATE between nvl(P_FROM_DATE,m.TDATE) and nvl(P_TO_DATE,sysdate) 
+						  AND D.TRANS_CODE = G.CODE(+) 
+                          order by M.VOUCHER_NO, D.DAMOUNT, D.CAMOUNT) 
+            LOOP 
+            v_dept :=v_dept + nvl(i.DAMOUNT,0); 
+            v_crd  := v_crd + nvl(i.CAMOUNT,0);  
+            v_dept_g :=v_dept_g + nvl(i.DAMOUNT,0); 
+            v_crd_g  := v_crd_g + nvl(i.CAMOUNT,0); 
+ 
+				htp.p('<tr> 
+				<td style="text-align: center"> '||htf.escape_sc(i.VOUCHER)||'</td> 
+				<td style="text-align: left;"> '||htf.escape_sc(i.CODE_DESC)||'</td> 
+                <td style="text-align: left;"> '||htf.escape_sc(i.job_name)||'</td>
+                <td style="text-align: left;"> '||htf.escape_sc(i.TD_DESC)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(i.DAMOUNT)||'</td> 
+				<td style="text-align: CENTER;">'||htf.escape_sc(i.CAMOUNT)||'</td>               			 
+				</tr>'); 
+		 
+			END LOOP;   
+if V_COUNT > 0 then 
+            htp.p('<tr> 
+				<td  colspan="4" style="text-align: right"> <b>Total :</b> </td> 
+				<td style="text-align: center;"><b> '||htf.escape_sc(to_char(v_dept,'99,99,99,99,99,999'))||'</b></td>  
+                <td style="text-align: center"><b> '||htf.escape_sc(to_char(v_crd,'99,99,99,999'))||'</b></td> 
+                </tr>');         
+end if;     
+           
+		end loop;  
+                    htp.p('<tr> 
+        				<td  colspan="4" style="text-align: right"> <b>Grand Total :</b> </td> 
+        				<td style="text-align: center;"><b> '||htf.escape_sc(to_char(v_dept_g,'99,99,99,99,99,99,999'))||'</b></td>  
+                        <td style="text-align: center"><b> '||htf.escape_sc(to_char(v_crd_g,'99,99,99,99,99,99,999'))||'</b></td> 
+                        </tr>');   
+                 
+            htp.p('</table>'); 
+		report_utils.footer; 
+	END;
+end "ACCOUNTS";
+/
+

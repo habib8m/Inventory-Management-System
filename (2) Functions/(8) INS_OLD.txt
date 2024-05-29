@@ -1,0 +1,35 @@
+
+create or replace FUNCTION          "INS_OLD" (p_org_id number,P_TRAN_ID NUMBER 
+                ,P_TRANS_CODE NUMBER,P_parent_CODE NUMBER,p_amt number 
+            ) RETURN VARCHAR2 
+  IS 
+  V_return VARCHAR2(20) := 'SUCCESS'; 
+  v_parent_code number; 
+  V_TDATE   DATE; 
+  BEGIN 
+  SELECT TDATE INTO V_TDATE FROM TMP_TRAN_M WHERE TRAN_ID = P_TRAN_ID; 
+	begin 
+		select P_CODE into v_parent_code from g_acc_codes  
+		where org_id = p_org_id and code = P_parent_CODE;  
+        IF  v_parent_code = 0 THEN v_parent_code := NULL; END IF; 
+	exception when no_data_found then v_parent_code:= null; end; 
+	htp.p('v_parent_code:'||v_parent_code); 
+	if v_parent_code is not null then  
+		V_return := ins_OLD(p_org_id,P_TRAN_ID,P_TRANS_CODE,v_parent_code,p_amt); --function call is ok with v_parent 
+	end if; 
+	begin 
+	insert into acc_balance (acc_balance_ID,ORG_ID,TRAN_DATE,DR_AMOUNT,CR_AMOUNT,TRAN_ID,TRANS_CODE,ACC_PK_ID) 
+	-- VALUES(acc_bal_seq.nextval,p_org_id,V_TDATE,P_damount,P_camount,P_TRAN_ID,P_parent_CODE); 
+    select acc_bal_seq.nextval,d.org_id,m.TDATE,d.damount,d.camount,d.TRAN_ID,P_parent_CODE,d.pk_id 
+	from tmp_tran_d D, TMP_TRAN_M M 
+	WHERE D.TRAN_ID = M.TRAN_ID 
+	and d.TRANS_CODE = P_TRANS_CODE 
+    AND D.TRAN_ID = P_TRAN_ID 
+    and nvl(d.damount,d.camount) = p_amt; 
+	exception when others then null; 
+    end; 
+    RETURN V_return; 
+	 
+  END;
+/
+

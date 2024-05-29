@@ -1,0 +1,64 @@
+
+procedure post_authenticate is
+  ln_user_id number;
+begin
+
+  begin
+    select user_id
+      into ln_user_id
+      from am_users
+     where user_name = upper(apex_json.get_varchar2('email'));
+  
+    update am_users
+       set organization = upper(apex_json.get_varchar2('hd')),
+           first_name   = apex_json.get_varchar2('given_name'),
+           last_name    = apex_json.get_varchar2('family_name'),
+           image_url    = apex_json.get_varchar2('picture'),
+           authenticated_by = 'GOOGLE'
+     where user_id = ln_user_id;
+  
+    commit;
+  exception
+    when no_data_found then
+      insert into am_users
+        (user_id,
+         user_name,
+         organization,
+         password,
+         first_name,
+         last_name,
+         email,
+         phone,
+         image_url,
+         authenticated_by,
+         enabled,
+         date_from,
+         date_to,
+         created_by,
+         created_on,
+         updated_by,
+         updated_on)
+      values
+        (to_char(sysdate, 'YYYYMMDD') || lpad(am_users_s.nextval, 7, 0),
+         upper(apex_json.get_varchar2('email')),
+         upper(apex_json.get_varchar2('hd')),
+         null,
+         apex_json.get_varchar2('given_name'),
+         apex_json.get_varchar2('family_name'),
+         lower(apex_json.get_varchar2('email')),
+         null,
+         apex_json.get_varchar2('picture'),
+         'GOOGLE',
+         'Y',
+         null,
+         null,
+         to_char(sysdate, 'YYYYMMDD') || lpad(am_users_s.currval, 7, 0),
+         sysdate,
+         to_char(sysdate, 'YYYYMMDD') || lpad(am_users_s.currval, 7, 0),
+         sysdate);
+    
+      commit;
+  end;
+
+end;
+

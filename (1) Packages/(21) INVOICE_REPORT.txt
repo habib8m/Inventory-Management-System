@@ -1,0 +1,1576 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace PACKAGE "INVOICE_REPORT" 
+AS 
+    PROCEDURE invoice_report (p_trans_id NUMBER, p_org_id NUMBER); 
+    PROCEDURE invoice_pv_3s (p_trans_id NUMBER, p_org_id NUMBER); 
+    PROCEDURE invoice_report_11 (p_trans_id NUMBER, p_org_id NUMBER); 
+    PROCEDURE invoice_report_4_8 (p_trans_id NUMBER, p_org_id NUMBER); 
+    PROCEDURE mrr_invoice (p_trans_id NUMBER, p_org_id NUMBER);
+    PROCEDURE mrr_invoice_11 (p_trans_id NUMBER, p_org_id NUMBER); 
+    procedure invoice_report_html_11(p_trans_id number,p_org_id number); 
+   PROCEDURE invoice_report_musok (p_trans_id NUMBER, p_org_id NUMBER,p_user_id NUMBER) ;
+   PROCEDURE issue_invoice_4 (p_trans_id NUMBER, p_org_id NUMBER) ;
+END "INVOICE_REPORT";
+/
+
+                                                  ===============================BODY=============================
+
+create or replace PACKAGE BODY        "INVOICE_REPORT" 
+AS 
+    PROCEDURE invoice_report (p_trans_id NUMBER, p_org_id NUMBER) 
+    IS 
+        v_total        NUMBER; 
+        v_tp_total  number ; 
+        v_party_name   VARCHAR2 (100); 
+        v_address      VARCHAR2 (100); 
+        v_mobile       VARCHAR2 (100); 
+        v_invoice      VARCHAR2 (100); 
+        v_warehouse    VARCHAR2 (100); 
+        v_date         DATE; 
+        v_party_code number; 
+        v_sl           NUMBER := 0; 
+        v_line_total number := 0;
+    BEGIN 
+       report_utils.table_boarder ; 
+        htp.p('<h2 style="text-align:center"><b>Invoice</b></h2>'); 
+ 
+        SELECT party_name, 
+               party_address, 
+               mobile_no, 
+               SUBSTR (invoice_no, 5)     invoice_no, 
+               WAREHOUSE_NAME, 
+               trans_date, 
+               party_code 
+          INTO v_party_name, 
+               v_address, 
+               v_mobile, 
+               v_invoice, 
+               v_warehouse, 
+               v_date, 
+               v_party_code 
+          FROM v_all_inv 
+         WHERE org_id = p_org_id AND trans_id = p_trans_id 
+         FETCH FIRST 1 ROW ONLY; 
+ 
+        HTP.p ( 
+               '<div style="float:left;margin-bottom:20px;"> 
+                            <p><b>Customer:</b><br> 
+                            ' 
+            || HTF.escape_sc (v_party_name) 
+            || '<br> 
+                            ' 
+            || HTF.escape_sc (v_address) 
+            || '<br> 
+                            ' 
+            || HTF.escape_sc (v_mobile) 
+            || '</p> 
+                        </div>'); 
+        HTP.p ( 
+               '<div style="float:right;margin-bottom:20px;"> 
+                            <p><b>Date:</b> 
+                            ' 
+            || HTF.escape_sc (v_date) 
+            || '<br> 
+                            <b>Invoice No:</b> 
+                            ' 
+            || HTF.escape_sc (v_invoice) 
+            || '<br> 
+                            <b>Customer Code:</b> 
+                            ' 
+            || HTF.escape_sc (v_party_code) 
+            || '<br> 
+                            <b>Warehouse:</b> 
+                            ' 
+            || HTF.escape_sc (v_warehouse) 
+            || '</p> 
+                        </div>'); 
+ 
+ 
+        HTP.p ('<table style="width:100%"> 
+    			<tr> 
+    			<th style="width:3%;">SL</th> 
+    			<th style="width:10%;">Item Name</th> 
+    			<th style="width:5%;"> UM</th>  
+    			<th style="width:5%;">Qty/PK</th> 
+                <th style="width:5%;"> TP/PK</th> 
+    			<th style="width:7%;">Total Value</th> 
+                <th style="width:5%;">Discount%</th> 
+                <th style="width:6%;">VAT</th> 
+                <th style="width:8%;">Total Incl. VAT</th> 
+    			</tr>'); 
+        v_total := 0; 
+        v_tp_total :=0; 
+ 
+        FOR i IN (SELECT distinct item_name, 
+                         packing, 
+                         qty, 
+                         UNIT_PRICE, 
+                         qty * UNIT_PRICE           TP, 
+                         ITM_DIS_PER, 
+                         VAT_AMOUNT, 
+                         VAT_PERSENT, 
+                         TOATAL 
+                    FROM v_all_inv 
+                    where trans_type = 'SV' 
+                   and TRANS_ID = p_trans_id AND org_id = p_org_id 
+                   order by item_name) 
+        LOOP 
+            v_sl := v_sl + 1; 
+            
+            v_tp_total := v_tp_total + nvl(i.tp,0); 
+           -- v_line_total := (i.TOATAL-((i.TOATAL*NVL (i.ITM_DIS_PER, 0)/100)))+NVL (i.VAT_AMOUNT, 0);
+            -- v_line_total := (i.TOATAL-((i.TOATAL*NVL (i.ITM_DIS_PER, 0)/100)));
+            v_line_total := nvl(i.TOATAL,0);
+            v_total := v_total + NVL (v_line_total, 0); 
+            HTP.p ( 
+                   '<tr> 
+                   <td style="text-align: center">' 
+                || HTF.escape_sc (v_sl) 
+                || '</td> 
+ 
+                        <td style="text-align: left">' 
+                || HTF.escape_sc (i.item_name) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.packing) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.qty) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.UNIT_PRICE) 
+                || '</td> 
+                        <td style="text-align: right">' 
+                || HTF.escape_sc (i.TP) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (NVL (i.ITM_DIS_PER, 0)) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (NVL (i.VAT_AMOUNT, 0)) 
+                || '</td> 
+                        <td style="text-align: right">' 
+                || HTF.escape_sc (TO_CHAR (v_line_total, '99,99,999.00')) 
+                || '</td> 
+  
+                        <tr>'); 
+        END LOOP; 
+ 
+        HTP.p ( 
+               '<tr> 
+                                <td colspan="5"style="text-align: right"><b>Total:</b></td> 
+                                <td style="text-align: right"><b>' 
+            || HTF.escape_sc (TO_CHAR (v_tp_total, '99,99,999.00')) 
+            || ' </b></td> 
+            <td></td> 
+            <td style="text-align: right"><b> Invoice:</b></td> 
+            <td style="text-align: right"><b>' 
+            || HTF.escape_sc (TO_CHAR (v_total, '99,99,999.00')) 
+            || ' </b></td> 
+                            </tr>'); 
+        HTP.p ('</table>'); 
+         HTP.p ('<div style="float:left;margin-bottom:20px;"> 
+                            <p><b>In word:</b> 
+                            ' 
+            ||COM.IN_WORD(v_total) 
+            || '</div>'); 
+ 
+        report_utils.footer_invoice; 
+    END; 
+
+--**************************
+     
+    PROCEDURE invoice_pv_3s (p_trans_id NUMBER, p_org_id NUMBER) 
+    IS 
+        v_total        NUMBER; 
+        v_party_name   VARCHAR2 (100); 
+        v_address      VARCHAR2 (100); 
+        v_mobile       VARCHAR2 (100); 
+        v_invoice      VARCHAR2 (100); 
+        v_warehouse    VARCHAR2 (100); 
+        v_date         DATE; 
+        v_sl           NUMBER := 0; 
+    BEGIN 
+        report_utils.header_without_boarder (NULL, 'Invoice'); 
+ 
+        SELECT party_name, 
+               party_address, 
+               mobile_no, 
+               SUBSTR (invoice_no, 5)     invoice_no, 
+               WAREHOUSE_NAME, 
+               trans_date 
+          INTO v_party_name, 
+               v_address, 
+               v_mobile, 
+               v_invoice, 
+               v_warehouse, 
+               v_date 
+          FROM v_all_inv 
+         WHERE org_id = p_org_id AND trans_id = p_trans_id 
+         FETCH FIRST 1 ROW ONLY; 
+ 
+        HTP.p ( 
+               '<div style="float:left;margin-bottom:20px;"> 
+                            <p><b>Supplier:</b><br> 
+                            ' 
+            || HTF.escape_sc (v_party_name) 
+            || '<br> 
+                            ' 
+            || HTF.escape_sc (v_address) 
+            || '<br> 
+                            ' 
+            || HTF.escape_sc (v_mobile) 
+            || '</p> 
+                        </div>'); 
+        HTP.p ( 
+               '<div style="float:right;margin-bottom:20px;"> 
+                            <p><b>Date:</b> 
+                            ' 
+            || HTF.escape_sc (v_date) 
+            || '<br> 
+                            <b>Invoice No:</b> 
+                            ' 
+            || HTF.escape_sc (v_invoice) 
+            || '<br> 
+                            <b>Warehouse:</b> 
+                            ' 
+            || HTF.escape_sc (v_warehouse) 
+            || '</p> 
+                        </div>'); 
+ 
+ 
+        HTP.p ('<table style="width:100%"> 
+    			<tr> 
+    			<th style="width:3%;">SL</th> 
+    			<th style="width:10%;">Item Name</th> 
+    			<th style="width:5%;"> UM</th>  
+    			<th style="width:5%;">Qty/PK</th> 
+                <th style="width:5%;"> TP/PK</th> 
+    			<th style="width:8%;">Total Value</th> 
+                <th style="width:6%;">Discount</th> 
+                <th style="width:5%;">VAT</th> 
+                <th style="width:8%;">Total Incl. VAT</th> 
+    			</tr>'); 
+        v_total := 0; 
+ 
+        FOR i IN (SELECT party_name, 
+                         party_address, 
+                         MOBILE_NO, 
+                         SUBSTR (invoice_no, 5)     invoice_no, 
+                         TRANS_ID, 
+                         item_name, 
+                         packing, 
+                         qty, 
+                         UNIT_PRICE, 
+                         qty * UNIT_PRICE           TP, 
+                         DISCOUNT, 
+                         VAT_AMOUNT, 
+                         VAT_PERSENT, 
+                         TOATAL, 
+                         SL.WAREHOUSE_NAME 
+                    FROM V_ALL_INV INV, V_SALES_CHANEL_ALL SL 
+                   WHERE INV.DEPOT_ID = SL.WAREHOUSE_ID(+) 
+                   AND TRANS_ID = p_trans_id AND INV.org_id = p_org_id) 
+        LOOP 
+            v_sl := v_sl + 1; 
+            v_total := v_total + NVL (i.toatal, 0); 
+            HTP.p ( 
+                   '<tr> 
+                   <td style="text-align: center">' 
+                || HTF.escape_sc (v_sl) 
+                || '</td> 
+ 
+                        <td style="text-align: left">' 
+                || HTF.escape_sc (i.item_name) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.packing) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.qty) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.UNIT_PRICE) 
+                || '</td> 
+                        <td style="text-align: right">' 
+                || HTF.escape_sc (i.TP) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (NVL (i.DISCOUNT, 0)) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (NVL (i.VAT_AMOUNT, 0)) 
+                || '</td> 
+                        <td style="text-align: right">' 
+                || HTF.escape_sc (TO_CHAR (i.TOATAL, '99,99,999.00')) 
+                || '</td> 
+  
+                        <tr>'); 
+        END LOOP; 
+ 
+        HTP.p ( 
+               '<tr> 
+                                <td colspan="8"style="text-align: right"><b>Total:</b></td> 
+                                <td style="text-align: right"><b>' 
+            || HTF.escape_sc (TO_CHAR (v_total, '99,99,999.00')) 
+            || ' </b></td> 
+                            </tr>'); 
+        HTP.p ('</table>'); 
+ 
+ 
+        REPORT_UTILS.footer_invoice; 
+    END; 
+
+--**************************
+ 
+    PROCEDURE invoice_report_11 (p_trans_id NUMBER, p_org_id NUMBER) 
+    is 
+    v_total        NUMBER; 
+         
+        v_tp_total  number ; 
+        v_party_name   VARCHAR2 (100); 
+        v_address      VARCHAR2 (100); 
+        v_mobile       VARCHAR2 (100); 
+        v_invoice      VARCHAR2 (100); 
+        v_warehouse    VARCHAR2 (100); 
+        v_date         DATE; 
+        v_party_code number; 
+        v_sl           NUMBER := 0; 
+    BEGIN 
+       report_utils.table_boarder ; 
+        htp.p('<h2 style="text-align:center"><b>ইনভয়েস</b></h2>'); 
+ 
+            for j in (select sm.trans_date, 
+                               SUBSTR (sm.invoice_no, 5)     invoice_no, 
+                               ga.code_desc cust_name, 
+                               ga.other_desc cust_name_bn, 
+                               ga.code_desc_other address, 
+                               ga.p_mobile 
+                        from sp_store_m sm 
+                        join g_acc_codes ga on(sm.party_code = ga.code) 
+                        where sm.trans_type = 'SV' 
+                        and sm.org_id = p_org_id 
+                        and sm.trans_id = p_trans_id 
+                        fetch first 1 row only 
+                        ) 
+            loop 
+ 
+                HTP.p ( 
+                       '<div style="float:left;margin-bottom:20px;"> 
+                                    <p><b>কাস্টমারঃ</b><br> 
+                                    ' 
+                    || HTF.escape_sc (j.cust_name_bn) 
+                    || '<br> 
+                                    ' 
+                    || HTF.escape_sc (j.address) 
+                    || '<br> 
+                                    ' 
+                    || HTF.escape_sc (j.p_mobile) 
+                    || '</p> 
+                                </div>'); 
+                HTP.p ( 
+                       '<div style="float:right;margin-bottom:20px;"> 
+                                    <p><b>তারিখঃ</b> 
+                                    ' 
+                    || HTF.escape_sc (TRANSLATE_BN.bangla_date(j.trans_date)) 
+                    || '<br> 
+                                    <b>ইনভয়েস নংঃ</b> 
+                                    ' 
+                    || HTF.escape_sc (j.invoice_no) 
+                    || '</p> 
+                                </div>'); 
+            end loop; 
+ 
+                HTP.p ('<table style="width:100%"> 
+            			<tr> 
+            			<th style="width:3%;">ক্রমিক<br> নং</th> 
+            			<th style="width:10%;">পণ্যের নাম</th> 
+                        <th style="width:5%;"> রেট</th> 
+            			<th style="width:5%;">পরিমান</th> 
+                        <th style="width:5%;">ডিসকাউন্ট</th> 
+            			<th style="width:7%;">মোট টাকা</th> 
+            			</tr>'); 
+                v_total := 0; 
+                -- v_tp_total :=0; 
+ 
+        FOR i IN (SELECT  gi.code_desc item_name, 
+                            gi.other_desc item_name_bn, 
+                            gi.packing, 
+                            sd.qty, 
+                            sd.rate, 
+                            sd.discount,
+                            sd.qty * sd.rate tp, 
+                            sd.total 
+                    from sp_store_d sd 
+                    join g_inv_codes gi on (gi.code = sd.item_code) 
+                    and sd.org_id = p_org_id 
+                    and sd.trans_id = p_trans_id 
+                    order by item_name) 
+        LOOP 
+            v_sl := v_sl + 1; 
+            v_total := v_total + NVL (i.total, 0); 
+        --     v_tp_total := v_tp_total + nvl(i.tp,0); 
+            HTP.p ( 
+                   '<tr> 
+                   <td style="text-align: center">' 
+                || HTF.escape_sc (TRANSLATE_BN.only_num(v_sl)) 
+                || '</td> 
+ 
+                        <td style="text-align: left">' 
+                || HTF.escape_sc (i.item_name_bn) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (TRANSLATE_BN.only_num(i.rate)) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (TRANSLATE_BN.only_num(i.qty)) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (NVL (i.discount, 0)) 
+                || '</td> 
+                        <td style="text-align: right">' 
+                || HTF.escape_sc (TRANSLATE_BN.num_formate(i.total,'fm99G99G99G99G99G99G990d00')) 
+                || '</td> 
+  
+                        <tr>'); 
+        END LOOP; 
+ 
+        HTP.p ( 
+               '<tr> 
+                    <td colspan="5"style="text-align: right"><b>মোটঃ</b></td>  
+                    <td style="text-align: right"><b>' 
+                    || HTF.escape_sc (TRANSLATE_BN.num_formate(v_total,'fm99G99G99G99G99G99G990d00')) 
+                    || ' </b></td> 
+                 </tr>'); 
+        HTP.p ('</table>'); 
+ 
+        report_utils.footer_invoice_bn; 
+    END; 
+
+--************************
+ 
+    PROCEDURE invoice_report_4_8 (p_trans_id NUMBER, p_org_id NUMBER) 
+    is 
+    v_total        NUMBER; 
+         
+        v_tp_total  number ; 
+        v_party_name   VARCHAR2 (100); 
+        v_address      VARCHAR2 (100); 
+        v_mobile       VARCHAR2 (100); 
+        v_invoice      VARCHAR2 (100); 
+        v_warehouse    VARCHAR2 (100); 
+        v_date         DATE; 
+        v_party_code number; 
+        v_sl           NUMBER := 0; 
+    BEGIN 
+       report_utils.table_boarder ; 
+        htp.p('<h2 style="text-align:center"><b>Invoice</b></h2>'); 
+ 
+            for j in (select sm.trans_date, 
+                               SUBSTR (sm.invoice_no, 5)     invoice_no, 
+                               ga.code_desc cust_name, 
+                               ga.other_desc cust_name_bn, 
+                               ga.code_desc_other address, 
+                               ga.p_mobile, 
+                               gu.code_desc warehouse 
+                        from sp_store_m sm 
+                        join g_acc_codes ga on(sm.party_code = ga.code) 
+                        join g_uni_codes gu   on (sm.depot_id = gu.code) 
+                        where sm.trans_type = 'SV' 
+                        and sm.org_id = p_org_id 
+                        and sm.trans_id = p_trans_id 
+                        fetch first 1 row only 
+                        ) 
+            loop 
+ 
+                HTP.p ( 
+                       '<div style="float:left;margin-bottom:20px;"> 
+                                    <p><b>Customer</b><br> 
+                                    ' 
+                    || HTF.escape_sc (j.cust_name) 
+                    || '<br> 
+                                    ' 
+                    || HTF.escape_sc (j.address) 
+                    || '<br> 
+                                    ' 
+                    || HTF.escape_sc (j.p_mobile) 
+                    || '</p> 
+                                </div>'); 
+                HTP.p ( 
+                       '<div style="float:right;margin-bottom:20px;"> 
+                                    <p><b>Date</b> 
+                                    ' 
+                    || HTF.escape_sc (to_char(j.trans_date,'mm-dd-yy')) 
+                    || '<br> 
+                                    <b>Invoice No</b> 
+                                    ' 
+                    || HTF.escape_sc (j.invoice_no) 
+                    ||'<br> 
+                                    <b>Warehouse</b> 
+                                    ' 
+                    || HTF.escape_sc (j.warehouse) 
+                    ||  '</p> 
+                                </div>'); 
+            end loop; 
+ 
+                HTP.p ('<table style="width:100%"> 
+            			<tr> 
+            			<th style="width:3%;">SL</th> 
+            			<th style="width:10%;">Item Name</th> 
+            			<th style="width:5%;">Unit</th>  
+                        <th style="width:5%;"> Rate</th> 
+            			<th style="width:5%;">Qty</th> 
+                        <th style="width:5%;">Disc.%</th> 
+            			<th style="width:7%;">Total</th> 
+            			</tr>'); 
+                v_total := 0; 
+                -- v_tp_total :=0; 
+ 
+        FOR i IN (SELECT  gi.code_desc item_name, 
+                            gi.other_desc item_name_bn, 
+                            pkg_inventory.GET_UNIT(gi.code) unit, 
+                            gi.packing, 
+                            sd.qty, 
+                            sd.rate, 
+                            sd.qty * sd.rate tp, 
+                            sd.total 
+                    from sp_store_d sd 
+                    join g_inv_codes gi on (gi.code = sd.item_code) 
+                    and sd.org_id = p_org_id 
+                    and sd.trans_id = p_trans_id 
+                    order by item_name) 
+        LOOP 
+            v_sl := v_sl + 1; 
+            v_total := v_total + NVL (i.total, 0); 
+        --     v_tp_total := v_tp_total + nvl(i.tp,0); 
+            HTP.p ( 
+                   '<tr> 
+                   <td style="text-align: center">' 
+                || HTF.escape_sc (v_sl) 
+                || '</td> 
+ 
+                        <td style="text-align: left">' 
+                || HTF.escape_sc (i.item_name) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.unit) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.rate) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc(i.qty) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (NVL (null, 0)) 
+                || '</td> 
+                        <td style="text-align: right">' 
+                || HTF.escape_sc (to_char(i.tp,'99,99,99,999.0')) 
+                || '</td> 
+  
+                        <tr>'); 
+        END LOOP; 
+ 
+        HTP.p ( 
+               '<tr> 
+                    <td colspan="6"style="text-align: right"><b>Total:</b></td>  
+                    <td style="text-align: right"><b>' 
+                    || HTF.escape_sc (to_char(v_total,'99,99,99,999.0')) 
+                    || ' </b></td> 
+                 </tr>'); 
+        HTP.p ('</table>'); 
+ 
+        REPORT_UTILS.footer_invoice; 
+    END; 
+
+--*************************
+
+    PROCEDURE mrr_invoice (p_trans_id NUMBER, p_org_id NUMBER) 
+    is 
+    v_total        NUMBER; 
+         
+        v_tp_total  number ; 
+        v_party_name   VARCHAR2 (100); 
+        v_address      VARCHAR2 (100); 
+        v_mobile       VARCHAR2 (100); 
+        v_invoice      VARCHAR2 (100); 
+        v_warehouse    VARCHAR2 (100); 
+        v_date         DATE; 
+        v_party_code number; 
+        v_sl           NUMBER := 0; 
+    BEGIN 
+       report_utils.table_boarder ; 
+        htp.p('<h3 style="text-align:center"><b>Materials Receive Report<br>(MRR)</b></h3>'); 
+        -- htp.p('<p style="text-align:center"><b>(MRR)</b></p>'); 
+ 
+            for j in (select sm.trans_date, 
+                               SUBSTR (sm.invoice_no, 5)     invoice_no, 
+                               ga.code_desc cust_name, 
+                               ga.other_desc cust_name_bn, 
+                               ga.code_desc_other address, 
+                               ga.p_mobile, 
+                               gu.code_desc warehouse 
+                        from sp_store_m sm 
+                        join g_acc_codes ga on(sm.party_code = ga.code) 
+                        join g_uni_codes gu   on (sm.depot_id = gu.code) 
+                        where sm.trans_type = 'PV' 
+                        and sm.org_id = p_org_id 
+                        and sm.trans_id = p_trans_id 
+                        fetch first 1 row only 
+                        ) 
+            loop 
+ 
+                HTP.p ( 
+                       '<div style="float:left;margin-bottom:20px;"> 
+                                    <p><b>Supplier</b><br> 
+                                    ' 
+                    || HTF.escape_sc (j.cust_name) 
+                    || '<br> 
+                                    ' 
+                    || HTF.escape_sc (j.address) 
+                    || '<br> 
+                                    ' 
+                    || HTF.escape_sc (j.p_mobile) 
+                    || '</p> 
+                                </div>'); 
+                HTP.p ( 
+                       '<div style="float:right;margin-bottom:20px;"> 
+                                    <p><b>Date</b> 
+                                    ' 
+                    || HTF.escape_sc (to_char(j.trans_date,'dd-mm-yy')) 
+                    || '<br> 
+                                    <b>Invoice No</b> 
+                                    ' 
+                    || HTF.escape_sc (j.invoice_no) 
+                    ||'<br> 
+                                    <b>Warehouse</b> 
+                                    ' 
+                    || HTF.escape_sc (j.warehouse) 
+                    ||  '</p> 
+                                </div>'); 
+            end loop; 
+ 
+                HTP.p ('<table style="width:100%"> 
+            			<tr> 
+            			<th style="width:3%;">SL</th> 
+            			<th style="width:10%;">Item Name</th> 
+            			<th style="width:5%;">Unit</th>  
+                        <th style="width:5%;"> Rate</th> 
+            			<th style="width:5%;">Qty</th> 
+            			<th style="width:7%;">Total</th> 
+            			</tr>'); 
+                v_total := 0; 
+                -- v_tp_total :=0; 
+ 
+        FOR i IN (SELECT  gi.code_desc item_name, 
+                            gi.other_desc item_name_bn, 
+                            pkg_inventory.GET_UNIT(gi.code) unit, 
+                            gi.packing, 
+                            sd.qty, 
+                            sd.rate, 
+                            sd.qty * sd.rate tp, 
+                            sd.total 
+                    from sp_store_d sd 
+                    join g_inv_codes gi on (gi.code = sd.item_code) 
+                    and sd.org_id = p_org_id 
+                    and sd.trans_id = p_trans_id 
+                    order by item_name) 
+        LOOP 
+            v_sl := v_sl + 1; 
+            v_total := v_total + NVL (i.tp, 0); 
+        --     v_tp_total := v_tp_total + nvl(i.tp,0); 
+            HTP.p ( 
+                   '<tr> 
+                   <td style="text-align: center">' 
+                || HTF.escape_sc (v_sl) 
+                || '</td> 
+ 
+                        <td style="text-align: left">' 
+                || HTF.escape_sc (i.item_name) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.unit) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.rate) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc(i.qty) 
+                || '</td> 
+                        <td style="text-align: right">' 
+                || HTF.escape_sc (to_char(i.tp,'99,99,99,999.0')) 
+                || '</td> 
+  
+                        <tr>'); 
+        END LOOP; 
+ 
+        HTP.p ( 
+               '<tr> 
+                    <td colspan="5"style="text-align: right"><b>Total:</b></td>  
+                    <td style="text-align: right"><b>' 
+                    || HTF.escape_sc (to_char(v_total,'99,99,99,999.0')) 
+                    || ' </b></td> 
+                 </tr>'); 
+        HTP.p ('</table>'); 
+ 
+        REPORT_UTILS.footer_invoice; 
+    END; 
+
+--*******************************
+
+    PROCEDURE mrr_invoice_11 (p_trans_id NUMBER, p_org_id NUMBER) 
+    is 
+    v_total        NUMBER; 
+         
+        v_tp_total  number ; 
+        v_party_name   VARCHAR2 (100); 
+        v_address      VARCHAR2 (100); 
+        v_mobile       VARCHAR2 (100); 
+        v_invoice      VARCHAR2 (100); 
+        v_warehouse    VARCHAR2 (100); 
+        v_date         DATE; 
+        v_party_code number; 
+        v_sl           NUMBER := 0; 
+    BEGIN 
+       report_utils.table_boarder ; 
+        htp.p('<h3 style="text-align:center"><b>Materials Receive Report<br>(MRR)</b></h3>'); 
+        -- htp.p('<p style="text-align:center"><b>(MRR)</b></p>'); 
+ 
+            for j in (select sm.trans_date, 
+                               SUBSTR (sm.invoice_no, 5)     invoice_no, 
+                               ga.code_desc cust_name, 
+                               ga.other_desc cust_name_bn, 
+                               ga.code_desc_other address, 
+                               ga.p_mobile, 
+                               gu.code_desc warehouse 
+                        from sp_store_m sm 
+                        join g_acc_codes ga on(sm.party_code = ga.code) 
+                        join g_uni_codes gu   on (sm.depot_id = gu.code) 
+                        where sm.trans_type = 'PV' 
+                        and sm.org_id = p_org_id 
+                        and sm.trans_id = p_trans_id 
+                        fetch first 1 row only 
+                        ) 
+            loop 
+ 
+                HTP.p ( 
+                       '<div style="float:left;margin-bottom:20px;"> 
+                                    <p><b>Supplier</b><br> 
+                                    ' 
+                    || HTF.escape_sc (j.cust_name) 
+                    || '<br> 
+                                    ' 
+                    || HTF.escape_sc (j.address) 
+                    || '<br> 
+                                    ' 
+                    || HTF.escape_sc (j.p_mobile) 
+                    || '</p> 
+                                </div>'); 
+                HTP.p ( 
+                       '<div style="float:right;margin-bottom:20px;"> 
+                                    <p><b>Date:</b> 
+                                    ' 
+                    || HTF.escape_sc (to_char(j.trans_date,'dd-mm-yy')) 
+                    || '<br> 
+                                    <b>Invoice No:</b> 
+                                    ' 
+                    || HTF.escape_sc (j.invoice_no) 
+                    ||'<br> 
+                                    <b>Warehouse:</b> 
+                                    ' 
+                    || HTF.escape_sc (j.warehouse) 
+                    ||  '</p> 
+                                </div>'); 
+            end loop; 
+ 
+                HTP.p ('<table style="width:100%"> 
+            			<tr> 
+            			<th style="width:3%;">SL</th> 
+            			<th style="width:10%;">Item Name</th> 
+            			<th style="width:5%;">Unit</th>  
+                        <th style="width:5%;"> Rate</th> 
+            			<th style="width:5%;">Qty</th> 
+            			<th style="width:5%;">Total Qty</th> 
+            			<th style="width:7%;">Total</th> 
+            			</tr>'); 
+                v_total := 0; 
+                -- v_tp_total :=0; 
+ 
+        FOR i IN (SELECT  gi.code_desc item_name, 
+                            gi.other_desc item_name_bn, 
+                            pkg_inventory.GET_UNIT(gi.code) unit, 
+                            gi.packing, 
+                            sd.qty, 
+                            sd.rate,
+                            sd.order_qty, 
+                            sd.qty * sd.rate tp, 
+                            sd.total 
+                    from sp_store_d sd 
+                    join g_inv_codes gi on (gi.code = sd.item_code) 
+                    and sd.org_id = p_org_id 
+                    and sd.trans_id = p_trans_id 
+                    order by item_name) 
+        LOOP 
+            v_sl := v_sl + 1; 
+            v_total := v_total + NVL (i.total, 0); 
+        --     v_tp_total := v_tp_total + nvl(i.tp,0); 
+            HTP.p ( 
+                   '<tr> 
+                   <td style="text-align: center">' 
+                || HTF.escape_sc (v_sl) 
+                || '</td> 
+ 
+                        <td style="text-align: left">' 
+                || HTF.escape_sc (i.item_name) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.unit) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.rate) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc(i.qty) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc(i.order_qty) 
+                || '</td> 
+                        <td style="text-align: right">' 
+                || HTF.escape_sc (to_char(i.total,'99,99,99,999.00')) 
+                || '</td> 
+  
+                        <tr>'); 
+        END LOOP; 
+ 
+        HTP.p ( 
+               '<tr> 
+                    <td colspan="6"style="text-align: right"><b>Total:</b></td>  
+                    <td style="text-align: right"><b>' 
+                    || HTF.escape_sc (to_char(v_total,'99,99,99,999.00')) 
+                    || ' </b></td> 
+                 </tr>'); 
+        HTP.p ('</table>'); 
+         HTP.p ('<div style="float:left;margin-bottom:20px;"> 
+                            <p><b>In word:</b> 
+                            ' 
+            ||COM.IN_WORD(v_total) 
+            || '</div>'); 
+ 
+        REPORT_UTILS.footer_invoice; 
+    END; 
+
+--******************************
+
+    procedure invoice_report_html_11(p_trans_id number,p_org_id number)---ajmeri group 
+    is 
+    v_total        NUMBER; 
+         
+        v_tp_total  number ; 
+        v_party_name   VARCHAR2 (100); 
+        v_address      VARCHAR2 (100); 
+        v_mobile       VARCHAR2 (100); 
+        v_invoice      VARCHAR2 (100); 
+        v_warehouse    VARCHAR2 (100); 
+        v_date         DATE; 
+        v_party_code number; 
+        v_sl           NUMBER := 0; 
+    BEGIN 
+            htp.p('<style> 
+            			table 
+            			{ 
+            				border: 1px solid black; 
+            				background-color:white; 
+            				color:black; 
+            				border-collapse: collapse; 
+                           border-spacing: 0px;
+            			} 
+            			th  
+            			{ 
+            				border: 1px solid black; 
+            				background-color:white; 
+            				color:black; 
+            			} 
+            			 
+            			td  
+            			{ 
+            				border: 1px solid black; 
+            				text-align: center; 
+            				color:black; 
+            			}	 
+            		</style>'); 
+            htp.p('<html><head><style>@media print 
+                    { 
+                    div.after {page-break-after:always;} 
+                    } 
+                    </style> 
+                    </head> 
+                    <body> 
+                    <div class="after">'); 
+                    -- report_utils.header_without_boarder(null, null);-----------------------গ্রাহক কপি 
+                 HTP.p ('<div class="logo" style = "width: 80%; margin:auto;padding-top:10px;"> 
+                           <img  src="' || V( 'APP_IMAGES' ) || 'logo/Ajmeri.png" alt="Logo" width=80%" height="80px"> 
+                           </div>'); 
+ 
+            for j in (select sm.trans_date, 
+                               SUBSTR (sm.invoice_no, 5)     invoice_no, 
+                               ga.code_desc cust_name, 
+                               ga.other_desc cust_name_bn, 
+                               ga.code_desc_other address, 
+                               ga.p_mobile 
+                        from sp_store_m sm 
+                        join g_acc_codes ga on(sm.party_code = ga.code) 
+                        where sm.trans_type = 'SV' 
+                        and sm.org_id = P_ORG_ID 
+                        and sm.trans_id = p_trans_id 
+                        fetch first 1 row only 
+                        ) 
+            loop 
+                HTP.P('<table style="border:none;width:100%;margin:auto;font-size:11px;border-spacing: 0px;">
+                        <tr style="border:none;">
+                        <td style="border:none;border-spacing: 0px;">
+                            <table style="border:none;margin:auto;font-size:11px;border-spacing: 0px;margin-left:50px;">
+                                <tr style="border:none;"><th style="border-spacing: 0px;border:none;text-align:left;">আজমেরী গ্রুপ</th></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;;">মেইন রোড, সান্তাহার, আদমদিঘী, বগুড়া</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">01711-894797, 01733-917811</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">01300-860520</td></tr>
+                            </table>
+                        </td>
+                        <td style="border:none;border-spacing: 0px;">
+                            <table style="border:none;margin:auto;font-size:11px;border-spacing: 0px;">                                
+                                <tr style="border:none;"><th style="border-spacing: 0px;border:none;text-align:left;"><u>গ্রাহক কপি</u></th></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;;">তারিখঃ '||HTF.escape_sc (TRANSLATE_BN.bangla_date(j.trans_date))||'</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">চালান নংঃ '||HTF.escape_sc (j.invoice_no)||'</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;"><b><u>কাস্টমার</u></b></td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">'|| HTF.escape_sc (j.cust_name_bn)||'</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">'|| HTF.escape_sc (j.address)||'</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">'|| HTF.escape_sc (j.p_mobile)||'</td></tr>                               
+                            </table>
+                        </td>  
+                        </tr>
+                        </table>
+                            ');
+            end loop; 
+                htp.p('<h6 style="text-align:center;margin:auto;margin-bottom:5px;"><u><b>ডেলিভারী চালান / বিক্রয় চালান</b></u></h6>'); 
+ 
+                HTP.p ('<div style="margin-left:10px;margin-right:10px;"><table style="width:90%;font-size:10px;border-spacing: 0px;margin:auto;"> 
+            			<tr> 
+            			<th style="border-spacing: 0px;width:1%;">ক্র নং</th> 
+            			<th style="border-spacing: 0px;width:14%;">পণ্যের নাম</th>  
+                        <th style="border-spacing: 0px;width:2%;"> রেট</th> 
+            			<th style="border-spacing: 0px;width:2%;">পরিমান</th> 
+                        <th style="border-spacing: 0px;width:2%;">ডিসকাউন্ট</th> 
+            			<th style="border-spacing: 0px;width:4%;">মোট টাকা</th> 
+            			</tr>'); 
+                v_total := 0; 
+                -- v_tp_total :=0; 
+            v_sl := 0; 
+        FOR i IN (SELECT  gi.code_desc item_name, 
+                            gi.other_desc item_name_bn, 
+                            gi.packing, 
+                            sd.qty, 
+                            sd.rate, 
+                            sd.qty * sd.rate tp, 
+                            sd.total,
+                            sd.discount 
+                    from sp_store_d sd 
+                    join g_inv_codes gi on (gi.code = sd.item_code) 
+                    and sd.org_id = P_ORG_ID 
+                    and sd.trans_id = p_trans_id 
+                    order by item_name) 
+        LOOP 
+            v_sl := v_sl + 1; 
+            v_total := v_total + NVL (i.total, 0); 
+        --     v_tp_total := v_tp_total + nvl(i.tp,0); 
+            HTP.p ( 
+                   '<tr> 
+                   <td style="border-spacing: 0px;text-align: center">' 
+                || HTF.escape_sc (TRANSLATE_BN.only_num(v_sl)) 
+                || '</td> 
+ 
+                        <td style="border-spacing: 0px;text-align: left">' 
+                || HTF.escape_sc (i.item_name_bn) 
+                || '</td>  
+                        <td style="border-spacing: 0px;text-align: center">' 
+                || HTF.escape_sc (TRANSLATE_BN.only_num(i.rate)) 
+                || '</td> 
+                        <td style="border-spacing: 0px;text-align: center">' 
+                || HTF.escape_sc (TRANSLATE_BN.only_num(i.qty)) 
+                || '</td> 
+                        <td style="border-spacing: 0px;text-align: center">' 
+                || HTF.escape_sc (NVL (i.discount, 0)) 
+                || '</td> 
+                        <td style="border-spacing: 0px;text-align: right">' 
+                || HTF.escape_sc (TRANSLATE_BN.num_formate(i.total,'fm99G99G99G99G99G99G990d00')) 
+                || '</td> 
+  
+                        <tr>'); 
+        END LOOP; 
+ 
+        HTP.p ( 
+               '<tr> 
+                    <td colspan="5"style="border-spacing: 0px;text-align: right"><b>মোটঃ</b></td>  
+                    <td style="border-spacing: 0px;text-align: right"><b>' 
+                    || HTF.escape_sc (TRANSLATE_BN.num_formate(v_total,'fm99G99G99G99G99G99G990d00')) 
+                    || ' </b></td> 
+                 </tr>'); 
+        HTP.p ('</table>'); 
+        --  HTP.p ('<br><br>'); 
+         HTP.p ('<div style="float:left;margin-bottom:10px;margin-left:20px;font-size:11px;"> 
+                            <p>কথায়:
+                            ' 
+            ||COM.IN_WORD_bn(v_total) 
+            || '</p></div>'); 
+ 
+         htp.p('<BR>
+                 <b><div style= "margin-left:5px;float: left; width: 32%; text-align: left;"><p style= "font-size:11px;">মাল বুঝিয়া পাইলাম <br>কাস্টমারের সাক্ষর....</p></div>
+                 <div style= "float: left; width: 32%; text-align: center;"><p style= "font-size:11px; ">মিল ম্যানেজার/<br>গোডাউন রক্ষকের সাক্ষর.....</p></div>  
+                 <div style= "float: right; width: 30%; text-align: center;"><p style= "font-size:11px; "><br>কর্তৃপক্ষের সাক্ষর..........</p></div></b></div>') ; 
+
+        --  HTP.p ('<br><br><br><br><br>'); 
+                    htp.p('</div> 
+                    <div class="after">'); 
+               HTP.p ('<div class="logo" style = "width: 80%; margin:auto;padding-top:10px;"> 
+                           <img  src="' || V( 'APP_IMAGES' ) || 'logo/Ajmeri.png" alt="Logo" width=80%" height="80px"> 
+                           </div>'); 
+            for j in (select sm.trans_date, 
+                               SUBSTR (sm.invoice_no, 5)     invoice_no, 
+                               ga.code_desc cust_name, 
+                               ga.other_desc cust_name_bn, 
+                               ga.code_desc_other address, 
+                               ga.p_mobile 
+                        from sp_store_m sm 
+                        join g_acc_codes ga on(sm.party_code = ga.code) 
+                        where sm.trans_type = 'SV' 
+                        and sm.org_id = P_ORG_ID 
+                        and sm.trans_id = p_trans_id 
+                        fetch first 1 row only 
+                        ) 
+            loop
+                HTP.P('<table style="border:none;width:100%;margin:auto;font-size:11px;border-spacing: 0px;">
+                        <tr style="border:none;">
+                        <td style="border:none;border-spacing: 0px;">
+                            <table style="border:none;margin:auto;font-size:11px;border-spacing: 0px;margin-left:50px;">
+                                <tr style="border:none;"><th style="border-spacing: 0px;border:none;text-align:left;">আজমেরী গ্রুপ</th></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;;">মেইন রোড, সান্তাহার, আদমদিঘী, বগুড়া</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">01711-894797, 01733-917811</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">01300-860520</td></tr>
+                            </table>
+                        </td>
+                        <td style="border:none;border-spacing: 0px;">
+                            <table style="border:none;margin:auto;font-size:11px;border-spacing: 0px;">                                
+                                <tr style="border:none;"><th style="border-spacing: 0px;border:none;text-align:left;"><u>মিল কপি</u></th></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;;">তারিখঃ '||HTF.escape_sc (TRANSLATE_BN.bangla_date(j.trans_date))||'</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">চালান নংঃ '||HTF.escape_sc (j.invoice_no)||'</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;"><b><u>কাস্টমার</u></b></td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">'|| HTF.escape_sc (j.cust_name_bn)||'</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">'|| HTF.escape_sc (j.address)||'</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">'|| HTF.escape_sc (j.p_mobile)||'</td></tr>                               
+                            </table>
+                        </td>  
+                        </tr>
+                        </table>
+                            ');
+            end loop;
+                htp.p('<h6 style="text-align:center;margin:auto;margin-bottom:5px;"><u><b>ডেলিভারী চালান / বিক্রয় চালান</b></u></h6>'); 
+ 
+                HTP.p ('<div style="margin-left:10px;margin-right:10px;"><table style="width:90%;font-size:10px;border-spacing: 0px;margin:auto;"> 
+            			<tr> 
+            			<th style="border-spacing: 0px;width:1%;">ক্র নং</th> 
+            			<th style="border-spacing: 0px;width:14%;">পণ্যের নাম</th>  
+                        <th style="border-spacing: 0px;width:2%;"> রেট</th> 
+            			<th style="border-spacing: 0px;width:2%;">পরিমান</th> 
+                        <th style="border-spacing: 0px;width:2%;">ডিসকাউন্ট</th> 
+            			<th style="border-spacing: 0px;width:4%;">মোট টাকা</th> 
+            			</tr>'); 
+                v_total := 0; 
+                -- v_tp_total :=0; 
+            v_sl := 0; 
+        FOR i IN (SELECT  gi.code_desc item_name, 
+                            gi.other_desc item_name_bn, 
+                            gi.packing, 
+                            sd.qty, 
+                            sd.rate, 
+                            sd.qty * sd.rate tp, 
+                            sd.total ,
+                            sd.discount
+                    from sp_store_d sd 
+                    join g_inv_codes gi on (gi.code = sd.item_code) 
+                    and sd.org_id = P_ORG_ID 
+                    and sd.trans_id = p_trans_id 
+                    order by item_name) 
+        LOOP 
+            v_sl := v_sl + 1; 
+            v_total := v_total + NVL (i.total, 0); 
+        --     v_tp_total := v_tp_total + nvl(i.tp,0); 
+            HTP.p ( 
+                   '<tr> 
+                   <td style="border-spacing: 0px;text-align: center">' 
+                || HTF.escape_sc (TRANSLATE_BN.only_num(v_sl)) 
+                || '</td> 
+ 
+                        <td style="border-spacing: 0px;text-align: left">' 
+                || HTF.escape_sc (i.item_name_bn) 
+                || '</td>  
+                        <td style="border-spacing: 0px;text-align: center">' 
+                || HTF.escape_sc (TRANSLATE_BN.only_num(i.rate)) 
+                || '</td> 
+                        <td style="border-spacing: 0px;text-align: center">' 
+                || HTF.escape_sc (TRANSLATE_BN.only_num(i.qty)) 
+                || '</td> 
+                        <td style="border-spacing: 0px;text-align: center">' 
+                || HTF.escape_sc (NVL (i.discount, 0)) 
+                || '</td> 
+                        <td style="border-spacing: 0px;text-align: right">' 
+                || HTF.escape_sc (TRANSLATE_BN.num_formate(i.total,'fm99G99G99G99G99G99G990d00')) 
+                || '</td> 
+  
+                        <tr>'); 
+        END LOOP; 
+ 
+        HTP.p ( 
+               '<tr> 
+                    <td colspan="5"style="border-spacing: 0px;text-align: right"><b>মোটঃ</b></td>  
+                    <td style="border-spacing: 0px;text-align: right"><b>' 
+                    || HTF.escape_sc (TRANSLATE_BN.num_formate(v_total,'fm99G99G99G99G99G99G990d00')) 
+                    || ' </b></td> 
+                 </tr>');
+        HTP.p ('</table>');
+         HTP.p ('<div style="float:left;margin-bottom:10px;margin-left:20px;font-size:11px;"> 
+                            <p>কথায়:
+                            ' 
+            ||COM.IN_WORD_bn(v_total) 
+            || '</p></div>');  
+ 
+         htp.p('<BR>
+                 <b><div style= "margin-left:5px;float: left; width: 32%; text-align: left;"><p style= "font-size:11px;">মাল বুঝিয়া পাইলাম <br>কাস্টমারের সাক্ষর....</p></div>
+                 <div style= "float: left; width: 32%; text-align: center;"><p style= "font-size:11px; ">মিল ম্যানেজার/<br>গোডাউন রক্ষকের সাক্ষর.....</p></div>  
+                 <div style= "float: right; width: 30%; text-align: center;"><p style= "font-size:11px; "><br>কর্তৃপক্ষের সাক্ষর..........</p></div></b></div>') ; 
+
+        --  HTP.p ('<br><br><br><br><br>'); 
+                    htp.p('</div> 
+                    <div>'); 
+                    -- report_utils.header_without_boarder(null, 'ইনভয়েস');-----------------------মিল কপি 
+                HTP.p ('<div class="logo" style = "width: 80%; margin:auto;padding-top:10px;"> 
+                           <img  src="' || V( 'APP_IMAGES' ) || 'logo/Ajmeri.png" alt="Logo" width=80%" height="80px"> 
+                           </div>');  
+ 
+            for j in (select sm.trans_date, 
+                               SUBSTR (sm.invoice_no, 5)     invoice_no, 
+                               ga.code_desc cust_name, 
+                               ga.other_desc cust_name_bn, 
+                               ga.code_desc_other address, 
+                               ga.p_mobile 
+                        from sp_store_m sm 
+                        join g_acc_codes ga on(sm.party_code = ga.code) 
+                        where sm.trans_type = 'SV' 
+                        and sm.org_id = P_ORG_ID 
+                        and sm.trans_id = p_trans_id 
+                        fetch first 1 row only 
+                        ) 
+            loop 
+                HTP.P('<table style="border:none;width:100%;margin:auto;font-size:11px;border-spacing: 0px;">
+                        <tr style="border:none;">
+                        <td style="border:none;border-spacing: 0px;">
+                            <table style="border:none;margin:auto;font-size:11px;border-spacing: 0px;margin-left:50px;">
+                                <tr style="border:none;"><th style="border-spacing: 0px;border:none;text-align:left;">আজমেরী গ্রুপ</th></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;;">মেইন রোড, সান্তাহার, আদমদিঘী, বগুড়া</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">01711-894797, 01733-917811</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">01300-860520</td></tr>
+                            </table>
+                        </td>
+                        <td style="border:none;border-spacing: 0px;">
+                            <table style="border:none;margin:auto;font-size:11px;border-spacing: 0px;">                                
+                                <tr style="border:none;"><th style="border-spacing: 0px;border:none;text-align:left;"><u>রিসিভ কপি</u></th></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;;">তারিখঃ '||HTF.escape_sc (TRANSLATE_BN.bangla_date(j.trans_date))||'</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">চালান নংঃ '||HTF.escape_sc (j.invoice_no)||'</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;"><b><u>কাস্টমার</u></b></td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">'|| HTF.escape_sc (j.cust_name_bn)||'</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">'|| HTF.escape_sc (j.address)||'</td></tr>
+                                <tr style="border:none;"><td style="border-spacing: 0px;border:none;text-align:left;">'|| HTF.escape_sc (j.p_mobile)||'</td></tr>                               
+                            </table>
+                        </td>  
+                        </tr>
+                        </table>
+                            ');
+            end loop;
+                htp.p('<h6 style="text-align:center;margin:auto;margin-bottom:5px;"><u><b>ডেলিভারী চালান / বিক্রয় চালান</b></u></h6>'); 
+ 
+                HTP.p ('<div style="margin-left:10px;margin-right:10px;"><table style="width:90%;font-size:10px;border-spacing: 0px;margin:auto;"> 
+            			<tr> 
+            			<th style="border-spacing: 0px;width:1%;">ক্র নং</th> 
+            			<th style="border-spacing: 0px;width:14%;">পণ্যের নাম</th>  
+                        <th style="border-spacing: 0px;width:2%;"> রেট</th> 
+            			<th style="border-spacing: 0px;width:2%;">পরিমান</th> 
+                        <th style="border-spacing: 0px;width:2%;">ডিসকাউন্ট</th> 
+            			<th style="border-spacing: 0px;width:4%;">মোট টাকা</th> 
+            			</tr>'); 
+                v_total := 0; 
+                -- v_tp_total :=0; 
+            v_sl := 0; 
+        FOR i IN (SELECT  gi.code_desc item_name, 
+                            gi.other_desc item_name_bn, 
+                            gi.packing, 
+                            sd.qty, 
+                            sd.rate, 
+                            sd.qty * sd.rate tp, 
+                            sd.total,
+                            sd.discount 
+                    from sp_store_d sd 
+                    join g_inv_codes gi on (gi.code = sd.item_code) 
+                    and sd.org_id = P_ORG_ID 
+                    and sd.trans_id = p_trans_id 
+                    order by item_name) 
+        LOOP 
+            v_sl := v_sl + 1; 
+            v_total := v_total + NVL (i.total, 0); 
+        --     v_tp_total := v_tp_total + nvl(i.tp,0); 
+            HTP.p ( 
+                   '<tr> 
+                   <td style="border-spacing: 0px;text-align: center">' 
+                || HTF.escape_sc (TRANSLATE_BN.only_num(v_sl)) 
+                || '</td> 
+ 
+                        <td style="border-spacing: 0px;text-align: left">' 
+                || HTF.escape_sc (i.item_name_bn) 
+                || '</td>  
+                        <td style="border-spacing: 0px;text-align: center">' 
+                || HTF.escape_sc (TRANSLATE_BN.only_num(i.rate)) 
+                || '</td> 
+                        <td style="border-spacing: 0px;text-align: center">' 
+                || HTF.escape_sc (TRANSLATE_BN.only_num(i.qty)) 
+                || '</td> 
+                        <td style="border-spacing: 0px;text-align: center">' 
+                || HTF.escape_sc (NVL (i.discount, 0)) 
+                || '</td> 
+                        <td style="border-spacing: 0px;text-align: right">' 
+                || HTF.escape_sc (TRANSLATE_BN.num_formate(i.total,'fm99G99G99G99G99G99G990d00')) 
+                || '</td> 
+  
+                        <tr>'); 
+        END LOOP; 
+ 
+        HTP.p ( 
+               '<tr> 
+                    <td colspan="5"style="border-spacing: 0px;text-align: right"><b>মোটঃ</b></td>  
+                    <td style="border-spacing: 0px;text-align: right"><b>' 
+                    || HTF.escape_sc (TRANSLATE_BN.num_formate(v_total,'fm99G99G99G99G99G99G990d00')) 
+                    || ' </b></td> 
+                 </tr>');
+        HTP.p ('</table>'); 
+         HTP.p ('<div style="float:left;margin-bottom:10px;margin-left:20px;font-size:11px;"> 
+                            <p>কথায়:
+                            ' 
+            ||COM.IN_WORD_bn(v_total) 
+            || '</p></div>'); 
+ 
+         htp.p('<BR>
+                 <b><div style= "margin-left:5px;float: left; width: 32%; text-align: left;"><p style= "font-size:11px;">মাল বুঝিয়া পাইলাম <br>কাস্টমারের সাক্ষর....</p></div>
+                 <div style= "float: left; width: 32%; text-align: center;"><p style= "font-size:11px; ">মিল ম্যানেজার/<br>গোডাউন রক্ষকের সাক্ষর.....</p></div>  
+                 <div style= "float: right; width: 30%; text-align: center;"><p style= "font-size:11px; "><br>কর্তৃপক্ষের সাক্ষর..........</p></div></b></div>') ; 
+
+        --  HTP.p ('<br><br><br><br><br>');
+        htp.p('</div> 
+     </body> 
+  </html> '); 
+   end;  
+
+--****************************
+
+   PROCEDURE invoice_report_musok (p_trans_id NUMBER, p_org_id NUMBER,p_user_id NUMBER) 
+    IS 
+        v_total        NUMBER; 
+        v_tp_total  number ; 
+        v_party_name   VARCHAR2 (100); 
+        v_address      VARCHAR2 (100); 
+        v_mobile       VARCHAR2 (100); 
+        v_invoice      VARCHAR2 (100); 
+        v_warehouse    VARCHAR2 (100); 
+        v_date         DATE; 
+        v_party_code number; 
+        v_sl           NUMBER := 0; 
+    BEGIN 
+       report_utils.table_boarder ; 
+        htp.p('<h3 style="text-align:center;font-size:x;">গণপ্রজাতন্ত্রী বাংলাদেশ সরকার, জাতীয় রাজস্ব বোর্ড ঢাকা</h3>'); 
+        htp.p('<h4 style="text-align:center;font-size:px;"><b>কর চালান পত্র</b></h4>');
+        htp.p('<h6 style="text-align:center;font-size:px;">[বিধি ৪০ এর উপ- বিধি (১) এর দফা (গ) ও দফা (চ) দ্রষ্টাব্য]</h6>');
+        htp.p('<h6 style="text-align:center;font-size:px;">নিবন্ধিত বাক্তির নাম :<b> থ্রীএস এগ্রো সার্ভিসেস লিমিটেড</b></h6>');
+        htp.p('<h6 style="text-align:center;font-size:px;">নিবন্ধিত ব্যক্তির বি আই এন :<b> ০০০৩৭৭৩৪৮-০২০২</b></h6>');
+        htp.p('<h6 style="text-align:center;font-size:px;">চালান পত্র ইস্যুর ঠিকানা : Matidali Bazar, Dharampur Road, Bogura, Holding 2338/1 Road No - 01 Ward No - 17</h6>');
+ 
+        SELECT party_name, 
+               party_address, 
+               mobile_no, 
+               SUBSTR (invoice_no, 5)     invoice_no, 
+               WAREHOUSE_NAME, 
+               trans_date, 
+               party_code 
+          INTO v_party_name, 
+               v_address, 
+               v_mobile, 
+               v_invoice, 
+               v_warehouse, 
+               v_date, 
+               v_party_code 
+          FROM v_all_inv 
+         WHERE org_id = p_org_id AND trans_id = p_trans_id 
+         FETCH FIRST 1 ROW ONLY;
+        --  exception when others then null; 
+ 
+        HTP.p ( 
+               '<div style="float:left;margin-bottom:20px;"> 
+                            <p style="font-size:12px;">ক্রেতার নাম: <b>
+                            ' 
+            || HTF.escape_sc (v_party_name) 
+            || '</b><br> 
+            ক্রেতার বিআইএন / এন আই ডি:<b>'
+            || HTF.escape_sc (null) 
+            || '</b><br> 
+            সরবরাহের গন্তব্যস্থল:<b>' 
+            || HTF.escape_sc (v_address||' '||v_mobile) 
+            || '</b></p> 
+                        </div>'); 
+        HTP.p ( 
+               '<div style="float:right;margin-bottom:20px;"> <h3 style="text-align:center;border:2px solid black;width:100px;">মূসক৬.৩</h3>
+                <p style="font-size:12px;">
+              <b>ইনভয়েস নম্বর :</b># 
+                            ' 
+            || HTF.escape_sc (v_invoice) 
+            || '<br> 
+                            <b>চালানপত্র নম্বর :</b> 
+                            ' 
+            || HTF.escape_sc (null) 
+            || '<br> 
+                            <b>ইস্যুর তারিখ:</b> 
+                            ' 
+            || HTF.escape_sc (to_char(v_date,'dd-mm-yyyy')) 
+            || '<br> 
+                            <b>ইস্যুর সময়:</b> 
+                            ' 
+            || HTF.escape_sc (to_char(v_date,'hh12:mi AM'))
+            || '</p> 
+                        </div>'); 
+ 
+ 
+        HTP.p ('<table style="width:100%;font-size:12px;"> 
+    			<tr> 
+    			<th style="width:3%;">ক্রমিক নং</th> 
+    			<th style="width:20%;">পণ্য বা সেবার বর্ণনা<br>(প্রযোজ্য ক্ষেত্রে ব্র্যান্ড নাম সহ)</th> 
+    			<th style="width:4%;"> সরবরাহের একক</th>  
+    			<th style="width:4%;">পরিমান</th> 
+                <th style="width:4%;">একক মূল্য১ (টাকায়)</th> 
+    			<th style="width:4%;">মোট মূল্য (টাকায়)</th> 
+                <th style="width:4%;">সম্পূরক শুষ্কের হার</th> 
+                <th style="width:4%;">সম্পূরক শুষ্কের পরিমান (টাকায়)</th> 
+                <th style="width:4%;">মূল্য সংযোজন করের হার/সুনির্দিষ্ট কর</th>
+                <th style="width:4%;">মূল্য সংযোজন কর সুনির্দিষ্ট কর এর পরিমান (টাকায়)</th> 
+                <th style="width:4%;">সকল প্রকার শুল্ক ও করসহ মূল্য (টাকায়)</th>  
+    			</tr>'); 
+        v_total := 0; 
+        v_tp_total :=0; 
+ 
+        FOR i IN (SELECT distinct item_name, 
+                         packing, 
+                         qty, 
+                         UNIT_PRICE, 
+                         qty * UNIT_PRICE           TP, 
+                         ITM_DIS_PER, 
+                         VAT_AMOUNT, 
+                         VAT_PERSENT, 
+                         TOATAL 
+                    FROM v_all_inv 
+                    where trans_type = 'SV' 
+                   and TRANS_ID = p_trans_id AND org_id = p_org_id 
+                   order by item_name) 
+        LOOP 
+            v_sl := v_sl + 1; 
+            v_total := v_total + NVL (i.toatal, 0); 
+            v_tp_total := v_tp_total + nvl(i.tp,0); 
+            HTP.p ( 
+                   '<tr> 
+                   <td style="text-align: center">' 
+                || HTF.escape_sc (v_sl) 
+                || '</td> 
+ 
+                        <td style="text-align: left">' 
+                || HTF.escape_sc (i.item_name) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.packing) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.qty) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.UNIT_PRICE) 
+                || '</td>  
+                        <td style="text-align: right">' 
+                || HTF.escape_sc (i.TP) 
+                || '</td>   
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (null) 
+                || '</td> 
+                        <td style="text-align: right">' 
+                || HTF.escape_sc (null) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (NVL (i.VAT_PERSENT, 0)) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (NVL (i.VAT_AMOUNT, 0)) 
+                || '</td> 
+                        <td style="text-align: right">' 
+                || HTF.escape_sc (TO_CHAR (i.TOATAL, '99,99,999.00')) 
+                || '</td> 
+  
+                        <tr>'); 
+        END LOOP; 
+ 
+        HTP.p ( 
+               '<tr> 
+                                <td colspan="5"style="text-align: center"><b>মোট:</b></td> 
+                                <td style="text-align: right"><b>' 
+            || HTF.escape_sc (TO_CHAR (v_tp_total, '99,99,999.00')) 
+            || ' </b></td> 
+            <td></td>  
+            <td></td> 
+            <td></td> 
+            <td></td>
+            <td style="text-align: right"><b>' 
+            || HTF.escape_sc (TO_CHAR (v_total, '99,99,999.00')) 
+            || ' </b></td> 
+                            </tr>'); 
+        HTP.p ('</table>');
+        for u in(select user_name from SM_USER_LIST
+                    where org_id = p_org_id
+                    and USER_ID = p_user_id)
+        loop 
+         HTP.p ('<div style="float:left;margin-bottom:20px;font-size:12px;"> 
+                            <p>প্রতিষ্ঠান কতৃপক্ষের দায়িত্বপ্রাপ্ত ব্যক্তির নাম: 
+                            <b>' 
+            ||HTF.escape_sc(u.user_name) 
+            || '</b><br>
+            পদবি :
+            '||HTF.escape_sc(null)||'<br>
+            স্বাক্ষর :
+            '||HTF.escape_sc(null)||'<br>
+            সীল :
+            '||HTF.escape_sc(null)||'
+            </p></div>'); 
+        end loop;
+        -- report_utils.footer_invoice; 
+    END; 
+     
+--**************************
+
+    PROCEDURE issue_invoice_4 (p_trans_id NUMBER, p_org_id NUMBER) 
+    is 
+    v_total        NUMBER; 
+         
+        v_tp_total  number ; 
+        v_party_name   VARCHAR2 (100); 
+        v_address      VARCHAR2 (100); 
+        v_mobile       VARCHAR2 (100); 
+        v_invoice      VARCHAR2 (100); 
+        v_warehouse    VARCHAR2 (100); 
+        v_date         DATE; 
+        v_party_code number; 
+        v_sl           NUMBER := 0; 
+    BEGIN 
+       report_utils.table_boarder ; 
+        htp.p('<h3 style="text-align:center"><b>Spare Parts Issue Slip</b></h3>'); 
+ 
+            for j in (select sm.trans_date,  
+                               sm.receiver_name issuer_name,
+                               (select code_desc from g_uni_codes where code = sm.section_code) section
+                        from bog_st_m sm  
+                        where sm.trans_type = 'SI' 
+                        and sm.org_id = p_org_id 
+                        and sm.trans_id = p_trans_id 
+                        fetch first 1 row only 
+                        ) 
+            loop 
+ 
+                HTP.p ( 
+                       '<div style="float:left;margin-bottom:20px;"> 
+                                    <p><b>Issuer Name:</b> 
+                                    ' 
+                    || HTF.escape_sc (j.issuer_name) 
+                    ||  '<br><b>Section:</b>
+                                    ' 
+                    || HTF.escape_sc (j.section) 
+                    ||  '</p> 
+                                </div>'); 
+                HTP.p ( 
+                       '<div style="float:right;margin-bottom:20px;"> 
+                                    <p><b>Issue Date:</b> 
+                                    ' 
+                    || HTF.escape_sc (to_char(j.trans_date,'mm-dd-yy')) 
+                    || '</p> 
+                                </div>'); 
+            end loop; 
+ 
+                HTP.p ('<table style="width:100%"> 
+            			<tr> 
+            			<th style="width:3%;">SL</th> 
+            			<th style="width:10%;">Item Name</th> 
+            			<th style="width:5%;">Unit</th>  
+            			<th style="width:5%;">Qty</th>  
+            			</tr>'); 
+                v_total := 0; 
+                -- v_tp_total :=0; 
+ 
+        FOR i IN (SELECT  gi.code_desc item_name, 
+                            pkg_inventory.GET_INV_UNIT(gi.code) unit, 
+                            gi.packing, 
+                            sd.qty, 
+                            sd.rate, 
+                            sd.qty * sd.rate tp, 
+                            sd.total 
+                    from bog_st_d sd 
+                    join g_inv_codes gi on (gi.code = sd.item_code) 
+                    and sd.org_id = p_org_id 
+                    and sd.trans_id = p_trans_id 
+                    order by item_name) 
+        LOOP 
+            v_sl := v_sl + 1; 
+            v_total := v_total + NVL (i.qty, 0); 
+        --     v_tp_total := v_tp_total + nvl(i.tp,0); 
+            HTP.p ( 
+                   '<tr> 
+                   <td style="text-align: center">' 
+                || HTF.escape_sc (v_sl) 
+                || '</td> 
+ 
+                        <td style="text-align: left">' 
+                || HTF.escape_sc (i.item_name) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc (i.unit) 
+                || '</td> 
+                        <td style="text-align: center">' 
+                || HTF.escape_sc(i.qty) 
+                || '</td> 
+  
+                        <tr>'); 
+        END LOOP; 
+ 
+        HTP.p ( 
+               '<tr> 
+                    <td colspan="3"style="text-align: right"><b>Total:</b></td>  
+                    <td style="text-align: center"><b>' 
+                    || HTF.escape_sc (to_char(v_total,'99,99,99,999.0')) 
+                    || ' </b></td> 
+                 </tr>'); 
+        HTP.p ('</table>'); 
+        htp.p('<BR> <BR> <BR> 
+                 <b><div style= "float: left; width: 25%; text-align: left;"><p style= "text-decoration-line: overline; ">Signatue of Receiver''s</p></div>  
+                 <div style= "float: right; width: 25%; text-align: right;"><p style= "text-decoration-line: overline; ">Signatue of Authority</p></div></b>') ;  
+    END; 
+
+---****************************** 
+
+END "INVOICE_REPORT";
+/
+

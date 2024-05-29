@@ -1,0 +1,1043 @@
+
+
+create or replace PROCEDURE        PR_MONTHEND_PROCESS( 
+   P_USER_ID   IN   NUMBER, 
+   P_FDATE     IN   DATE, 
+   P_TDATE     IN   DATE, 
+   P_ORG_ID    IN   NUMBER 
+) 
+AS 
+   V_ENTRY_BY   NUMBER  := P_USER_ID ; 
+
+          --For Roster --
+    CURSOR C_FASTIVAL 
+	 IS  
+	 SELECT CID_NO,TRANS_DATE 
+	FROM PR_FASTIVAL_SETUP 
+    WHERE TRANS_DATE BETWEEN P_FDATE AND P_TDATE; 
+	 
+	CURSOR C_FASTIVAL1 
+	 IS  
+	SELECT CID_NO,TRANS_DATE,H_DATE 
+	FROM PR_FASTIVAL_SETUP 
+    WHERE TRANS_DATE BETWEEN P_FDATE AND P_TDATE; 
+	 
+	     ----Time Zone Status ---
+	CURSOR C_TIME 
+	 IS select CID_NO,R_STATUS,TRANS_DATE 
+	from V_DAILY_ATTENDANCE 
+    WHERE TRANS_DATE BETWEEN P_FDATE AND P_TDATE; 
+	 
+           ---- LEAVE CALCULATION------
+   CURSOR C_LEAVE IS 
+          SELECT CID_NO,LEAVE_TYPE_ID ATT_STATUS,B.TRANS_DATE TRANS_DATE 
+          FROM EMP_LEAVE_INFO LI,PR_TEMP B 
+		  where B.TRANS_DATE   BETWEEN  LI.FROM_DATE AND LI.TO_DATE; 
+		   
+		-------------------------------------------------------- 
+		-----ML CALCULATION ON 29 OCT 2011 : DIPONKOR ---------- 
+		-------------------------------------------------------- 
+   CURSOR C_ML IS  
+          SELECT CID_NO,LEAVE_TYPE_ID ATT_STATUS,B.TRANS_DATE TRANS_DATE 
+          FROM EMP_LEAVE_INFO LI,PR_TEMP B 
+        --   WHERE LI.TO_DATE>=P_FDATE  
+ 		--   AND   LI.LEAVE_TYPE_ID=205 
+          where B.TRANS_DATE   BETWEEN  LI.FROM_DATE AND LI.TO_DATE; 
+	  ---------------------------END OF ML----------------------- 
+	------------------------------------------------------------------------------ 
+	---------- Start: For  CL AND SL Not consider weekend as a CL or SL ----------- 
+	----------It will be consider as a weekend : Diponkor Roy on 19/02/2012------- 
+	--------------------------- --------------------------------------------------- 
+		CURSOR C_H_CLSL IS  
+		SELECT cid_no, trans_date 
+		  FROM emp_leave_info li, pr_temp b 
+		 WHERE li.from_date BETWEEN p_fdate AND p_tdate 
+		   AND li.leave_type_id IN (SELECT leave_type_id 
+		                              FROM leave_type_info 
+		                            --  WHERE leave_type IN ('SL', 'CL') 
+                                     ) 
+		   --AND li.cid_no = p_cid_no 
+		   AND TRUNC (b.trans_date) BETWEEN li.from_date AND li.TO_DATE 
+		   AND TRUNC (b.trans_date) IN (SELECT TRUNC (holi_date) holi_date 
+		                                  FROM public_holi_day 
+		                                 WHERE holi_date IS NOT NULL) 
+		   AND TRUNC (b.trans_date) BETWEEN p_fdate AND p_tdate; 
+		    
+		--------------week End-------------  
+		CURSOR C_W_CLSL IS    
+		SELECT cid_no, trans_date 
+		  FROM emp_leave_info li, pr_temp b 
+		 WHERE li.from_date BETWEEN p_fdate AND p_tdate 
+         and li.org_id = P_ORG_ID 
+		   AND li.leave_type_id IN (SELECT leave_type_id 
+		                              FROM leave_type_info 
+                                      where org_id = P_ORG_ID 
+		                            --  WHERE leave_type IN ('SL', 'CL') 
+                                     ) 
+		   --AND li.cid_no = p_cid_no 
+   AND TRUNC (b.trans_date) BETWEEN li.from_date AND li.TO_DATE 
+   AND TO_CHAR (b.trans_date, 'DY') = (SELECT  
+		   case when ei.OFFICE_TIME_CODE<>pkg_setup.GET_ROSTER_OFFICE_CODE then 
+		   NVL (ei.weekend, 'FRI') else null end weekend 
+		                                         FROM emp_info ei 
+		                                        WHERE ei.cid_no = li.cid_no 
+												) 
+		   AND TRUNC (b.trans_date) BETWEEN p_fdate AND p_tdate; 
+   	------------------------------------------------------------------------------ 
+	---------- End : For  CL AND SL Not consider weekend as a CL or SL ----------- 
+	----------It will be consider as a weekend : Diponkor Roy on 19/02/2012------- 
+	--------------------------- ---------------------------------------------------	 
+	 
+	------------------special Case -------- 
+	CURSOR C_OUT_TIME IS   
+	SELECT cid_no, out_time, out_time - (4 / 24)out_time  
+		  FROM pr_daily_attendance 
+		 WHERE trans_date  BETWEEN p_fdate AND p_tdate 
+		   AND cid_no IN (SELECT code 
+		                    FROM g_uni_codes 
+		                   WHERE NVL (ot_8hr, 'N') = 'Y'); 
+	--------------------------------------- 
+	 
+	----------------------------------------------------------------------------------------- 
+----------Start: After ML and Rejoining ; Weekend or Govt. Holiday are not count for salary----- 
+---------------------------------------------------------------------------------------- 
+CURSOR C_ML_GW IS 
+SELECT a.cid_no, a.trans_date, a.att_status 
+  FROM pr_day_wise_attendence a, 
+       (SELECT   cid_no, MAX (TRUNC (trans_date)) trans_date 
+            FROM pr_day_wise_attendence 
+           WHERE TRUNC (trans_date) BETWEEN p_fdate AND p_tdate 
+            --  AND att_status = 205---ML 
+        GROUP BY cid_no) v, 
+       (SELECT   cid_no, MIN (TRUNC (trans_date)) trans_date 
+            FROM pr_day_wise_attendence 
+           WHERE TRUNC (trans_date) BETWEEN p_fdate AND p_tdate 
+            --  AND att_status = 1--Present 
+        GROUP BY cid_no) vv 
+ WHERE a.cid_no = v.cid_no 
+   AND a.cid_no = vv.cid_no 
+   AND TRUNC (a.trans_date) BETWEEN TRUNC (v.trans_date) AND TRUNC 
+                                                                (vv.trans_date) 
+   AND a.cid_no = a.cid_no 
+  -- AND a.cid_no = 2797 
+   AND a.att_status in(7,8); 
+----------------------------------------------------------------------------------------- 
+----------End: After ML and Rejoining ; Weekend or Govt. Holiday are not count for salary----- 
+---------------------------------------------------------------------------------------- 
+ 
+	 
+	CURSOR C_W_EL IS    
+		SELECT cid_no, trans_date 
+		  FROM emp_leave_info li, pr_temp b 
+		 WHERE li.from_date BETWEEN p_fdate AND p_tdate 
+		   AND li.leave_type_id IN (SELECT leave_type_id 
+		                              FROM leave_type_info 
+		                             WHERE leave_type IN ('EL')) 
+		   --AND li.cid_no = p_cid_no 
+		   AND TRUNC (b.trans_date) BETWEEN li.from_date AND li.TO_DATE 
+		   AND TO_CHAR (b.trans_date, 'DY') = (SELECT case when  
+		   	   		   				   ei.OFFICE_TIME_CODE<>pkg_setup.GET_ROSTER_OFFICE_CODE then NVL (ei.weekend, 'FRI') 
+									   else null end weekend 
+		                                         FROM emp_info ei 
+		                                        WHERE ei.cid_no = li.cid_no 
+												) 
+		   AND TRUNC (b.trans_date) BETWEEN p_fdate AND p_tdate; 
+	 
+	 
+	------------------------------------------------------------------------------ 
+	---------- Start : For  EL  consider weekend as a EL ----------- 
+	----------It will be consider as a weekend : Diponkor Roy on 02/03/2012------- 
+	------------------------------------------------------- 
+	CURSOR C_CKNIT IS  
+	 SELECT CID_NO, TRANS_DATE,G.OT_CONVERT_RATE 
+		  FROM EMP_INFO A, PR_TEMP B ,G_UNI_CODES G 
+		 WHERE TO_CHAR (b.trans_date, 'DY') = (SELECT NVL (ei.weekend, 'FRI') weekend 
+		                                         FROM emp_info ei 
+		                                        WHERE ei.cid_no = a.cid_no 
+												) 
+		   AND TRUNC (b.trans_date) BETWEEN  p_fdate AND p_tdate 
+		   AND a.sec_code=g.code  
+		   AND NVL( G.OT_CONVERT,'N')='Y'; --Circular Knit,1656 
+		 
+	 
+	CURSOR C_CKNIT_NO_OT IS  
+	 SELECT CID_NO, TRANS_DATE,G.OT_CONVERT_RATE,NVL(G.OT_MIN_LIMIT,0)OT_MIN_LIMIT 
+		  FROM EMP_INFO A, PR_TEMP B ,G_UNI_CODES G 
+		 WHERE TO_CHAR (b.trans_date, 'DY') <> (SELECT NVL (ei.weekend, 'FRI') weekend 
+		                                         FROM emp_info ei 
+		                                        WHERE ei.cid_no = a.cid_no 
+												) 
+		   AND TRUNC (b.trans_date) BETWEEN  p_fdate AND p_tdate 
+		   AND a.sec_code=g.code  
+		   AND NVL( G.OT_CONVERT,'N')='Y'; --Circular Knit,1656 
+	 
+	CURSOR C_OT_LIMIT IS  
+	 SELECT CID_NO, TRANS_DATE,G.OT_CONVERT_RATE,NVL(G.OT_MIN_LIMIT,0)OT_MIN_LIMIT 
+		  FROM EMP_INFO A, PR_TEMP B ,G_UNI_CODES G 
+		 WHERE TO_CHAR (b.trans_date, 'DY') <> (SELECT NVL (ei.weekend, 'FRI') weekend 
+		                                         FROM emp_info ei 
+		                                        WHERE ei.cid_no = a.cid_no 
+												) 
+		   AND TRUNC (b.trans_date) BETWEEN  p_fdate AND p_tdate 
+		   AND a.sec_code=g.code  
+		   AND NVL( G.OT_CONVERT,'N')<>'Y' 
+		   AND NVL(G.OT_MIN_LIMIT,0)>0;	 
+     
+  CURSOR C2 IS ----------NORMAL DAY ATTENDENCE 
+         SELECT DA.CID_NO,DA.TRANS_DATE,DA.IN_TIME,DA.OUT_TIME,DA.OFFICE_IN_TIME,DA.OFFICE_OUT_TIME,  
+		 to_date(to_char(DA.IN_TIME,'DD.MM.RRRR')||' 2100','DD.MM.RRRR HH24MI') fac_out_9PM, 
+           NVL(CASE WHEN DA.IN_TIME <=DA.OFFICE_IN_TIME THEN 0 
+              ELSE   (DA.IN_TIME - DA.OFFICE_IN_TIME) * 24* 60 
+           END,0) LATE_MIN, 
+           NVL(CASE WHEN DA.OUT_TIME <= DA.OFFICE_OUT_TIME THEN 0 
+              ELSE   (DA.OUT_TIME - DA.OFFICE_OUT_TIME) * 24 * 60 
+           END,0) OVER_TIME_MIN, 
+           NVL(CASE WHEN DA.OUT_TIME >= DA.OFFICE_OUT_TIME THEN 0 
+		   		WHEN DA.OUT_TIME IS NULL THEN 0 
+              ELSE   (DA.OFFICE_OUT_TIME - DA.OUT_TIME)* 24 * 60 
+           END,0) EARLY_MIN 
+        FROM PR_DAY_WISE_ATTENDENCE DT,V_DAILY_ATTENDANCE DA 
+         WHERE DT.CID_NO=DA.CID_NO 
+         AND DT.TRANS_DATE=DA.TRANS_DATE 
+         AND DA.TRANS_DATE BETWEEN  P_FDATE AND P_TDATE 
+         AND DT.TRANS_DATE BETWEEN  P_FDATE AND P_TDATE 
+         AND DT.ATT_STATUS=0 ; 
+ ----------------------------------c_late--------------------- 
+      CURSOR C_late IS 
+       select DA.CID_NO,DA.TRANS_DATE,DA.IN_TIME,DA.OUT_TIME,DA.OFFICE_IN_TIME,DA.OFFICE_OUT_TIME,  
+        NVL(CASE WHEN DA.IN_TIME <=DA.OFFICE_IN_TIME THEN 0 
+              ELSE   (DA.IN_TIME - DA.OFFICE_IN_TIME) * 24* 60 
+           END,0) LATE_MIN 
+           FROM PR_DAY_WISE_ATTENDENCE DT,V_DAILY_ATTENDANCE DA 
+         WHERE DT.CID_NO=DA.CID_NO 
+         AND DT.TRANS_DATE=DA.TRANS_DATE 
+         AND DA.TRANS_DATE BETWEEN  P_FDATE AND P_TDATE 
+         AND DT.TRANS_DATE BETWEEN  P_FDATE AND P_TDATE; 
+		  
+    CURSOR C3 IS ---------- HOLIDAY ATTENDENCE 
+         SELECT DA.CID_NO,DA.TRANS_DATE,DA.IN_TIME,DA.OUT_TIME,DA.OFFICE_IN_TIME,DA.OFFICE_OUT_TIME, 
+		 (CASE WHEN DA.OFFICE_IN_TIME>DA.IN_TIME THEN  
+		    NVL((DA.OUT_TIME - DA.OFFICE_IN_TIME) * 24* 60,0) 
+			ELSE NVL((DA.OUT_TIME - DA.IN_TIME) * 24* 60,0) 
+			END) OVER_TIME_MIN 
+            /*NVL((DA.OUT_TIME - DA.OFFICE_IN_TIME) * 24* 60,0) OVER_TIME_MIN*/ 
+         FROM PR_DAY_WISE_ATTENDENCE DT,V_DAILY_ATTENDANCE DA 
+         WHERE DT.CID_NO=DA.CID_NO 
+         AND DT.TRANS_DATE=DA.TRANS_DATE 
+         AND DA.TRANS_DATE BETWEEN  P_FDATE AND P_TDATE 
+         AND DT.TRANS_DATE BETWEEN  P_FDATE AND P_TDATE 
+         AND DT.ATT_STATUS IN (1,7,8) ; 
+         --AND DT.ATT_STATUS <> 0 ; 
+ 
+    CURSOR C4 IS ---------- WEEK END 
+	SELECT ROWNUM SL,OFFICE_TIME_CODE,HOLI_DAY,B.FROM_DATE,NVL(B.TO_DATE,P_TDATE) TO_DATE 
+	FROM PR_DUTY_CATEGORY A,PR_OFFICE_TIME B 
+	WHERE A.DUTY_TYPE_ID = B.DUTY_TYPE_ID 
+--	AND B.OFFICE_TIME_CODE<>98 
+	AND (P_FDATE BETWEEN B.FROM_DATE AND B.TO_DATE 
+	OR P_TDATE BETWEEN B.FROM_DATE AND B.TO_DATE 
+	OR B.FROM_DATE BETWEEN P_FDATE AND P_TDATE); 
+	 
+	 
+ 
+BEGIN 
+ 
+   htp.p(' start P_FDATE:'||P_FDATE||' P_TDATE:'||P_TDATE); 
+  IF P_FDATE >COM.CLOSING AND  P_TDATE>COM.CLOSING THEN 
+ 
+ 
+  DELETE FROM PR_DAY_WISE_ATTENDENCE WHERE TRANS_DATE BETWEEN P_FDATE AND P_TDATE; 
+  COMMIT; 
+htp.p(' inserting P_FDATE:'||P_FDATE||' P_TDATE:'||P_TDATE); 
+ 
+  -----------------------ROW DATA ENTRY -------------- 
+  INSERT INTO PR_DAY_WISE_ATTENDENCE 
+            (CID_NO,TRANS_DATE,LATE_MIN,OVER_TIME_MIN,EARLY_MIN, 
+			HOLIDAY_WORK,ATT_STATUS,RUN_STATUS) 
+   SELECT EI.CID_NO,B.TRANS_DATE,0,0,0,0, 
+          CASE WHEN NVL( EI.PROMO_DATE, EI.JOINING_DATE) > B.TRANS_DATE THEN 9 
+          WHEN NVL (EI.EMP_OUT_DATE, B.TRANS_DATE) <B.TRANS_DATE 
+          THEN 10 
+          ELSE 0 
+          END WORKING_DAY,'R' 
+     FROM EMP_INFO EI, PR_TEMP B 
+    WHERE B.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+	AND   NVL(Ei.RATE_BASE,'N')<>'Y' 
+    and ei.org_id = P_ORG_ID 
+    AND  NOT  EXISTS (select 1 from PR_DAY_WISE_Attendence PA  
+		 	  where pa.cid_no=EI.cid_no and Pa.trans_date=B.trans_date)
+	--AND   B.TRANS_DATE BETWEEN TO_DATE(TO_CHAR(NVL( EI.PROMO_DATE, EI.JOINING_DATE),'MMRRRR'),'MMRRRR') 
+	--AND   LAST_DAY(TO_DATE(TO_CHAR(NVL (EI.EMP_OUT_DATE,B.TRANS_DATE),'MMRRRR'),'MMRRRR')) 
+	; 
+ 
+   COMMIT; 
+htp.p(' inserted P_FDATE:'||P_FDATE||' P_TDATE:'||P_TDATE); 
+    INSERT INTO PR_DAY_WISE_ATTENDENCE 
+            (CID_NO,TRANS_DATE,LATE_MIN,OVER_TIME_MIN,EARLY_MIN, 
+			HOLIDAY_WORK,ATT_STATUS,RUN_STATUS) 
+   SELECT EI.CID_NO,B.TRANS_DATE,0,0,0,0, 
+          CASE WHEN NVL( EI.PROMO_DATE, EI.JOINING_DATE) > B.TRANS_DATE THEN 9 
+          WHEN NVL (EI.EMP_OUT_DATE, B.TRANS_DATE) <B.TRANS_DATE 
+          THEN 10 
+          ELSE 0 
+          END WORKING_DAY,'R' 
+     FROM EMP_INFO EI, PR_TEMP B 
+    WHERE B.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+	AND   NVL(Ei.RATE_BASE,'N')<>'Y' 
+    and ei.org_id = P_ORG_ID 
+	-- AND   EI.SEC_CODE IN (1348,1349)  
+	AND  NOT  EXISTS (select 1 from PR_DAY_WISE_Attendence PA  
+		 	  where pa.cid_no=EI.cid_no and Pa.trans_date=B.trans_date); 
+	--AND   B.TRANS_DATE BETWEEN TO_DATE('26'||TO_CHAR(NVL( EI.PROMO_DATE, EI.JOINING_DATE)-25,'MMRRRR'),'DDMMRRRR') 
+	--AND   LAST_DAY(TO_DATE(TO_CHAR(NVL (EI.EMP_OUT_DATE,B.TRANS_DATE),'MMRRRR'),'MMRRRR')); 
+		 
+	COMMIT; 
+	    
+   ------------------  Not Linking & Knighing 
+   INSERT INTO PR_DAY_WISE_ATTENDENCE 
+            (CID_NO,TRANS_DATE,LATE_MIN,OVER_TIME_MIN,EARLY_MIN, 
+			HOLIDAY_WORK,ATT_STATUS,RUN_STATUS) 
+   SELECT EI.CID_NO,B.TRANS_DATE,0,0,0,0, 
+          CASE WHEN NVL( EI.PROMO_DATE, EI.JOINING_DATE) > B.TRANS_DATE THEN 9 
+          WHEN NVL (EI.EMP_OUT_DATE, B.TRANS_DATE) <B.TRANS_DATE 
+          THEN 10 
+          ELSE 0 
+          END WORKING_DAY,'R' 
+     FROM EMP_INFO EI, PR_TEMP B 
+    WHERE B.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+	AND    NVL(Ei.RATE_BASE,'N')<>'Y' 
+    and ei.org_id = P_ORG_ID 
+	-- AND   EI.SEC_CODE NOT IN (1348,1349)  
+    AND  NOT  EXISTS (select 1 from PR_DAY_WISE_Attendence PA  
+		 	  where pa.cid_no=EI.cid_no and Pa.trans_date=B.trans_date)
+	AND   B.TRANS_DATE BETWEEN TO_DATE(TO_CHAR(NVL( EI.PROMO_DATE, EI.JOINING_DATE),'MMRRRR'),'MMRRRR') 
+	AND   LAST_DAY(TO_DATE(TO_CHAR(NVL (EI.EMP_OUT_DATE,B.TRANS_DATE),'MMRRRR'),'MMRRRR')); 
+ 
+   COMMIT; 
+    
+    
+   /* 
+    --------------------------------Earn Leave CALCULATION   ------------------------------------ 
+       FOR CC IN C_EL LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET 	  A.ATT_STATUS =CC.ATT_STATUS 
+       WHERE A.CID_NO =  CC.CID_NO 
+       AND A.TRANS_DATE=CC.TRANS_DATE 
+       AND A.ATT_STATUS=0       ----INCASE GOVT. HOLIDAY,WEEKEND IF YOU WANT TO CALCULATE 
+       AND RUN_STATUS='R';    ---LEAVE WITH HOLIDAY THEN CONDITION OK OTHERWISE OFF THE CONDITION. 
+       END LOOP; 
+       COMMIT; 
+	 */   
+ 
+	  
+ 
+	 
+		    
+	---------------------------------------WEEK END-------------------------- 
+ 
+ --------- FIXED    
+  UPDATE PR_DAY_WISE_ATTENDENCE A 
+   SET A.ATT_STATUS = 7 --DECODE(COM.F_WEEKEND (A.CID_NO,A.TRANS_DATE),A.BAR,1,0) 
+   WHERE A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+    AND A.ATT_STATUS=0 
+	AND A.RUN_STATUS='R' 
+	AND EXISTS  (select 1 
+				 from emp_info ei  
+				 where ei.cid_no=A.cid_no 
+				 AND  EI.WEEKEND =TO_CHAR(A.TRANS_DATE,'DY') 
+				 AND  Ei.weekend is not null 
+                 and ei.org_id = P_ORG_ID 
+                 AND ei.OFFICE_TIME_CODE <> pkg_setup.GET_ROSTER_OFFICE_CODE 
+				 ) 
+	--AND A.cid_no in(select cid_no from emp_info where WEEKEND is not null)			  
+	AND A.trans_date not in(select HOLI_DATE  
+					 	    FROM  PR_FORCE_WORKING_DAY 
+							----------------SPECIAL CHANGE on 02-Nov-2013------------ 
+													 	   e, PR_DAY_WISE_ATTENDENCE b, emp_info c 
+							WHERE e.HOLI_DATE =b.trans_date 
+							AND b.cid_no=c.cid_no 
+							AND b.trans_date between p_fdate and p_tdate 
+							AND b.cid_no= a.cid_no  
+							AND CASE WHEN P_FDATE='01-OCT-13' AND P_TDATE='31-cOCT-13' THEN 
+								    joining_date  
+								ELSE  
+								 	  	joining_date 
+								END < CASE WHEN P_FDATE='01-OCT-13' AND P_TDATE='31-OCT-13' THEN 
+								    	 to_date('10.08.2013','DD.MM.RRRR') 
+									   ELSE  
+									      joining_date +1 
+									   END  
+							) 
+AND A.trans_date not in(select HOLI_DATE  
+					 	    FROM  PR_FORCE_WORKING_DAY 
+							); 
+ 
+   COMMIT; 
+    
+ 
+    
+ 
+  FOR CC IN C4 LOOP 
+ 
+   UPDATE PR_DAY_WISE_ATTENDENCE A 
+   SET A.ATT_STATUS = 7 --DECODE(COM.F_WEEKEND (A.CID_NO,A.TRANS_DATE),A.BAR,1,0) 
+   WHERE A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+    AND TO_CHAR(A.TRANS_DATE,'DY') =CC.HOLI_DAY 
+    AND A.ATT_STATUS=0 
+	AND A.RUN_STATUS='R' 
+    AND A.TRANS_DATE BETWEEN CC.FROM_DATE AND CC.TO_DATE 
+	AND A.cid_no not in(select cid_no from emp_info ei  
+                    where ei.OFFICE_TIME_CODE = pkg_setup.GET_ROSTER_OFFICE_CODE 
+                    and ei.org_id = P_ORG_ID)--where WEEKEND is not null)  
+	AND a.TRANS_DATE  NOT IN(SELECT hOLI_DATE 	 
+					  	  	 FROM PR_FORCE_WORKING_DAY  
+							 ----------------SPECIAL CHANGE on 02-Nov-2013------------ 
+													 	   e, PR_DAY_WISE_ATTENDENCE b, emp_info c 
+							WHERE e.HOLI_DATE =b.trans_date 
+							AND b.cid_no=c.cid_no 
+							AND b.trans_date between p_fdate and p_tdate 
+							AND b.cid_no= a.cid_no  
+							AND CASE WHEN P_FDATE='01-OCT-13' AND P_TDATE='31-cOCT-13' THEN 
+								    joining_date  
+								ELSE  
+								 	  	joining_date 
+								END < CASE WHEN P_FDATE='01-OCT-13' AND P_TDATE='31-OCT-13' THEN 
+								    	 to_date('10.08.2013','DD.MM.RRRR') 
+									   ELSE  
+									      joining_date +1 
+									   END 	 
+							) 
+AND A.trans_date not in(select HOLI_DATE  
+					 	    FROM  PR_FORCE_WORKING_DAY 
+							); 
+							 
+ END LOOP; 
+  
+        ---ROSTER Employee WEEKEND setup---24-02-2015 
+    --- off---22-11-16 
+   /* UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET A.ATT_STATUS = 7  
+       WHERE A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+        AND A.CID_NO IN (SELECT CID_NO FROM EMP_INFO WHERE OFFICE_TIME_CODE=pkg_setup.GET_ROSTER_OFFICE_CODE) 
+        --AND TO_CHAR(A.TRANS_DATE,'DY') = (SELECT UPPER(weekend) FROM T_ROSTER_D WHERE cid_no=a.cid_no AND roster_date=A.trans_date) 
+        AND A.TRANS_DATE = (SELECT roster_date FROM T_ROSTER_D WHERE weekend_ind=1 and cid_no=a.cid_no AND roster_date=A.trans_date) 
+        AND A.ATT_STATUS=0 
+        AND A.RUN_STATUS='R' 
+        --AND A.TRANS_DATE BETWEEN CC.FROM_DATE AND CC.TO_DATE 
+        AND NOT EXISTS (SELECT 1 FROM PR_FORCE_WORKING_DAY WD,EMP_INFO EI 
+                     WHERE  EI.CID_NO  = A.CID_NO 
+                       AND WD.SEC_CODE  = EI.SEC_CODE 
+                       AND WD.HOLI_DATE = A.TRANS_DATE ); 
+                        
+       
+    COMMIT;*/ 
+  
+  
+ 
+ 
+ 
+	    
+	   ----------------------------------------------------------- 
+	   ---------For CL & SL with weekend and holiday-------------- 
+	   ----------------------------------------------------------- 
+	    ------weekend  
+	   FOR CC IN C_W_CLSL LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET 	  A.ATT_STATUS =7 
+       WHERE A.CID_NO =  CC.CID_NO 
+       AND A.TRANS_DATE=CC.TRANS_DATE 
+       AND A.ATT_STATUS IN (SELECT leave_type_id 
+                              FROM leave_type_info 
+                             WHERE leave_type IN ('SL', 'CL') 
+                             and org_id = P_ORG_ID)      
+       AND RUN_STATUS='R';  
+       END LOOP; 
+       COMMIT; 
+	   
+	  ---govt holiday 
+	  FOR CC IN C_H_CLSL LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET 	  A.ATT_STATUS =8 
+       WHERE A.CID_NO =  CC.CID_NO 
+       AND A.TRANS_DATE=CC.TRANS_DATE 
+       AND A.ATT_STATUS IN (SELECT leave_type_id 
+                              FROM leave_type_info 
+                             WHERE leave_type IN ('SL', 'CL') 
+                             and org_id = P_ORG_ID)     
+       AND RUN_STATUS='R';  
+       END LOOP; 
+       COMMIT; 
+	    
+	   
+	    --------------------------------------------------------- 
+	  --------------------------------------------------------- 
+	   ------------For Roster-------------- 
+	   FOR CC IN C_FASTIVAL 
+	   LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+        SET   A.ATT_STATUS =8, 
+			 -- A.OVER_TIME_MIN=NUll, 
+			 -- A.LATE_MIN=Null, 
+			  --A.EARLY_MIN=Null, 
+			  ---A.HOLIDAY_WORK=Null, 
+			 -- A.IN_TIME=NUll, 
+			  --A.out_time=null, 
+			  A.FAC_OUT_TIME=Null, 
+			  A.FAC_IN_TIME=Null, 
+			  A.ROSTER_STATUS=1 
+			  --A.FAC_OT_MIN=Null, 
+			  --A.OT_MIN=Null		   
+        WHERE  A.CID_NO =  CC.CID_NO 
+        AND A.TRANS_DATE=CC.TRANS_DATE;  
+       END LOOP; 
+       COMMIT; 
+	    
+	 
+	   ------------------End----------------------- 
+	    
+	    
+	   --------------------------------ML  CALCULATION  on 29 Oct 2011 ------------------------------------ 
+       FOR CC IN C_ML LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET 	  A.ATT_STATUS =CC.ATT_STATUS 
+       WHERE A.CID_NO =  CC.CID_NO 
+       AND A.TRANS_DATE=CC.TRANS_DATE 
+       AND A.ATT_STATUS in(0,7,8)       
+       AND RUN_STATUS='R';  
+       END LOOP; 
+       COMMIT; 
+	    
+	   ---------------------------------------------------------------- 
+---------------------------------------------------------------- 
+      FOR CC IN C_ML_GW LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET 	 A.ATT_STATUS =0 ---absent by force 
+       WHERE A.CID_NO =  CC.CID_NO 
+       AND A.TRANS_DATE=CC.TRANS_DATE 
+       AND A.ATT_STATUS in(7,8)       
+       AND RUN_STATUS='R';  
+       END LOOP; 
+       COMMIT; 
+ 
+	 
+----------------------------------------------Akram 31-10-13------------------- 
+ 
+  UPDATE  PR_DAY_WISE_ATTENDENCE A 
+   SET     A.ATT_STATUS = NVL((SELECT 8 
+   	   				  	    FROM PR_PUBLIC_HOLI_DAY B 
+                            WHERE ROWNUM=1 AND B.HOLI_DATE = A.TRANS_DATE),0) 
+		, REMARKS='F' 
+		--, IN_TIME = null 
+		--, OUT_TIME = null 
+		--, OT_MIN   = null 
+    WHERE A.RUN_STATUS='R' 
+    --AND   A.ATT_STATUS=0 
+	AND   A.CID_NO IN(SELECT CID_NO  
+		  		   	  FROM EMP_INFO EI,PR_PUBLIC_HOLI_DAY PH 
+					  WHERE EI.PROJECT_CODE =PH.PROJECT_CODE 
+                      and ei.org_id = P_ORG_ID  
+					  AND   PH.HOLI_DATE =A.TRANS_DATE   
+					  ) 
+	AND  NOT EXISTS (SELECT CID_NO  
+		  		   	  FROM EMP_INFO EI,PR_PUBLIC_HOLI_DAY_DEPT PH 
+					  WHERE EI.PROJECT_CODE =PH.PROJECT_CODE  
+					  AND   PH.HOLI_DATE 	=A.TRANS_DATE				   
+					  )				   
+    AND   A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+	AND   A.CID_NO IN(SELECT CID_NO  
+		  		   	  FROM EMP_INFO EI 
+					  WHERE ei.cid_no=A.CID_NO 
+                      and ei.org_id = P_ORG_ID 
+					  	and A.TRANS_DATE>=ei.JOINING_DATE   
+					  ); 
+    COMMIT; 
+	 
+	--Inclusion 	 
+	UPDATE  PR_DAY_WISE_ATTENDENCE A 
+   SET     A.ATT_STATUS = NVL((SELECT 8 
+   	   				  	    FROM PR_PUBLIC_HOLI_DAY B 
+                            WHERE ROWNUM=1 AND B.HOLI_DATE = A.TRANS_DATE),0) 
+		 ,REMARKS='I' 
+		--, IN_TIME = null 
+		--, OUT_TIME = null	 
+		--, OT_MIN   = null  
+    WHERE A.RUN_STATUS='R' 
+    --AND   A.ATT_STATUS=0 
+	AND   A.CID_NO IN(SELECT CID_NO  
+		  		   	  FROM EMP_INFO EI ,PR_PUBLIC_HOLI_DAY PH 
+					  WHERE EI.PROJECT_CODE =PH.PROJECT_CODE  
+					  AND   PH.HOLI_DATE =A.TRANS_DATE  
+                      and ei.org_id = P_ORG_ID  
+					  ) 
+	AND  EXISTS (SELECT 1 
+		  		   	  FROM EMP_INFO EI,PR_PUBLIC_HOLI_DAY_DEPT PH 
+					  WHERE EI.PROJECT_CODE =PH.PROJECT_CODE  
+					  AND   PH.HOLI_DATE 	=A.TRANS_DATE   
+					  AND   EI.DEPT_CODE 	=PH.DEPT_CODE_INC 
+  					  AND   EI.CID_NO 		=A.CID_NO 
+                        and ei.org_id = P_ORG_ID 
+					  AND   PH.DEPT_CODE_INC IS NOT NULL 
+					  )								   
+    AND   A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+	AND   A.CID_NO IN(SELECT CID_NO  
+		  		   	  FROM EMP_INFO EI 
+					  WHERE ei.cid_no=A.CID_NO 
+                      and ei.org_id = P_ORG_ID 
+					  	and A.TRANS_DATE>=ei.JOINING_DATE   
+					  ); 
+ 
+    COMMIT; 
+	 
+	 
+	--Exclusion 	 
+	UPDATE  PR_DAY_WISE_ATTENDENCE A 
+   SET     A.ATT_STATUS = NVL((SELECT 8 
+   	   				  	    FROM PR_PUBLIC_HOLI_DAY B 
+                            WHERE ROWNUM=1 AND B.HOLI_DATE = A.TRANS_DATE),0) 
+		  , REMARKS='E' 
+         -- , IN_TIME = null 
+		  --, OUT_TIME = null 
+		 -- , OT_MIN   = null 
+    WHERE A.RUN_STATUS='R' 
+    --AND   A.ATT_STATUS=0 
+	AND   A.CID_NO IN(SELECT CID_NO  
+		  		   	  FROM EMP_INFO EI ,PR_PUBLIC_HOLI_DAY PH 
+					  WHERE EI.PROJECT_CODE =PH.PROJECT_CODE  
+					  AND   PH.HOLI_DATE =A.TRANS_DATE  
+                      and ei.org_id = P_ORG_ID  
+					  ) 
+	 AND  NOT EXISTS (SELECT CID_NO  
+		  		   	  FROM EMP_INFO EI,PR_PUBLIC_HOLI_DAY_DEPT PH 
+					  WHERE EI.PROJECT_CODE =PH.PROJECT_CODE  
+					  AND   PH.HOLI_DATE 	=A.TRANS_DATE   
+					  AND   EI.DEPT_CODE 	=PH.DEPT_CODE_EXC 
+					  AND   EI.CID_NO 		=A.CID_NO 
+                      and   ei.org_id = P_ORG_ID 
+					  AND   PH.DEPT_CODE_EXC IS NOT NULL 
+					  AND   PH.DEPT_CODE_INC IS NULL 
+--					  AND     
+					  )		 
+	AND   NOT EXISTS (SELECT CID_NO  
+		  		   	  FROM EMP_INFO EI,PR_PUBLIC_HOLI_DAY_DEPT PH 
+					  WHERE EI.PROJECT_CODE =PH.PROJECT_CODE  
+					  AND   PH.HOLI_DATE 	=A.TRANS_DATE   
+					  AND   EI.CID_NO 		=A.CID_NO 
+                      and   ei.org_id = P_ORG_ID 
+					  AND   PH.DEPT_CODE_EXC IS NULL 
+					  AND   PH.DEPT_CODE_INC IS NOT NULL 
+--					  AND     
+					  )					  			  						   
+    AND   A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+	AND   A.CID_NO IN(SELECT CID_NO  
+		  		   	  FROM EMP_INFO EI 
+					  WHERE ei.cid_no=A.CID_NO 
+					  	and A.TRANS_DATE>=ei.JOINING_DATE   
+					  );	 
+ 
+    COMMIT; 
+----------------------------------------------===========--------------------------	    
+	    
+---------------------------------------------------------------- 
+--------------------------------------------------------------- 
+ ------------------------------------- ATTENDENCE CALCULATION 
+    --  11  PRESENT DURING HOLIDAY 
+ 
+     FOR CC IN C3 LOOP     -----------PRESENT DURING HOLIDAY 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET A.LATE_MIN=0, 
+           A.HOLIDAY_WORK=CC.OVER_TIME_MIN, 
+           A.OVER_TIME_MIN=  CASE WHEN CC.OVER_TIME_MIN >=8*60 AND CC.CID_NO NOT IN(SELECT CID_NO FROM EMP_INFO 
+		   	   						                           WHERE OFFICE_TIME_CODE IN( SELECT CODE 
+															   FROM G_UNI_CODES  
+															   WHERE P_CODE=12 
+															    AND CODE_DESC LIKE 'Rostering%')) THEN 
+		   				   		 	   CC.OVER_TIME_MIN-60 
+								 WHEN CC.OVER_TIME_MIN>0 THEN 
+									   CC.OVER_TIME_MIN 
+									 ELSE 
+									 	0 
+									 END, 
+           A.EARLY_MIN=0, 
+           A.IN_TIME =CC.IN_TIME, 
+		   A.FAC_IN_TIME =NULL, 
+		   A.OUT_TIME=CC.OUT_TIME, 
+           A.OFFICE_IN_TIME=CC.OFFICE_IN_TIME, 
+           A.OFFICE_OUT_TIME=CC.OFFICE_OUT_TIME, 
+  		   A.FAC_OUT_TIME=NULL 
+           WHERE A.CID_NO=CC.CID_NO 
+           AND   A.TRANS_DATE=CC.TRANS_DATE 
+		   AND   A.RUN_STATUS='R'; 
+      END LOOP; 
+      COMMIT; 
+       
+  
+	  ------------------------------------------ 
+	   FOR CC IN C_FASTIVAL1 
+	   LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+        SET   A.ATT_STATUS =1, 
+			  A.OVER_TIME_MIN= CASE WHEN A.OVER_TIME_MIN>=480  
+			                      THEN  A.OVER_TIME_MIN-480 
+				                  ELSE 0 END , 
+			 -- A.LATE_MIN=Null, 
+			  --A.EARLY_MIN=Null, 
+			  A.HOLIDAY_WORK=Null, 
+			 -- A.IN_TIME=NUll, 
+			  --A.out_time=null, 
+			 -- A.FAC_OUT_TIME=Null, 
+			 -- A.FAC_IN_TIME=Null, 
+			  A.ROSTER_STATUS=2	   
+        WHERE  A.CID_NO =  CC.CID_NO 
+        AND A.TRANS_DATE=CC.H_DATE;  
+       END LOOP; 
+       COMMIT;    
+	    
+	   -----------Start :Time Zone Status --------------------- 
+	   FOR CC IN C_TIME 
+	   LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+        SET   A.R_STATUS=CC.R_STATUS	   
+        WHERE  A.CID_NO =  CC.CID_NO 
+        AND    A.TRANS_DATE=CC.TRANS_DATE;  
+       END LOOP; 
+       COMMIT;  
+	  -----------Start :Time Zone Status ---------------------  
+	    
+--   1	PRESENT  ----Attendence start 
+    FOR CC IN C2 LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET A.LATE_MIN=CASE WHEN CC.LATE_MIN<=5 THEN 0 ELSE NVL(CC.LATE_MIN,0) END,---15 Min.Late Allow 
+           A.OVER_TIME_MIN=CASE WHEN CC.OVER_TIME_MIN >=8*60 AND CC.CID_NO NOT IN(SELECT CID_NO FROM EMP_INFO 
+		   	   						  WHERE OFFICE_TIME_CODE IN( SELECT CODE 
+															   FROM G_UNI_CODES  
+															   WHERE P_CODE=12 
+															    AND CODE_DESC LIKE 'Rostering%')) THEN 
+		   				   		 	 CC.OVER_TIME_MIN-60  
+									 ELSE 
+									 CC.OVER_TIME_MIN 
+									 END, 
+           A.EARLY_MIN=NVL(CC.EARLY_MIN,0), 
+		   A.ATT_STATUS =1,	    
+		   A.IN_TIME =CC.IN_TIME, 
+  		   A.FAC_IN_TIME =CC.IN_TIME, 
+		   A.OUT_TIME=CC.OUT_TIME, 
+           A.OFFICE_IN_TIME=CC.OFFICE_IN_TIME, 
+           A.OFFICE_OUT_TIME=CC.OFFICE_OUT_TIME, 
+  		   A.FAC_OUT_TIME = CASE WHEN CC.OUT_TIME>CC.fac_out_9PM THEN 
+		   				  		 	 CC.fac_out_9PM+(MOD(dbms_random.value*1000,15))/60/24 
+								 ELSE 
+								 	 CC.OUT_TIME 
+						 	END, 			  
+		   A.FAC_OT_MIN= CASE  WHEN CC.OVER_TIME_MIN>120 THEN 120 
+		   				 WHEN  MOD(NVL(CC.OVER_TIME_MIN,0),60) BETWEEN 46 AND 60 -- 46 AND 59 
+						 	   THEN  FLOOR(NVL(CC.OVER_TIME_MIN,0)/60)*60+60 
+						--off this rule for this month(feb 2012) only 
+						--on this rule for this month(28April2012) 
+						 WHEN  MOD(NVL(CC.OVER_TIME_MIN,0),60) BETWEEN 30 AND 45---Change date 22 Aug'09   
+						 	   THEN  FLOOR(NVL(CC.OVER_TIME_MIN,0)/60)*60+30   
+					     WHEN  MOD(NVL(CC.OVER_TIME_MIN,0),60) BETWEEN 0 AND 29 
+						 	   THEN  FLOOR(NVL(CC.OVER_TIME_MIN,0)/60)*60+0 
+						 WHEN  NVL(CC.OVER_TIME_MIN,0)<0 THEN 0 
+						 	   ELSE  FLOOR(NVL(CC.OVER_TIME_MIN,0)/60)*60 
+						 END 
+           WHERE A.CID_NO=CC.CID_NO 
+           AND A.TRANS_DATE=CC.TRANS_DATE 
+		   AND A.ATT_STATUS=0		    
+           AND A.RUN_STATUS='R'; 
+       END LOOP; 
+       COMMIT; 
+
+------------------========================End of roster =Correct Methood for Roster implemented by Akram Hossain on 24-02-15 
+----------------------------- 
+----Start: Circular Knit ---- 
+----------------------------- 
+ 
+---Get OT twice --------- 
+ FOR CC IN C_CKNIT  
+	  LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET 	 A.OT_MIN= NVL(A.OT_MIN,0)*CC.OT_CONVERT_RATE, 
+	  	     A.FAC_OT_MIN=NVL(A.FAC_OT_MIN,0)*CC.OT_CONVERT_RATE, 
+		     A.OVER_TIME_MIN=NVL(A.OVER_TIME_MIN,0)*CC.OT_CONVERT_RATE 
+       WHERE A.CID_NO =  CC.CID_NO 
+       AND A.TRANS_DATE=CC.TRANS_DATE 
+       AND A.ATT_STATUS in(7,8);  
+       END LOOP; 
+       COMMIT; 
+ 
+---- Normal Day OT Policy for Circular Knit  
+ FOR CC IN C_CKNIT_NO_OT 
+	  LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET 	A.OT_MIN=CASE WHEN A.OT_MIN<CC.OT_MIN_LIMIT THEN 0 ELSE NVL(A.OT_MIN,0)*CC.OT_CONVERT_RATE END , 
+	  	    A.FAC_OT_MIN=null, 
+		    A.OVER_TIME_MIN=CASE WHEN A.OVER_TIME_MIN<CC.OT_MIN_LIMIT THEN 0 ELSE  NVL(A.OVER_TIME_MIN,0)*CC.OT_CONVERT_RATE END 
+       WHERE A.CID_NO =  CC.CID_NO 
+       AND A.TRANS_DATE IN(CC.TRANS_DATE);  
+       END LOOP; 
+       COMMIT;	   
+	    
+FOR CC IN C_OT_LIMIT 
+	  LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET 	A.OT_MIN=CASE WHEN A.OT_MIN<CC.OT_MIN_LIMIT THEN 0 ELSE NVL(A.OT_MIN,0) END , 
+	  	    A.FAC_OT_MIN=null, 
+		    A.OVER_TIME_MIN=CASE WHEN A.OVER_TIME_MIN<CC.OT_MIN_LIMIT THEN 0 ELSE  NVL(A.OVER_TIME_MIN,0) END 
+       WHERE A.CID_NO =  CC.CID_NO 
+       AND A.TRANS_DATE IN(CC.TRANS_DATE);  
+       END LOOP; 
+       COMMIT;	 
+	     
+	     
+ 
+	   UPDATE PR_DAY_WISE_ATTENDENCE CC 
+	   SET CC.OT_MIN= 
+	   		  	  	CASE WHEN  MOD(NVL(CC.OVER_TIME_MIN,0),60) BETWEEN 46 AND 60--46 AND 59 
+						 THEN  FLOOR(NVL(CC.OVER_TIME_MIN,0)/60)*60 +60 
+						 ----off this  rule  for this month (feb-2012) only 
+						 ----on this  rule  on dated 28 apr 2012 
+						 WHEN  MOD(NVL(CC.OVER_TIME_MIN,0),60) BETWEEN 30 AND 45  
+						 THEN  FLOOR(NVL(CC.OVER_TIME_MIN,0)/60)*60+30 
+					     WHEN  MOD(NVL(CC.OVER_TIME_MIN,0),60) BETWEEN 0 AND 29 
+						 THEN  FLOOR(NVL(CC.OVER_TIME_MIN,0)/60)*60+0 
+						 WHEN  NVL(CC.OVER_TIME_MIN,0)<0 THEN 0 
+						 ELSE  FLOOR(NVL(CC.OVER_TIME_MIN,0)/60)*60 
+						 END 
+						 WHERE NVL(CC.OVER_TIME_MIN,0)>0 
+						 AND   CC.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+						 AND   RUN_STATUS='R'; 
+						 
+ 
+	COMMIT; 
+ 
+ 
+ 
+	   UPDATE PR_DAY_WISE_ATTENDENCE CC 
+	 					 SET   CC.FAC_IN_TIME=CC.FAC_OUT_TIME 
+						 WHERE CC.ATT_STATUS=1 
+						 AND   CC.RUN_STATUS='R' 
+						 AND   CC.OVER_TIME_MIN>90 
+						 AND   CC.FAC_OUT_TIME<CC.FAC_IN_TIME 
+						 AND   CC.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+						; 
+ 
+		COMMIT;	 
+	 
+ 
+	    
+	   update 	PR_DAY_WISE_ATTENDENCE A  
+			set a.OFF_CATG = (select ei.OFF_CATG from emp_info ei where ei.cid_no =a.cid_no) 
+	WHERE  a.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+	   AND    a.ATT_STATUS=1 
+	   AND    a.RUN_STATUS='R'	;		   
+ 
+	    
+	  UPDATE PR_DAY_WISE_ATTENDENCE A 
+	  SET A.FAC_IN_TIME = (SELECT TRANS_DATE +(OFF_TIME+(CASE WHEN LATE_MIN =0   
+					   	 		 							  THEN MOD(dbms_random.value*1000,15)*-1  
+															  ELSE LATE_MIN END)  
+															  /60)/24 
+					   	 FROM  FAC_OFF_SCH  B 
+						 WHERE B.OFF_CATG=A.OFF_CATG 
+						 AND   A.TRANS_DATE  BETWEEN B.F_TIME AND B.T_TIME 
+						 AND Rownum=1 
+ 					   	 ), 
+		A.FAC_OUT_TIME  = (SELECT TRANS_DATE +(OFF_TIME+NVL(off_hr,9)+(CASE WHEN EARLY_MIN =0   
+					   	 		 							  THEN MOD(dbms_random.value*1000,15) ELSE EARLY_MIN*-1 END + NVL(FAC_OT_MIN,0))  
+															  /60)/24 
+					   	 FROM  FAC_OFF_SCH B 
+						 WHERE B.OFF_CATG=A.OFF_CATG 
+						 AND   A.TRANS_DATE  BETWEEN B.F_TIME AND B.T_TIME 
+						  AND Rownum=1 
+ 					   	 )  
+		--A.FAC_OT_MIN=0 
+		WHERE  A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE   
+	   AND    A.ATT_STATUS=1 
+       AND    A.RUN_STATUS='R'	 
+	   AND    A.OFF_CATG IS NOT NULL; 
+	   
+  ------=============Shift /Duty type id======.By Akram Hossain on 23-02-15 
+        
+       UPDATE PR_DAY_WISE_ATTENDENCE A--Night_duty 
+       SET A.SHIFT =case when A.CID_NO = (SELECT CID_NO FROM EMP_INFO E WHERE E.CID_NO=A.CID_NO AND E.OFFICE_TIME_CODE<>1401 ) then  
+                        (select R.DUTY_TYPE_ID 
+                        from PR_OFFICE_TIME  r,PR_DUTY_CATEGORY d,EMP_INFO ei 
+                        Where R.DUTY_TYPE_ID=D.DUTY_TYPE_ID 
+                        AND   ei.CID_NO    = a.CID_NO 
+                        --And   R.DUTY_TYPE_ID='NS22' 
+                        AND   EI.OFFICE_TIME_CODE=R.OFFICE_TIME_CODE 
+                        And   A.TRANS_DATE Between R.FROM_DATE And R.TO_DATE 
+                        AND   EI.OFFICE_TIME_CODE <> 1401) 
+                       when A.CID_NO = (SELECT CID_NO FROM EMP_INFO E WHERE E.CID_NO=A.CID_NO and e.org_id = P_ORG_ID AND E.OFFICE_TIME_CODE=1401 ) then 
+                            (select r.DUTY_TYPE_ID 
+                            from T_ROSTER_D r,PR_DUTY_CATEGORY d,EMP_INFO ei 
+                            Where R.DUTY_TYPE_ID=D.DUTY_TYPE_ID 
+                            --And   R.DUTY_TYPE_ID='NS22' 
+                            AND   ei.CID_NO    = R.CID_NO 
+                            AND   A.CID_NO     = R.CID_NO 
+                            AND   Ei.OFFICE_TIME_CODE=1401  
+                            AND   A.TRANS_DATE=r.ROSTER_DATE 
+                            And r.ROSTER_DATE BETWEEN  P_FDATE AND P_TDATE) end  
+                        
+                          
+            Where A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+            --AND A.CID_NO IN (SELECT CID_NO FROM EMP_INFO E WHERE E.CID_NO=A.CID_NO AND E.OFFICE_TIME_CODE<>1401 ) 
+            AND A.RUN_STATUS='R';         
+            COMMIT; 
+              ----------------Night_duty------for all-.By Akram Hossain on 23-02-15 
+            UPDATE PR_DAY_WISE_ATTENDENCE A--NIGHT_DUTY 
+            SET A.NIGHT_DUTY= CASE WHEN A.SHIFT='NS22' THEN 1 ELSE 0 END 
+            WHERE A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+            AND A.CID_NO IN (SELECT CID_NO FROM EMP_INFO E WHERE E.CID_NO=A.CID_NO AND nvl(E.NIGHT_ALLOW_YN,'T')='Y') 
+            And   A.IN_TIME is not null 
+            And   A.OUT_TIME is not null 
+            --AND A.CID_NO IN (SELECT CID_NO FROM EMP_INFO E WHERE E.CID_NO=A.CID_NO AND E.OFFICE_TIME_CODE<>1401 ) 
+            AND A.RUN_STATUS='R';         
+            COMMIT; 
+			 
+			--------------------------------------roster weekend 19-10-16-------------------------- 
+			   UPDATE  PR_DAY_WISE_ATTENDENCE A 
+  			    SET     A.ATT_STATUS = NVL((SELECT 7 
+                                    FROM ROSTER_WEEKEND  B 
+                            WHERE ROWNUM=1 AND B.WEEK_DATE = A.TRANS_DATE),0) 
+   							 WHERE  A.CID_NO IN(SELECT b.CID_NO  
+                           FROM EMP_INFO EI,ROSTER_WEEKEND b 
+                      WHERE EI.OFFICE_TIME_CODE = 1401  
+                      AND   b.WEEK_DATE = A.TRANS_DATE   
+                      and ei.org_id = P_ORG_ID 
+                      )                 
+   					   AND   A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+   					    AND   A.CID_NO IN(SELECT CID_NO  
+                           FROM EMP_INFO EI 
+                      WHERE ei.cid_no=A.CID_NO 
+                          and A.TRANS_DATE>=ei.JOINING_DATE 
+                          and ei.org_id = P_ORG_ID   
+                      ); 
+   					   COMMIT; 
+					   
+					   
+		         UPDATE  PR_DAY_WISE_ATTENDENCE A 
+                  SET     A.ATT_STATUS = NVL((SELECT 7 
+                                    FROM T_ROSTER_D  B 
+                            WHERE ROWNUM=1 AND B.ROSTER_DATE = A.TRANS_DATE 
+                             and WEEKEND_IND  = 1),0) 
+                                WHERE  A.CID_NO IN(SELECT b.CID_NO  
+                           FROM EMP_INFO EI,T_ROSTER_D b 
+                      WHERE EI.OFFICE_TIME_CODE = 1401  
+                       and WEEKEND_IND  = 1 
+                      AND   b.ROSTER_DATE = A.TRANS_DATE   
+                      )                 
+                          AND   A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+                           AND   A.CID_NO IN(SELECT CID_NO  
+                           FROM EMP_INFO EI 
+                      WHERE ei.cid_no=A.CID_NO 
+                          and A.TRANS_DATE>=ei.JOINING_DATE   
+                      ); 
+                          COMMIT;    
+      ---------------------------------------------- 
+-------------------------.By Akram Hossain on 24-02-15 
+           UPDATE PR_DAY_WISE_ATTENDENCE A 
+           set EARLY_MIN=NVL(CASE WHEN A.IN_TIME=A.OUT_TIME then 0 
+                   WHEN A.OUT_TIME >= A.OFFICE_OUT_TIME THEN 0 
+                   WHEN A.OUT_TIME IS NULL THEN 0 
+                   ELSE   (A.OFFICE_OUT_TIME - A.OUT_TIME)* 24 * 60 END,0), 
+             LATE_MIN=NVL(CASE WHEN A.IN_TIME <=A.OFFICE_IN_TIME THEN 0 
+                   ELSE   (A.IN_TIME - A.OFFICE_IN_TIME) * 24* 60 END,0) 
+           WHERE A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+           And A.ATT_STATUS=1; 
+           Commit;  
+           ----late slave 
+           UPDATE PR_DAY_WISE_ATTENDENCE A 
+           SET  LATE_MIN=CASE WHEN A.LATE_MIN<=5 THEN 0 ELSE A.LATE_MIN END 
+           WHERE A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE 
+           And A.ATT_STATUS=1; 
+           Commit;  
+----------------------FORCE WORKING DAY ------------------- 
+  ---FAC_IN_TIME AND FAC_OUT_TIME set as NULL for force working day... 
+  UPDATE PR_DAY_WISE_ATTENDENCE A 
+   SET A.FAC_OUT_TIME=NULL, A.FAC_IN_TIME=NULL, A.FAC_OT_MIN=NULL, fac_status='Weekend' 
+  WHERE A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE      
+	AND A.RUN_STATUS='R' 
+	AND EXISTS  (select 1 
+				 from emp_info ei  
+				 where ei.cid_no=A.cid_no 
+				 AND  EI.WEEKEND =TO_CHAR(A.TRANS_DATE,'DY') 
+				 AND  Ei.weekend is not null 
+				 ) 
+	AND A.cid_no in(select cid_no from emp_info where WEEKEND is not null)			  
+	AND A.trans_date in(   select HOLI_DATE  
+					 	   FROM  PR_FORCE_WORKING_DAY 
+						   ----------------SPECIAL CHANGE on 02-Nov-2013------------ 
+													 	   e, PR_DAY_WISE_ATTENDENCE b, emp_info c 
+							WHERE e.HOLI_DATE =b.trans_date 
+							AND b.cid_no=c.cid_no 
+							AND b.trans_date between p_fdate and p_tdate 
+							AND b.cid_no= a.cid_no  
+							AND CASE WHEN P_FDATE='01-OCT-13' AND P_TDATE='31-cOCT-13' THEN 
+								    joining_date  
+								ELSE  
+								 	  	joining_date 
+								END < CASE WHEN P_FDATE='01-OCT-13' AND P_TDATE='31-OCT-13' THEN 
+								    	 to_date('10.08.2013','DD.MM.RRRR') 
+									   ELSE  
+									      joining_date +1 
+									   END 		 
+					    ) 
+AND A.trans_date not in(select HOLI_DATE  
+					 	    FROM  PR_FORCE_WORKING_DAY 
+							); 
+    COMMIT;							 
+	 
+	UPDATE PR_DAY_WISE_ATTENDENCE a  
+    SET FAC_OUT_TIME = case when out_time> to_date(to_char(trans_date,'DD.MM.RRRR')||' 19:00','DD.MM.RRRR HH24:MI') then  ---2 hrs OT (office 8:00 to 17:00) 
+                            to_date(to_char(trans_date,'DD.MM.RRRR')||' 19:'||lpad(ceil(MOD(dbms_random.value*1000,12)),2,'0'),'DD.MM.RRRR HH24:MI') 
+                       else 
+                            out_time  
+                       end 
+where cid_no in (select cid_no from emp_info where NVL(OT_TYPE,'N')='Y' and NVL(emp_out,'N')='N') 
+and  TRUNC (trans_date) BETWEEN p_fdate AND p_tdate; 
+ 
+COMMIT; 
+ 
+ -----------------------------late---------------------- 
+        FOR CC IN C_late LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET A.LATE_MIN=CASE WHEN CC.LATE_MIN<=5 THEN 0 ELSE NVL(CC.LATE_MIN,0) END 
+           WHERE A.CID_NO=CC.CID_NO 
+           AND A.TRANS_DATE=CC.TRANS_DATE      
+           AND A.RUN_STATUS='R'; 
+       END LOOP; 
+       COMMIT; 
+	    ------- 
+  
+	    --------------------------------  LEAVE CALCULATION   ------------------------------------ 
+       FOR CC IN C_LEAVE LOOP 
+       UPDATE PR_DAY_WISE_ATTENDENCE A 
+       SET 	  A.ATT_STATUS =CC.ATT_STATUS 
+       WHERE A.CID_NO =  CC.CID_NO 
+       AND A.TRANS_DATE=CC.TRANS_DATE 
+       --AND A.ATT_STATUS=0       ----INCASE GOVT. HOLIDAY,WEEKEND IF YOU WANT TO CALCULATE 
+       AND RUN_STATUS='R';    ---LEAVE WITH HOLIDAY THEN CONDITION OK OTHERWISE OFF THE CONDITION. 
+       END LOOP; 
+       COMMIT;	 																		 
+	 
+---------------------------FORCE WORKING DAY ------------- 
+ 
+     COMMIT; 
+  
+	  UPDATE PR_DAY_WISE_ATTENDENCE A 
+	  SET A.OT_MIN=NULL, 
+	  	  A.FAC_OT_MIN=null, 
+		  A.OVER_TIME_MIN=null 
+	  WHERE A.CID_NO IN(SELECT CID_NO FROM EMP_INFO EI WHERE NVL(EI.OT_TYPE,'N')='N' ); 
+ 
+	 UPDATE   PR_DAY_WISE_ATTENDENCE  A SET A.RUN_STATUS='Y' WHERE RUN_STATUS='R'; 
+     COMMIT; 
+ 
+ 
+ 
+ 
+	 END IF; 
+--EXCEPTION   WHEN OTHERS   THEN      NULL; 
+END;
+/

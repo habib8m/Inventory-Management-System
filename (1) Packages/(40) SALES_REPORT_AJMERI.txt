@@ -1,0 +1,1090 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "SALES_REPORT_AJMERI" as 
+    procedure Invoice_Report(p_project_code number, p_business_unit varchar2, p_item_code number, p_customer number, p_warehouse number, p_invoice varchar, p_from_date date, p_to_date date, p_org_id number); 
+    procedure sales_report_4_8_11(p_project_code number, p_business_unit varchar2, p_item_code number, p_customer number, p_warehouse number, p_invoice varchar, p_from_date date, p_to_date date, p_org_id number)n; 
+    procedure Customer_List_4_5_8(P_project_id number,P_CUSTOMER_code number,p_org_id number); 
+    procedure supplier_List_4_5_8(P_project_id number,P_CUSTOMER_code number,p_org_id number); 
+    procedure customer_wise_sales_summary(P_project_id number, p_item_code number, P_CUSTOMER_code number, p_org_id number, p_from_date date, p_to_date date); 
+    procedure Item_Stock_Report_11(p_org_id number, p_company_id number, p_warehouse_code number, P_item_code NUMBER, p_from_date date, p_to_date date); 
+    procedure customer_wise_sales_summary_4(P_project_id number, p_item_code number, P_CUSTOMER_code number, p_org_id number, p_from_date date, p_to_date date); 
+    procedure item_wise_sales_summary_4(P_project_id number,p_item_code number,P_CUSTOMER_code number,p_org_id number,p_from_date date,p_to_date date); 
+    procedure supplier_wise_sales_summary_4(P_project_id number,p_item_code number,P_CUSTOMER_code number,p_org_id number,p_from_date date,p_to_date date); 
+    procedure purchae_item_wise_sales_summary_4(P_project_id number,p_item_code number,P_CUSTOMER_code number,p_org_id number,p_from_date date,p_to_date date); 
+    procedure sales_report_4(p_project_code number,p_business_unit varchar2,p_item_code number,p_customer number,p_warehouse number,p_invoice varchar, p_from_date date,p_to_date date,p_org_id number,p_order_type number) ;
+    procedure sales_report_buyer_wise4(p_project_code number,p_item_code number,p_customer number,p_invoice varchar, p_from_date date,p_to_date date,p_org_id number,p_order_type number);
+end "SALES_REPORT_AJMERI";
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "SALES_REPORT_AJMERI" as 
+procedure Invoice_Report(p_project_code number, p_business_unit varchar2, p_item_code number, p_customer number, p_warehouse number, p_invoice varchar, p_from_date date, p_to_date date, p_org_id number) 
+IS 
+	v_sl     number     := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    	v_count  number     := 0;
+ 
+	BEGIN 
+	report_utils.header_without_boarder(p_project_code, 'Sales Report '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : ' ||htf.escape_sc(P_from_date)|| ' to ' ||htf.escape_sc(P_To_date)|| '</h4>'); 
+ 
+			htp.p('<table style="width:100%;">
+			<tr> 
+			<th style="width:6%">Date</th> 
+			<th style="width:8%">Invoice No.</th> 
+			<th style="width:10%">Customer</th> 
+			<th style="width:10%">Items</th> 
+            		<th style="width:5%">Unit <br>Price</th> 
+            		<th style="width:5%">Rate</th> 
+            		<th style="width:5%">Qty</th> 
+            		<th style="width:5%">Disc.</th> 
+			<th style="width:6%">Net Amount</th> 
+            		<th style="width:10%">Warehouse</th>
+			</tr>');
+ 
+                    	v_tot_sl := 0; 
+         
+         for i in (select sm.TRANS_DATE,
+			    substr(sm.INVOICE_NO,5) invoice_no, 
+                            gi.code_desc item_name, 
+                            gi.unit_price, 
+                            gi.sales_price, 
+                            sd.QTY, 
+                            sd.rate, 
+                            sd.discount,
+                            SD.TOTAL, 
+                            (nvl(sd.qty, 0) * nvl(sd.rate, 0))- nvl(sd.discount, 0) total_AMOUNT, 
+                            ga.code_desc customer, 
+                            gu.code_desc warehouse 
+                    from sp_store_m sm 
+                    join sp_store_d sd on (sm.trans_id = sd.trans_id ) 
+                    join g_acc_codes ga on (ga.code = sm.party_code) 
+                    join g_inv_codes gi on (gi.code = sd.item_code) 
+                    left join g_uni_codes gu on (gu.code = sd.depot_code) 
+                    WHERE sm.org_id = p_org_id 
+                    and sm.trans_type='SV' 
+                    and sm.delete_status != 1 
+                    and SM.TRANS_DATE BETWEEN p_from_date AND p_to_date 
+                    AND  sd.depot_code = nvl(p_warehouse, sd.depot_code) 
+                    AND sm.INVOICE_NO = nvl(p_invoice, sm.INVOICE_NO) 
+                    and sm.party_code = nvl(p_customer, sm.party_code) 
+                    and sd.item_code = nvl(p_item_code, sd.item_code) 
+                    and sm.project_code = nvl(p_project_code, sm.project_code)
+                    order by to_number(substr(sm.INVOICE_NO, 8)) asc, sm.trans_date asc)
+
+                    loop
+ 
+                    v_tot_sl := v_tot_sl + nvl(i.total_AMOUNT, 0); 
+         	 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center"> '|| HTF.escape_sc (i.TRANS_DATE)||' </td> 
+                <td style="text-align: center"> '|| HTF.escape_sc (i.INVOICE_NO)||' </td> 
+                <td style="text-align: left"> '|| HTF.escape_sc (i.customer)||' </td> 
+                <td style="text-align: left"> '|| HTF.escape_sc (i.item_name)||' </td>
+		<td> '|| HTF.escape_sc (i.sales_price)||' </td> 
+                <td> '|| HTF.escape_sc (i.rate)||' </td> 
+                <td> '|| HTF.escape_sc (i.qty)||' </td> 
+		<td> '|| HTF.escape_sc (i.discount)||' </td> 
+                <td style="text-align: right">'|| HTF.escape_sc (to_char(i.total_AMOUNT,'99,99,99,990.00'))||' </td> 
+                <td> '|| HTF.escape_sc (i.warehouse)||' </td> 
+                <tr>');
+ 
+	end loop; 
+                       
+          HTP.p ( 
+                '<tr>
+                <td colspan="4" style="text-align:right;"><b>Total Sales :  </b> </td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:right;"><b>'||(to_char(v_tot_sl,'99,99,99,990.00'))||'</b></td> 
+                <tr>'); 
+         
+		htp.p('</table>'); 
+ 
+		--report_utils.footer; 
+	END; 
+
+--*********************************
+
+procedure sales_report_4_8_11(p_project_code number, p_business_unit varchar2, p_item_code number, p_customer number, p_warehouse number, p_invoice varchar, p_from_date date, p_to_date date, p_org_id number) 
+    is 
+    	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+    	v_tot_qty    number := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    	v_count number      := 0;
+ 
+	BEGIN 
+	report_utils.header_without_boarder(p_project_code, 'Sales Report '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : ' ||htf.escape_sc(P_from_date)|| ' to ' ||htf.escape_sc(P_To_date)|| '</h4>'); 
+ 
+			htp.p('<table style="width:100%;">
+			<tr> 
+			<th style="width:6%">Date</th> 
+			<th style="width:5%">Invoice No</th> 
+			<th style="width:14%">Customer</th> 
+			<th style="width:10%">Items</th> 
+            		<th style="width:3%">Rate</th> 
+            		<th style="width:5%">Qty</th> 
+            		<th style="width:5%">Disc.</th> 
+			<th style="width:6%">Net Amount</th> 
+            		<th style="width:6%">Warehouse</th> 
+			</tr>');
+ 
+                    v_tot_sl := 0; 
+                    v_tot_qty := 0; 
+         
+         for i in (select sm.TRANS_DATE,
+			    substr(sm.INVOICE_NO, 5) invoice_no, 
+                            gi.code_desc item_name, 
+                            gi.unit_price, 
+                            gi.sales_price, 
+                            sd.QTY, 
+                            sd.discount, 
+                            sd.rate, 
+                            SD.TOTAL, 
+                            nvl(sd.qty, 0) * nvl(sd.rate, 0) total_AMOUNT, 
+                            ga.code_desc customer, 
+                            gu.code_desc warehouse 
+                    from sp_store_m sm 
+                    join sp_store_d sd on (sm.trans_id = sd.trans_id ) 
+                    join g_acc_codes ga on (ga.code = sm.party_code) 
+                    join g_inv_codes gi on (gi.code = sd.item_code) 
+                    left join g_uni_codes gu on (gu.code = sm.depot_id) 
+                    WHERE sm.org_id = p_org_id
+                    and sd.org_id = p_org_id 
+                    and sm.trans_type='SV' 
+                    and sm.delete_status != 1 
+                    and SM.TRANS_DATE BETWEEN p_from_date AND p_to_date 
+                    AND  sm.depot_id =nvl(p_warehouse,sm.depot_id) 
+                    and sm.project_code = nvl(p_project_code,sm.project_code) 
+                    AND sm.INVOICE_NO    =nvl(p_invoice,sm.INVOICE_NO) 
+                    and sm.party_code    =nvl(p_customer,sm.party_code)  
+                   and sd.item_code     =nvl(p_item_code,sd.item_code) 
+                   order by INVOICE_NO,sm.trans_date asc)
+ 
+                    loop
+ 
+                    v_tot_sl := v_tot_sl + nvl(i.total_AMOUNT, 0); 
+                    v_tot_qty := v_tot_qty + nvl(i.QTY, 0); 
+         	 
+            HTP.p ( 
+                  '<tr> 
+		<td style="text-align: center">'|| HTF.escape_sc(to_char(i.TRANS_DATE,'mm-dd-yy'))|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (i.INVOICE_NO)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.customer)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.item_name)|| '</td> 
+                <td>'|| HTF.escape_sc (i.rate)||'</td> 
+                <td>'|| HTF.escape_sc (i.qty)||'</td> 
+                <td>'|| HTF.escape_sc (i.discount)||'</td> 
+                <td  style="text-align: right">'|| HTF.escape_sc (to_char(i.total_AMOUNT,'99,99,99,990.00'))||'</td> 
+                <td>'|| HTF.escape_sc (i.warehouse)||'</td> 
+                <tr>');
+ 
+		end loop; 
+ 
+
+            HTP.p ( 
+                  '<tr>
+                <td colspan="4" style="text-align:right;"><b>Total Sales :  </b> </td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:center;"><b>'||v_tot_qty||'</b></td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:right;"><b>'||(to_char(v_tot_sl,'99,99,99,99,99,990.00'))||'</b></td> 
+                <tr>'); 
+         
+		htp.p('</table>'); 
+ 
+		--report_utils.footer; 
+	END; 
+
+--*******************************
+ 
+procedure Customer_List_4_5_8 (P_project_id number, P_CUSTOMER_code number, p_org_id number)
+ 
+    is 
+    v_sl number := 0; 
+    v_count number :=0; 
+
+BEGIN 
+    
+		report_utils.header_without_boarder(P_project_id, 'Customer List'); 
+ 
+			htp.p('<table style="width:100%"> 
+			<tr> 
+			<th style="width:1%;">SL</th> 
+			<th style="width:12%;"> Name</th>  
+			<th style="width:12%;">Address</th> 
+			<th style="width:10%;">Phone</th> 
+			</tr>');
+ 
+            		v_sl := 0;
+ 
+			FOR i in (select CODE_DESC name, 
+                                CODE_DESC_OTHER address, 
+                                P_MOBILE 
+                                from g_acc_codes 
+                                where org_id = p_org_id 
+                                and p_code = case when p_org_id = 4 then '40061' else p_org_id||'0010' end 
+                                and code = nvl(P_CUSTOMER_code, code))
+ 
+		LOOP 
+                v_sl := v_sl + 1; 
+
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.name)||'</td> 
+				<td style="text-align: left">'||htf.escape_sc(i.address)||'</td> 
+                		<td style="text-align: LEFT">'||htf.escape_sc(i.P_MOBILE)||'</td> 
+				<tr>'); 
+ 
+		end loop;
+ 
+        	htp.p('</table>'); 
+		 
+	END; 
+
+--********************************
+
+    procedure supplier_List_4_5_8 (P_project_id number, P_CUSTOMER_code number, p_org_id number) 
+    is 
+    v_sl number := 0; 
+    v_count number :=0;
+
+    BEGIN 
+    
+		report_utils.header_without_boarder(P_project_id, 'Supplier List'); 
+ 
+			htp.p('<table style="width:100%"> 
+			<tr> 
+			<th style="width:1%;">SL</th> 
+			<th style="width:12%;"> Name</th>  
+			<th style="width:12%;">Address</th> 
+			<th style="width:10%;">Phone</th> 
+			</tr>');
+ 
+                v_sl := 0;
+ 
+			FOR i in (select CODE_DESC name, 
+                                CODE_DESC_OTHER address, 
+                                P_MOBILE 
+                                from g_acc_codes 
+                                where org_id = p_org_id 
+                                and p_code = p_org_id||'0011' 
+                                and code = nvl(P_CUSTOMER_code, code))
+ 
+			LOOP 
+                v_sl := v_sl + 1; 
+
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.name)||'</td> 
+				<td style="text-align: left">'||htf.escape_sc(i.address)||'</td> 
+                		<td style="text-align: LEFT">'||htf.escape_sc(i.P_MOBILE)||'</td> 
+				<tr>'); 
+
+		end loop;
+ 
+        	htp.p('</table>'); 
+
+	END; 
+
+--******************************
+
+    procedure customer_wise_sales_summary(P_project_id number, p_item_code number, P_CUSTOMER_code number, p_org_id number, p_from_date date, p_to_date date) 
+    is 
+    v_sl number := 0; 
+    v_count number :=0; 
+    v_total number := 0;
+ 
+    BEGIN 
+    
+	report_utils.header_without_boarder(P_project_id, 'Sales Summary (Customer Wise)'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : ' ||htf.escape_sc(P_from_date)|| ' to ' ||htf.escape_sc(P_To_date)|| '</h4>'); 
+ 
+			htp.p('<table style="width:90%; margin:auto;"> 
+			<tr> 
+			<th style="width:1%;">SL</th> 
+			<th style="width:8%;"> Name</th>  
+			<th style="width:12%;">Address</th> 
+			<th style="width:5%;">Total Amount</th> 
+			</tr>');
+ 
+            v_sl := 0; 
+            v_total := 0;
+ 
+			FOR i in (select ga.code_desc name, 
+                        ga.CODE_DESC_OTHER address, 
+                        sum(sd.total) total 
+                        from sp_store_m sm, sp_store_d sd, g_acc_codes ga 
+                        where sm.trans_id = sd.trans_id 
+                        and sm.party_code = ga.code 
+                        and sm.trans_type = 'SV' 
+                        and sm.delete_status != 1 
+                        and sm.org_id = p_org_id 
+                        and sm.party_code = nvl(P_CUSTOMER_code, sm.party_code) 
+                        and sd.item_code = nvl(p_item_code, sd.item_code) 
+                        and sm.project_code = nvl(P_project_id, sm.project_code)
+                        and sm.trans_date between p_from_date and p_to_date 
+                        group by ga.code_desc, ga.CODE_DESC_OTHER)
+ 
+			LOOP 
+                v_sl := v_sl + 1; 
+                v_total := v_total + nvl(i.total,0);
+ 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.name)||'</td> 
+				<td style="text-align: left">'||htf.escape_sc(i.address)||'</td> 
+                		<td style="text-align: right">'||htf.escape_sc(to_char(i.total,'99,99,99,99,999.00'))||'</td> 
+				<tr>'); 
+
+		end loop; 
+
+        			htp.p('<tr> 
+				<td colspan="3" style="text-align: right"><b>Total:</b></td> 
+				<td style="text-align: right"><b>'||htf.escape_sc(to_char(v_total,'99,99,99,99,999.00'))||'</b></td> 
+				<tr>');
+ 
+        	htp.p('</table>'); 
+		 
+ 
+	END; 
+
+--*********************************
+
+    procedure Item_Stock_Report_11(p_org_id number, p_company_id number, p_warehouse_code number, P_item_code NUMBER, p_from_date date, p_to_date date) 
+    is 
+
+    v_sl 	   number:= 0; 
+    v_count 	   number:=0; 
+    v_Opening 	   number:=0; 
+    v_Purchase 	   number:=0; 
+    v_Issue 	   number:=0; 
+    v_Sales 	   number:=0; 
+    v_Return 	   number:=0; 
+    v_Transfer 	   number:=0; 
+    v_Receive 	   number:=0; 
+    v_Shortage 	   number:=0; 
+    v_Expired 	   number:=0; 
+    v_Damage 	   number:=0; 
+    v_FINISH_GOOD  NUMBER:=0; 
+    v_Balance 	   number:=0;
+ 
+	BEGIN 
+	report_utils.header_without_boarder(p_company_id, 'Item Stock Report '); 
+
+        HTP.p ('<h4 style="margin-top: 0px; text-align: center">Date From : '|| HTF.escape_sc (P_from_date)|| ' To '|| HTF.escape_sc (P_To_date)|| '</h4>'); 
+ 
+	htp.p('<table style="width:100%">
+	<tr> 
+        <th >Business Unit</th> 
+        <th >Item Name</th> 
+        <th >Packing</th> 
+        <th >Unit</th> 
+        <th >Opening</th> 
+        <th >Finish<br>Goods</th> 
+        <th >Purchase</th>  
+        <th >Issue</th> 
+        <th >Sales</th> 
+        <th >Return</th> 
+        <th >Transfer</th> 
+        <th >Receive</th> 
+        <th >Shortage</th> 
+        <th >Expired</th> 
+        <th >Damage</th> 
+        <th >Balance</th> 
+        </tr>');
+ 
+	FOR i in ( select * 
+        from V_ITEM_3S vim 
+        where vim.code = nvl(P_item_code, vim.code) 
+        and org_id = p_org_id 
+        order by business_unit, ITEM_NAME, packing, unit)
+ 
+		LOOP
+
+        	v_opening := PKG_INVENTORY.GET_ITEM_OPENING(p_org_id, i.CODE, p_from_date, p_warehouse_code); 
+
+                select nvl(sum(tr.qty), 0) 
+		into v_Purchase 
+		from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code 
+		and tr.trans_type = 'PV' 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE_D = NVL(p_warehouse_code, WAREHOUSE_CODE_D); 
+ 
+                select nvl(sum(tr.qty), 0) 
+		into v_Issue 
+		from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code 
+		and tr.trans_type = 'PI'
+                and tr.TRANS_DATE between nvl(p_from_date, tr.TRANS_DATE) and nvl(p_to_date, sysdate) 
+                AND WAREHOUSE_CODE_D = NVL(p_warehouse_code, WAREHOUSE_CODE_D); 
+ 
+                select nvl(sum(tr.qty),0) 
+		into v_Sales 
+		from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code 
+		and tr.trans_type = 'SV' 
+                and tr.TRANS_DATE between nvl(p_from_date, tr.TRANS_DATE) and nvl(p_to_date, sysdate) 
+                AND nvl(WAREHOUSE_CODE_D,0) = nvl(NVL(p_warehouse_code,WAREHOUSE_CODE_D),0); 
+                 
+                select nvl(sum(tr.RETURN_QTY),0) 
+		into v_Return 
+		from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code 
+		and tr.trans_type = 'SR' --what is the Return type??fixed 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE_D = NVL(p_warehouse_code,WAREHOUSE_CODE_D); 
+                 
+                select nvl(sum(tr.qty),0) 
+		into v_Transfer 
+		from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code 
+		and tr.trans_type = 'ST' 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE_D = NVL(p_warehouse_code,WAREHOUSE_CODE_D); 
+                  
+                select nvl(sum(tr.qty), 0) 
+		into v_Receive 
+		from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code 
+		and tr.trans_type = 'STR' --what is the Receive type??fixed 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE_D = NVL(p_warehouse_code,WAREHOUSE_CODE_D); 
+                 
+                select nvl(sum(tr.qty), 0) 
+		into v_Shortage 
+		from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code 
+		and tr.trans_type = 'SH' 
+                and tr.TRANS_DATE between nvl(p_from_date, tr.TRANS_DATE) and nvl(p_to_date, sysdate) 
+                AND WAREHOUSE_CODE_D = NVL(p_warehouse_code, WAREHOUSE_CODE_D); 
+                 
+                select nvl(sum(tr.qty),0) 
+		into v_Expired 
+		from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code 
+		and tr.trans_type = 'EXP' --what is the Expired type?? 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE_D = NVL(p_warehouse_code,WAREHOUSE_CODE_D); 
+                 
+                select nvl(sum(tr.qty),0) 
+		into v_Damage 
+		from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code 
+		and tr.trans_type = 'DM' 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE_D = NVL(p_warehouse_code,WAREHOUSE_CODE_D); 
+ 
+                select nvl(sum(tr.qty),0) 
+		into v_FINISH_GOOD 
+		from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code 
+		and tr.trans_type = 'FR' 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE_D = NVL(p_warehouse_code,WAREHOUSE_CODE_D);
+ 
+ 
+ v_Balance := nvl(v_Balance, 0) + nvl(v_opening, 0) + v_Purchase - v_Issue - nvl(v_Sales, 0) + v_Return - v_Transfer + v_Receive - v_Shortage - v_Expired - v_Damage;
+ 
+         	IF v_Balance != 0 THEN 
+				htp.p('<tr> 
+                		<td style="text-align: center">'||htf.escape_sc(i.business_unit)||'</td> 
+				<td style="text-align: LEFT">'||htf.escape_sc(i.ITEM_NAME)||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(i.packing)||'</td> 
+                		<td style="text-align: center;">'||htf.escape_sc(i.unit)||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_opening, 0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_FINISH_GOOD, 0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Purchase, 0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Issue, 0))||'</td> 
+                		<td style="text-align: center;">'||htf.escape_sc(nvl(v_Sales, 0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Return, 0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Transfer, 0))||'</td> 
+                		<td style="text-align: center;">'||htf.escape_sc(nvl(v_Receive, 0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Shortage, 0))||'</td> 
+                		<td style="text-align: center;">'||htf.escape_sc(nvl(v_Expired, 0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Damage, 0))||'</td> 
+                		<td style="text-align: center;">'||htf.escape_sc(nvl(v_Balance, 0))||'</td> 
+				</tr>'); 
+         END IF;
+ 
+	v_Balance   := 0;
+ 
+	END LOOP; 
+        htp.p('</table>'); 
+	END; 
+
+--******************************
+
+    procedure customer_wise_sales_summary_4(P_project_id number, p_item_code number, P_CUSTOMER_code number, p_org_id number, p_from_date date, p_to_date date) 
+    is 
+    v_sl number := 0; 
+    v_count number :=0; 
+    v_total number := 0;
+ 
+    BEGIN 
+	report_utils.header_without_boarder(P_project_id, 'Sales Summary Report(Customer Wise)'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+			htp.p('<table style="width:90%;margin:auto;"> 
+			<tr> 
+			<th style="width:1%;">SL</th> 
+			<th style="width:8%;"> Name</th>  
+			<th style="width:12%;">Address</th> 
+			<th style="width:5%;">Total Amount</th> 
+			</tr>');
+ 
+            v_sl := 0; 
+            v_total := 0;
+ 
+			FOR i in (select ga.code_desc name, 
+                        ga.CODE_DESC_OTHER address, 
+                        sum(sd.total) total 
+                        from sp_store_m sm,sp_store_d sd,g_acc_codes ga 
+                        where sm.trans_id = sd.trans_id 
+                        and sm.party_code = ga.code 
+                        and sm.trans_type = 'SV' 
+                        and sm.delete_status != 1 
+                        and sm.org_id = p_org_id 
+                        and sm.project_code = nvl(p_project_id, sm.project_code) 
+                        and sm.trans_date between p_from_date and p_to_date 
+                        group by ga.code_desc, ga.CODE_DESC_OTHER)
+ 
+			LOOP 
+
+                v_sl := v_sl + 1; 
+                v_total := v_total + nvl(i.total,0);
+ 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.name)||'</td> 
+				<td style="text-align: left">'||htf.escape_sc(i.address)||'</td> 
+                		<td style="text-align: right">'||htf.escape_sc(to_char(i.total,'99,99,99,99,999.00'))||'</td> 
+				<tr>'); 
+		end loop; 
+
+        			htp.p('<tr> 
+				<td colspan="3"style="text-align: right"><b>Total:</b></td> 
+				<td style="text-align: right"><b>'||htf.escape_sc(to_char(v_total,'99,99,99,99,999.00'))||'</b></td> 
+				<tr>'); 
+        htp.p('</table>');  
+ 
+	END; 
+
+--**************************
+
+procedure item_wise_sales_summary_4(P_project_id number, p_item_code number, P_CUSTOMER_code number, p_org_id number, p_from_date date, p_to_date date) 
+    is
+ 
+    v_sl 	number := 0; 
+    v_count 	number :=0; 
+    v_total 	number := 0; 
+    v_tot_qty 	number := 0;
+ 
+    BEGIN 
+    
+	report_utils.header_without_boarder(P_project_id, 'Sales Summary Report(Item Wise)'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+			htp.p('<table style="width:90%; margin:auto;"> 
+			<tr> 
+			<th style="width:1%;">SL</th> 
+			<th style="width:10%;"> Item Name</th>  
+			<th style="width:5%;">Qty</th> 
+			<th style="width:5%;">Amount</th> 
+			</tr>');
+ 
+            v_sl := 0; 
+            v_total := 0; 
+            v_tot_qty := 0 ;
+ 
+			FOR i in (select gi.code_desc item_name, 
+                        sum(nvl(sd.qty,0)) qty, 
+                        sum(nvl(sd.total,0)) total 
+                        from sp_store_d sd,sp_store_m sm,g_inv_codes gi 
+                        where sd.trans_id = sm.trans_id 
+                        and sd.item_code = gi.code 
+                        AND SM.TRANS_TYPE = 'SV' 
+                        and sm.delete_status <> 1
+                        and sm.org_id = p_org_id 
+                        and sm.project_code = nvl(P_project_id,sm.project_code) 
+                        and sm.trans_date between p_from_date and p_to_date 
+                        group by gi.code_desc)
+ 
+			LOOP 
+                v_sl := v_sl + 1; 
+                v_tot_qty := v_tot_qty + nvl(i.qty, 0); 
+                v_total := v_total + nvl(i.total, 0);
+ 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.item_name)||'</td> 
+				<td style="text-align: right">'||htf.escape_sc(i.qty)||'</td> 
+                		<td style="text-align: right">'||htf.escape_sc(to_char(i.total,'99,99,99,99,999.00'))||'</td> 
+				<tr>'); 
+	 
+		end loop; 
+        htp.p('<tr> 
+				<td colspan="2"style="text-align: right"><b>Total:</b></td> 
+				<td style="text-align: right"><b>'||htf.escape_sc(v_tot_qty)||'</b></td> 
+				<td style="text-align: right"><b>'||htf.escape_sc(to_char(v_total,'99,99,99,99,999.00'))||'</b></td> 
+				<tr>'); 
+        htp.p('</table>');  
+ 
+	END; 
+
+--*****************************
+
+procedure supplier_wise_sales_summary_4(P_project_id number,p_item_code number,P_CUSTOMER_code number,p_org_id number,p_from_date date,p_to_date date) 
+    is 
+    v_sl 	number := 0; 
+    v_count 	number :=0; 
+    v_total 	number := 0; 
+    v_qty   	number := 0;
+ 
+    BEGIN 
+    
+	report_utils.header_without_boarder(P_project_id, 'Purchase Summary Report(Supplier Wise)'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+			htp.p('<table style="width:90%;margin:auto;"> 
+			<tr> 
+			<th style="width:1%;">SL</th> 
+			<th style="width:12%;"> Name</th>  
+			<th style="width:12%;">Address</th> 
+			<th style="width:5%;">Qty</th> 
+			<th style="width:5%;">Total Amount</th> 
+			</tr>'); 
+
+            v_sl := 0; 
+            v_total := 0; 
+            v_qty   := 0; 
+
+			FOR i in (select ga.code_desc name, 
+                        ga.CODE_DESC_OTHER address, 
+                        sum(sd.qty) qty, 
+                        sum(sd.total) total 
+                        from sp_store_m sm,sp_store_d sd,g_acc_codes ga 
+                        where sm.trans_id = sd.trans_id 
+                        and sm.party_code = ga.code 
+                        and sm.trans_type = 'PV' 
+                        and sm.delete_status != 1 
+                        and sm.org_id = p_org_id 
+                        and sm.project_code = nvl(p_project_id,sm.project_code)  
+                        and sm.trans_date between p_from_date and p_to_date 
+                        group by ga.code_desc,ga.CODE_DESC_OTHER) 
+
+			LOOP 
+                v_sl := v_sl + 1; 
+                v_total := v_total + nvl(i.total, 0); 
+                v_qty   := v_qty + nvl(i.qty, 0);
+ 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.name)||'</td> 
+				<td style="text-align: left">'||htf.escape_sc(i.address)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.qty)||'</td> 
+               			<td style="text-align: right">'||htf.escape_sc(to_char(i.total,'99,99,99,99,999.00'))||'</td> 
+				<tr>'); 
+	 
+		end loop; 
+        			htp.p('<tr> 
+				<td colspan="3"style="text-align: right"><b>Total:</b></td> 
+				<td style="text-align: center"><b>'||htf.escape_sc(v_qty)||'</b></td> 
+				<td style="text-align: right"><b>'||htf.escape_sc(to_char(v_total,'99,99,99,99,999.00'))||'</b></td> 
+				<tr>'); 
+        htp.p('</table>'); 
+		 
+	END; 
+
+--****************************
+
+    procedure purchae_item_wise_sales_summary_4(P_project_id number, p_item_code number, P_CUSTOMER_code number, p_org_id number, p_from_date date, p_to_date date) 
+    is 
+    v_sl number := 0; 
+    v_count number :=0; 
+    v_total number := 0; 
+    v_tot_qty number := 0;
+ 
+    BEGIN 
+    
+	report_utils.header_without_boarder(P_project_id, 'Purchase Summary Report(Item Wise)'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:90%;margin:auto;"> 
+			<tr> 
+			<th style="width:1%;">SL</th> 
+			<th style="width:10%;"> Item Name</th>  
+			<th style="width:5%;">Qty</th> 
+			<th style="width:5%;">Amount</th> 
+			</tr>');
+ 
+            v_sl := 0; 
+            v_total := 0; 
+            v_tot_qty := 0 ; 
+
+			FOR i in (select gi.code_desc item_name, 
+                        sum(nvl(sd.qty,0)) qty, 
+                        sum(nvl(sd.total,0)) total 
+                        from sp_store_d sd,sp_store_m sm,g_inv_codes gi 
+                        where sd.trans_id = sm.trans_id 
+                        and sd.item_code = gi.code 
+                        AND sm.trans_type = 'PV' 
+                        and sm.delete_status <> 1
+                        and sm.org_id = p_org_id 
+                        and sm.project_code = nvl(P_project_id,sm.project_code) 
+                        and sm.trans_date between p_from_date and p_to_date 
+                        group by gi.code_desc)
+ 
+			LOOP 
+                v_sl := v_sl + 1; 
+                v_tot_qty := v_tot_qty + nvl(i.qty,0); 
+                v_total := v_total + nvl(i.total,0);
+ 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.item_name)||'</td> 
+				<td style="text-align: right">'||htf.escape_sc(i.qty)||'</td> 
+                		<td style="text-align: right">'||htf.escape_sc(to_char(i.total,'99,99,99,99,999.00'))||'</td> 
+				<tr>'); 
+		end loop;
+ 
+       				 htp.p('<tr> 
+				<td colspan="2"style="text-align: right"><b>Total:</b></td> 
+				<td style="text-align: right"><b>'||htf.escape_sc(v_tot_qty)||'</b></td> 
+				<td style="text-align: right"><b>'||htf.escape_sc(to_char(v_total,'99,99,99,99,999.00'))||'</b></td> 
+				<tr>'); 
+        htp.p('</table>'); 
+		 
+ 
+	END; 
+
+--****************************
+
+procedure sales_report_4(p_project_code number, p_business_unit varchar2, p_item_code number, p_customer number, p_warehouse number, p_invoice varchar, p_from_date date, p_to_date date, p_org_id number, p_order_type number) 
+    is  
+    v_sl        number := 0;
+    v_sl_g      number := 0; 
+    v_tot_sl    number := 0;  
+    v_tot_sl_g  number := 0;  
+    v_tot_qty   number := 0; 
+    v_qty_g     number := 0;
+    v_count     number := 0;
+ 
+	BEGIN 
+	report_utils.header_without_boarder(p_project_code ,'Sales Report '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+			htp.p('<table style="width:100%; font-size:11px;"><tr> 
+			<th style="width:1%">SL</th>
+			<th style="width:6%">Date</th> 
+			<th style="width:4%">Invoice No</th> 
+			<th style="width:22%">Customer</th> 
+			<th style="width:8%">Items</th> 
+			<th style="width:8%">Expo No.</th>
+            		<th style="width:2%">Rate</th> 
+            		<th style="width:2%">Qty</th> 
+            		<th style="width:2%">Unit</th> 
+			<th style="width:2%">Net Amount</th> 
+			</tr>');
+  
+         FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE = p_org_id||'0001' 
+                    and CODE = nvl(p_project_code,code)  
+                    and org_id = p_org_id 
+                    ORDER BY CODE)
+ 
+		LOOP 
+            	 select count(*) 
+			into v_count 
+                        from sp_store_m sm 
+                        join sp_store_d sd on (sm.trans_id = sd.trans_id) 
+                        join g_acc_codes ga on (ga.code = sm.party_code) 
+                        join g_inv_codes gi on (gi.code = sd.item_code) 
+                        left join g_uni_codes gu on (gu.code = sm.depot_id) 
+                        WHERE sm.org_id = p_org_id
+                        and sd.org_id = p_org_id 
+                        and sm.trans_type='SV' 
+                        and sm.delete_status != 1 
+                        and sm.project_code = r.code
+                        and SM.TRANS_DATE BETWEEN p_from_date AND p_to_date 
+                        AND  sm.depot_id = nvl(p_warehouse, sm.depot_id) 
+                        and sm.project_code = nvl(p_project_code, sm.project_code) 
+                        AND sm.INVOICE_NO = nvl(p_invoice, sm.INVOICE_NO) 
+                        and sm.party_code = nvl(p_customer, sm.party_code) 
+                        and sm.type_code = nvl(p_order_type, sm.type_code)
+                        and sd.item_code = nvl(p_item_code, sd.item_code) 
+                        order by sm.trans_date asc;
+ 
+        if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                  <td colspan="12"  style="text-align: left"><b>'|| HTF.escape_sc (r.CODE_DESC)|| '</b></td> 
+                  <tr>'); 
+        end if;
+  
+                    v_sl  := 0;
+                    v_tot_sl := 0; 
+                    v_tot_qty := 0;
+
+         for i in (select sm.TRANS_DATE,
+			    substr(sm.INVOICE_NO,5) invoice_no, 
+                            sm.EXPORT_NO,
+                            gi.code_desc item_name, 
+                            gi.unit_price, 
+                            gi.sales_price, 
+                            sd.QTY,
+                            (select code_desc from g_uni_codes where code = gi.UNIT_CODE) unit,
+                            sd.discount, 
+                            sd.rate, 
+                            SD.TOTAL, 
+                            nvl(sd.qty,0) * nvl(sd.rate,0) total_AMOUNT, 
+                            ga.code_desc customer, 
+                            gu.code_desc warehouse 
+                    from sp_store_m sm 
+                    join sp_store_d sd on (sm.trans_id = sd.trans_id) 
+                    join g_acc_codes ga on (ga.code = sm.party_code) 
+                    join g_inv_codes gi on (gi.code = sd.item_code) 
+                    left join g_uni_codes gu on (gu.code = sm.depot_id) 
+                    WHERE sm.org_id = p_org_id
+                    and sd.org_id = p_org_id  
+                    and sm.trans_type='SV' 
+                    and sm.project_code = r.code
+                    and sm.delete_status != 1 
+                    and SM.TRANS_DATE BETWEEN p_from_date AND p_to_date 
+                    AND  sm.depot_id =nvl(p_warehouse,sm.depot_id) 
+                    and sm.project_code = nvl(p_project_code,sm.project_code) 
+                    AND sm.INVOICE_NO    =nvl(p_invoice,sm.INVOICE_NO) 
+                    and sm.party_code    =nvl(p_customer,sm.party_code) 
+                    and sm.type_code = nvl(p_order_type,sm.type_code)
+                    and sd.item_code     =nvl(p_item_code,sd.item_code) 
+                    order by sm.trans_date asc)
+ 
+                    loop 
+
+                    v_sl  := v_sl + 1;
+                    v_sl_g  := v_sl_g + 1;
+                    v_tot_sl := v_tot_sl + nvl(i.total_AMOUNT, 0); 
+                    v_tot_sl_g := v_tot_sl_g + nvl(i.total_AMOUNT, 0); 
+                    v_tot_qty := v_tot_qty + nvl(i.QTY, 0); 
+                    v_qty_g := v_qty_g + nvl(i.QTY, 0); 
+         	 
+            HTP.p (
+		'<tr> 
+                <td style="text-align: center">'|| HTF.escape_sc (v_sl)|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc(to_char(i.TRANS_DATE, 'dd-mm-yy'))|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (i.INVOICE_NO)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.customer)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.item_name)|| '</td>  
+                <td style="text-align: left">'|| HTF.escape_sc (i.EXPORT_NO)|| '</td>
+                <td>'|| HTF.escape_sc (i.rate)||'</td> 
+                <td>'|| HTF.escape_sc (i.qty)||'</td> 
+                <td>'|| HTF.escape_sc (i.unit)||'</td> 
+                <td  style="text-align: right">'|| HTF.escape_sc (to_char(i.total_AMOUNT, '99,99,99,990.00'))||'</td> 
+                <tr>');
+ 
+	      end loop; 
+             
+        if v_count > 0  then 
+                HTP.p ( '<tr> 
+                <td colspan="6" style="text-align:right;"><b>Total :  </b> </td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:center;"><b>'||v_tot_qty||'</b></td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:right;"><b>'||(to_char(v_tot_sl, '99,99,99,99,99,990.00'))||'</b></td> 
+                <tr>');  
+        end if; 
+	 
+	end loop; 
+         
+        HTP.p ( '<tr>  
+                <td colspan="3" style="text-align:left;"><b>Total Result: '||v_sl_g||'  </b> </td> 
+                <td colspan="3" style="text-align:right;"><b>Grand Total: </b> </td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:center;"><b>'||v_qty_g||'</b></td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:right;"><b>'||(to_char(v_tot_sl_g, '99,99,99,99,99,990.00'))||'</b></td> 
+                <tr>'); 
+         
+	htp.p('</table>'); 
+
+	END; 
+
+--******************************
+
+procedure sales_report_buyer_wise4(p_project_code number, p_item_code number, p_customer number, p_invoice varchar, p_from_date date, p_to_date date, p_org_id number, p_order_type number)
+    is
+    v_sl        number := 0;
+    v_sl_g      number := 0; 
+    v_tot_sl    number := 0;  
+    v_tot_sl_g  number := 0;  
+    v_tot_qty   number := 0; 
+    v_qty_g     number := 0;
+    v_count     number := 0;
+ 
+	BEGIN 
+	report_utils.header_without_boarder(p_project_code ,'Sales Report (Buyer Wise)'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+		htp.p('<table style="width:100%; font-size:11px;"><tr> 
+		<th style="width:1%">SL</th>
+		<th style="width:6%">Date</th> 
+		<th style="width:4%">Invoice No</th> 
+		<th style="width:22%">Customer</th> 
+		<th style="width:8%">Items</th> 
+		<th style="width:8%">Expo No.</th>
+            	<th style="width:2%">Rate</th> 
+            	<th style="width:2%">Qty</th> 
+            	<th style="width:2%">Unit</th> 
+		<th style="width:2%">Net Amount</th> 
+		</tr>'); 
+ 
+         FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_ACC_CODES  
+                    WHERE P_CODE = p_org_id||'0061' 
+                    and org_id = p_org_id 
+                    ORDER BY CODE)
+ 
+		LOOP 
+            select count(*) into v_count 
+                        from sp_store_m sm 
+                        join sp_store_d sd on (sm.trans_id = sd.trans_id ) 
+                        join g_acc_codes ga on (ga.code = sm.party_code) 
+                        join g_inv_codes gi on (gi.code = sd.item_code) 
+                        left join g_uni_codes gu on (gu.code = sm.depot_id) 
+                        WHERE sm.org_id = p_org_id 
+                        and sd.org_id = p_org_id 
+                        and sm.trans_type='SV' 
+                        and sm.delete_status != 1 
+                        and sm.party_code = r.code
+                        and SM.TRANS_DATE BETWEEN p_from_date AND p_to_date 
+                        and sm.project_code = nvl(p_project_code,sm.project_code) 
+                        AND sm.INVOICE_NO    =nvl(p_invoice,sm.INVOICE_NO) 
+                        and sm.party_code    =nvl(p_customer,sm.party_code) 
+                        and sm.type_code = nvl(p_order_type,sm.type_code)
+                        and sd.item_code     =nvl(p_item_code,sd.item_code) 
+                       order by sm.trans_date asc;
+ 
+        if v_count > 0 then 
+            HTP.p (
+		'<tr> 
+                <td colspan="12"  style="text-align: left"><b>'|| HTF.escape_sc (r.CODE_DESC)|| '</b></td> 
+                <tr>');
+ 
+        end if;  
+                    v_sl  := 0;
+                    v_tot_sl := 0; 
+                    v_tot_qty := 0;
+
+         for i in (select sm.TRANS_DATE,substr(sm.INVOICE_NO,5) invoice_no, 
+                            sm.EXPORT_NO,
+                            gi.code_desc item_name, 
+                            gi.unit_price, 
+                            gi.sales_price, 
+                            sd.QTY,
+                            (select code_desc from g_uni_codes where code = gi.UNIT_CODE)unit,
+                            sd.discount, 
+                            sd.rate, 
+                            SD.TOTAL, 
+                            nvl(sd.qty,0) * nvl(sd.rate,0) total_AMOUNT, 
+                            ga.code_desc customer, 
+                            gu.code_desc warehouse 
+                    from sp_store_m sm 
+                    join sp_store_d sd on (sm.trans_id = sd.trans_id ) 
+                    join g_acc_codes ga on (ga.code = sm.party_code) 
+                    join g_inv_codes gi on (gi.code = sd.item_code) 
+                    left join g_uni_codes gu on (gu.code = sm.depot_id) 
+                    WHERE sm.org_id = p_org_id 
+                    and sd.org_id = p_org_id 
+                    and sm.trans_type='SV' 
+                    and sm.party_code = r.code
+                    and sm.delete_status != 1 
+                    and SM.TRANS_DATE BETWEEN p_from_date AND p_to_date 
+                    and sm.project_code = nvl(p_project_code,sm.project_code) 
+                    AND sm.INVOICE_NO    =nvl(p_invoice,sm.INVOICE_NO) 
+                    and sm.party_code    =nvl(p_customer,sm.party_code) 
+                    and sm.type_code = nvl(p_order_type,sm.type_code)
+                    and sd.item_code     =nvl(p_item_code,sd.item_code) 
+                    order by sm.trans_date asc)
+ 
+                    loop 
+                    v_sl  := v_sl + 1;
+                    v_sl_g  := v_sl_g + 1;
+                    v_tot_sl := v_tot_sl+nvl(i.total_AMOUNT,0); 
+                    v_tot_sl_g := v_tot_sl_g+nvl(i.total_AMOUNT,0); 
+                    v_tot_qty := v_tot_qty+nvl(i.QTY,0); 
+                    v_qty_g := v_qty_g+nvl(i.QTY,0); 
+         	 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">'|| HTF.escape_sc (v_sl)|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc(to_char(i.TRANS_DATE,'dd-mm-yy'))|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (i.INVOICE_NO)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.customer)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.item_name)|| '</td>  
+                <td style="text-align: left">'|| HTF.escape_sc (i.EXPORT_NO)|| '</td>
+                <td>'|| HTF.escape_sc (i.rate)||'</td> 
+                <td>'|| HTF.escape_sc (i.qty)||'</td> 
+                <td>'|| HTF.escape_sc (i.unit)||'</td> 
+                <td  style="text-align: right">'|| HTF.escape_sc (to_char(i.total_AMOUNT,'99,99,99,990.00'))||'</td> 
+                <tr>'); 
+
+	end loop; 
+             
+        if v_count > 0  then 
+                HTP.p ( '<tr> 
+                <td colspan="6" style="text-align:right;"><b>Total :  </b> </td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:center;"><b>'||v_tot_qty||'</b></td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:right;"><b>'||(to_char(v_tot_sl,'99,99,99,99,99,990.00'))||'</b></td> 
+                <tr>');  
+        end if; 
+	 
+	end loop; 
+                 
+        HTP.p ( '<tr>  
+                <td colspan="3" style="text-align:left;"><b>Total Result: '||v_sl_g||'  </b> </td> 
+                <td colspan="3" style="text-align:right;"><b>Grand Total:  </b> </td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:center;"><b>'||v_qty_g||'</b></td> 
+                <td style="text-align:right;"></td> 
+                <td style="text-align:right;"><b>'||(to_char(v_tot_sl_g,'99,99,99,99,99,990.00'))||'</b></td> 
+                <tr>'); 
+         
+	htp.p('</table>'); 
+ 
+	END;
+
+--*****************************
+
+end "SALES_REPORT_AJMERI";
+/
+
+
+

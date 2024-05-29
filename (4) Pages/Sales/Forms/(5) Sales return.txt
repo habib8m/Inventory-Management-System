@@ -1,0 +1,348 @@
+
+SELECT TRANS_ID, PARTY_CODE, substr(INVOICE_NO,5) INVOICE_NO, CODE_DESC Customer_name, TRANS_DATE, U.LOGIN_ID
+FROM sp_store_m s, g_acc_codes a , SM_USER_LIST U, SALES_CHANEL C
+where s.PARTY_CODE = a.code
+AND A.TERRITORY_CODE = C.TERRITORY_ID(+)
+AND S.ENTRY_BY = U.USER_ID (+)
+and s.TRANS_TYPE = 'SR'
+and s.org_id = :app_org_id
+and (exists (select ei.cid_no, ei.TERRITORY_ID, ei.AREA_ID, ei.WAREHOUSE_ID
+                from  emp_info ei 
+                where ei.org_id = c.org_id
+                and ei.cid_no = :APP_CID_NO
+                and c.TERRITORY_ID = nvl(ei.TERRITORY_ID,c.TERRITORY_ID)
+                and c.AREA_ID = nvl(ei.AREA_ID,c.AREA_ID)
+                and c.WAREHOUSE_ID = nvl(ei.WAREHOUSE_ID,c.WAREHOUSE_ID)) 
+OR :APP_CID_NO = 10123)
+-- and UPPER(INVOICE_NO) like UPPER(nvl('%'||:P304_SEARCH||'%','%'))
+-- and UPPER(CODE_DESC) like UPPER(nvl('%'||:P304_SEARCH||'%','%'))
+order by s.TRANS_DATE desc, INVOICE_NO desc
+
+*********************************************
+
+--insert master process--
+
+DECLARE
+   V_TYPE         VARCHAR2 (30);
+   V_INVOICE_NO   VARCHAR2 (30);
+
+BEGIN
+   IF :P304_TRANS_ID IS NULL
+   THEN
+      SELECT NVL(MAX (trans_id), 0) + 1 
+	INTO :P304_TRANS_ID FROM sp_store_m;
+
+            IF :P304_ORDER_ID IS NOT NULL THEN
+                UPDATE sp_store_m 
+                SET REF_TRANS = :P304_TRANS_ID
+                where TRANS_ID = :P304_ORDER_ID;
+            END IF;
+
+      BEGIN
+         SELECT TO_CHAR(NVL(MAX(TO_NUMBER(SUBSTR(INVOICE_NO, 8))), 0) + 1)
+           INTO V_TYPE
+           FROM sp_store_m
+           WHERE TRANS_TYPE = 'SR'
+           AND TRANS_DATE BETWEEN (SELECT FIN_FDATE
+                                      FROM ACC_FIN_YEAR
+                                      WHERE STATUS = 1
+                                      and ORG_ID = :APP_ORG_ID)
+                              AND (SELECT FIN_TDATE
+                                   FROM ACC_FIN_YEAR
+                                   WHERE STATUS = 1
+                                   and ORG_ID = :APP_ORG_ID);
+
+      EXCEPTION WHEN OTHERS THEN
+         raise_application_error (-20111, 'Please Check Financial year....!!!!!');
+      END;
+
+      V_INVOICE_NO := TO_CHAR (SYSDATE, 'yymm') || 'SR-' || TRIM (TO_CHAR (V_TYPE, '0000'));
+
+      INSERT INTO sp_store_m (trans_id,
+                              trans_type,
+                              trans_date,
+                              invoice_no,
+                              remarks,
+                              PARTY_CODE,
+                              EXPORT_NO,
+                              FACTORY_DELIVERY_DATE,
+                              EXPORT_VALUE,
+                              PROJECT_CODE,
+                              ORG_ID,
+                              REF_TRANS,
+                              ENTRY_BY)
+
+           VALUES ( :P304_TRANS_ID,
+                   'SR',
+                   :p304_date,
+                    V_INVOICE_NO,
+                   :p304_remarks,
+                   :P304_PARTY_NAME,
+                   :P304_EXPORT_NO,
+                   :P304_FACTORY_DELIVERY_DATE,
+                   :P304_EXPORT_VALUE,
+                   :P304_PROJECT_CODE,
+                   :APP_ORG_ID,
+                   :P304_ORDER_ID,
+                   (select USER_ID from SM_USER_LIST where upper(LOGIN_ID) = upper(v('APP_USER')) and ORG_ID = :APP_ORG_ID));
+
+      SELECT SUBSTR (V_INVOICE_NO, 5) 
+      INTO :P304_INVOICE_NO 
+      FROM DUAL;
+
+      --------------------------------------------------
+
+      --- INSERT IN tmp_tran_m TABLE
+
+      SELECT NVL(MAX(TRAN_ID), 0) + 1 
+      INTO :P304_TMP_M 
+      FROM tmp_tran_m;
+
+      INSERT INTO tmp_tran_m (tran_id,
+                              project_code,
+                              ttype,
+                              voucher_no,
+                              tdate,
+                              ENTRY_BY,
+                              process_status,
+                              PURCHASE_CODE,
+                              from_booking,
+                              TOTAL_AMOUNT,
+                              ORG_ID)
+
+         SELECT :P304_TMP_M,
+                :P304_PROJECT_CODE,
+                'SR' ttype,
+                 INVOICE_NO,
+                TRUNC (TRANS_DATE) Tdate,
+                NVL (IBM.ENTRY_BY, 2) Entry_by,
+                0 process_status,
+                TRANS_ID,
+                4 from_booking,
+                :P304_TOTAL,
+                ORG_ID
+           FROM SP_STORE_M ibm
+          WHERE ibm.TRANS_ID = :P304_TRANS_ID;
+
+   --------------------------------------------
+
+   ELSE
+      --update main table--
+
+      UPDATE sp_store_m
+        SET trans_date = :P304_DATE,
+        remarks = :P304_REMARKS,
+        PARTY_CODE = :P304_PARTY_NAME,
+        EXPORT_NO = :P304_EXPORT_NO,
+        FACTORY_DELIVERY_DATE = :P304_FACTORY_DELIVERY_DATE,
+        EXPORT_VALUE = :P304_EXPORT_VALUE,
+        EDIT_BY = (select USER_ID from SM_USER_LIST where upper(LOGIN_ID) = upper(v('APP_USER')) and ORG_ID = :APP_ORG_ID)
+      WHERE trans_id = :P304_TRANS_ID;
+
+--------------------------------------------------
+
+      --- INSERT IN tmp_tran_m TABLE
+
+      SELECT TRAN_ID 
+      into :P304_TMP_M
+      FROM TMP_TRAN_M
+      WHERE VOUCHER_NO = (SELECT INVOICE_NO
+                           FROM sp_store_m
+                           WHERE trans_id = :P304_TRANS_ID);
+
+      UPDATE tmp_tran_m
+        SET tdate = :P304_DATE, TOTAL_AMOUNT = :P304_TOTAL
+        WHERE TRAN_ID = :P304_TMP_M;
+
+---------------------------------------------------
+
+   END IF;
+END;
+
+****************************************
+
+--insert detail process--
+
+DECLARE
+   V_C_VALUE   VARCHAR2 (50);
+
+BEGIN
+   IF :ITEM_CODE IS NULL AND ( :QTY IS NOT NULL OR :RATE IS NOT NULL)
+   THEN
+      raise_application_error (-20111, 'You must select Items.');
+   ELSE
+      NULL;
+   END IF;
+
+   CASE :apex$row_status
+      WHEN 'C'
+      THEN
+         IF :ITEM_CODE IS NOT NULL
+         THEN
+            INSERT INTO SP_STORE_D (TRANS_ID,
+                                    ITEM_CODE,
+                                    QTY,
+                                    RETURN_QTY,
+                                    RATE,
+                                    TOTAL,
+                                    DISCOUNT,
+                                    ITM_DIS_PER,
+                                    SL,
+                                    ORG_ID)
+                 VALUES ( :P304_TRANS_ID,
+                         :ITEM_CODE,
+                         :QTY,
+                         :RETURN_QTY,
+                         :RATE,
+                         :TOTAL,
+                         (((nvl(:qty,0)*nvl(:rate,0))*NVL(:DISCOUNT,0))/100),
+                         :DISCOUNT,
+                         (SELECT MAX (NVL (SL, 0)) + 1 FROM SP_STORE_D),
+                         :APP_ORG_ID);
+         END IF;
+
+      WHEN 'U'
+      THEN
+         if :P304_ORDER_ID is not null then
+             IF :ITEM_CODE IS NOT NULL
+             THEN
+                INSERT INTO SP_STORE_D (TRANS_ID,
+                                        ITEM_CODE,
+                                        QTY,
+                                        RETURN_QTY,
+                                        RATE,
+                                        TOTAL,
+                                        DISCOUNT,
+                                        ITM_DIS_PER,
+                                        SL,
+                                        ORG_ID)
+                     VALUES ( :P304_TRANS_ID,
+                             :ITEM_CODE,
+                             :QTY,
+                             :RETURN_QTY,
+                             :RATE,
+                             :TOTAL,
+                             (((nvl(:qty,0)*nvl(:rate,0))*NVL(:DISCOUNT,0))/100),
+                             :DISCOUNT,
+                             (SELECT MAX (NVL (SL, 0)) + 1 FROM SP_STORE_D),
+                             :APP_ORG_ID);
+             END IF;
+         else
+             IF :ITEM_CODE IS NOT NULL
+             THEN
+                UPDATE SP_STORE_D
+                   SET ITEM_CODE = :ITEM_CODE, QTY = :QTY, RATE = :RATE, TOTAL = :TOTAL, 
+                       RETURN_QTY = :RETURN_QTY, ITM_DIS_PER = :DISCOUNT,
+                       DISCOUNT = ((nvl(:qty,0)*nvl(:rate,0))*NVL(:DISCOUNT,0))/100
+                 WHERE ROWID = :ROWID;
+             END IF;
+        end if;
+
+      WHEN 'D'
+      THEN
+         DELETE SP_STORE_D
+          WHERE ROWID = :ROWID;
+   END CASE;
+
+END;
+
+***************************************
+
+--detail data other table--
+
+DECLARE
+   V_AMOUNT   NUMBER := 0;
+   V_DESC     VARCHAR2 (2500);
+BEGIN
+   FOR I
+      IN (  SELECT sr_no,
+                   code item_code,
+                      item_name
+                   || ', '
+                   || PKG_INVENTORY.GET_INV_CODE_DESC (P_CODE)
+                   || ', '
+                   || PKG_INVENTORY.GET_INV_CODE_DESC (PKG_INVENTORY.GET_INV_P_CODE (P_CODE))
+                      ITEM,
+                   SUM (RETURN_QTY) RETURN_QTY,
+                   nvl(rate,0) rate,
+                   amt
+              FROM (SELECT sm.sr_no,
+                           g.b_code,
+                           g.p_code,
+                           g.code,
+                           g.code_desc item_name,
+                           nvl(sd.RETURN_QTY,0) RETURN_QTY,
+                           nvl(sd.rate,0) rate,
+                           nvl(sd.RETURN_QTY,0)*nvl(sd.rate,0) AMT --    NVL(SD.TOTAL,0) AMT
+                      FROM sp_store_m sm, sp_store_d sd, g_inv_codes g
+                     WHERE     sm.trans_id = sd.trans_id
+                           AND sd.item_code = g.code
+                           AND sd.trans_id = :P304_TRANS_ID)
+          GROUP BY sr_no,
+                   b_code,
+                   p_code,
+                   code,
+                   item_name,
+                   rate,
+                   amt)
+   LOOP
+      V_DESC :=
+            V_DESC
+         || '('
+         || I.ITEM
+         || '; RETURN_QTY: '
+         || nvl(I.RETURN_QTY,0)
+         || '; Rate: '
+         || nvl(I.RATE,0)
+         || '; Amount: '
+         || nvl(I.amt,0)
+         || ')';
+      V_AMOUNT := nvl(V_AMOUNT,0) + nvl(i.amt,0);
+   END LOOP;
+
+   DELETE FROM tmp_tran_d
+         WHERE tran_id = :P304_TMP_M;
+
+   INSERT INTO tmp_tran_d (tran_id,
+                           trans_code,
+                           TD_DESC,
+                           entry_by,
+                           damount,
+                           camount,
+                           ORG_ID)
+      SELECT :P304_TMP_M,
+             :P304_PARTY_NAME,
+             V_DESC td_desc,
+             NVL (ibm.entry_by, 2) Entry_by,
+             0 damount,
+             V_AMOUNT camount,
+             ORG_ID
+        FROM SP_STORE_M ibm
+       WHERE ibm.TRANS_ID = :P304_TRANS_ID;
+
+
+        FOR CC IN (SELECT   item_code, item_name || '; RETURN_QTY: ' || SUM (RETURN_QTY) || '; Amount: ' || SUM (amt) td_desc,
+                                             entry_by, SUM (amt) amount, sum(VAT_P) vat
+                                     FROM (SELECT g.code item_code, g.code_desc item_name,
+                                                  NVL (sm.entry_by, 2) entry_by, sd.RETURN_QTY,
+                                                  NVL (sd.RETURN_QTY, 0) * NVL (sd.rate, 0)-nvl(sd.DISCOUNT,0) amt, sd.VAT_P
+                                             FROM sp_store_m sm, sp_store_d sd, g_inv_codes inv, g_acc_codes g
+                                            WHERE sm.trans_id = sd.trans_id
+                                              AND inv.code = sd.item_code
+                                              AND inv.b_code = g.inv_code 
+                                              AND g.b_code = :app_org_id||'009'     --- 9: FOR SALES 
+                                              AND sm.trans_id = :P304_TRANS_ID)
+                                    GROUP BY item_code, item_name, entry_by
+                                    )
+        LOOP
+			INSERT INTO tmp_tran_d(tran_id, trans_code,   TD_DESC,   entry_by,  damount,  camount, ORG_ID)
+				      				VALUES  (:P304_TMP_M,CC.ITEM_CODE, CC.td_desc, CC.entry_by, CC.AMOUNT, 0 , :APP_ORG_ID );
+				if cc.vat > 0 THEN
+					INSERT INTO tmp_tran_d(tran_id, trans_code,   TD_DESC,   entry_by,  damount,  camount, ORG_ID)
+										VALUES  (:P304_TMP_M,7007041, CC.td_desc, CC.entry_by, CC.vat, 0 , 7 );
+				end if;
+        END LOOP;
+
+END;
+
+

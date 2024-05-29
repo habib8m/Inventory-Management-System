@@ -1,0 +1,84 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "COSMIC_SATELITE_REPORTS" as 
+procedure bill_colection (p_collector number,p_from_date date,p_to_date date); 
+end "COSMIC_SATELITE_REPORTS"; 
+/
+
+                                                  ===============================BODY=============================
+
+create or replace package body "COSMIC_SATELITE_REPORTS" as 
+
+--***********************
+
+procedure bill_colection (p_collector number,p_from_date date,p_to_date date) ---P327 
+ IS 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		            htp.p('<div style="float:left;position:; width:40%"> 
+                            <h2 style="text-align:center;"><b>?????</b></h2> 
+                            <table style="border:none;width:100%;"> 
+                                <tr style="border:none;"> 
+                                    <th style="border:none;">???</th> 
+                                    <th style="border:none;text-align:center;">??????</th> 
+                                </tr> 
+                            </table> 
+                            <table style="border:none;margin-top:95px;width:100%;> 
+                                <tr style="border:none;"> 
+                                    <th style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;text-align:left;background-color:#d7d9db;">?????</th> 
+                                    <th style="border:none;text-align:left;background-color:#d7d9db;">???????</th> 
+                                </tr> 
+                                <tr style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;"> 
+                                    <td style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;">???? ?????</td> 
+                                </tr> 
+                                <tr style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;"> 
+                                    <td style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;">????? ?? / ?????????? ??</td> 
+                                </tr> 
+                                <tr style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;"> 
+                                    <td style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;">?????</td> 
+                                </tr> 
+                                <tr style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;"> 
+                                    <td style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;text-align:right;">???</td> 
+                                </tr> 
+                            </table> 
+                        </div>'); 
+ 
+                        htp.p('<div style="float:left;position:relative; width:60%;margin-left:;"> 
+                            <h3 class=h3 style="text-align:center;font-family:Anek Bangla;"><b>????? ?????????? ???? ?????????</b></h3> 
+                            <h6 style="text-align:center;">??/??, ????-? ????? ????? ???, ???????????, ????-????? ???- ???????????, ???????????</h6> 
+                            <table style="border:none;width:95%;"> 
+                                <tr style="border:none;"> 
+                                    <th style="border:none;text-align:left;">????</th> 
+                                </tr> 
+                                <tr style="border:none;"> 
+                                    <th style="border:none;text-align:left;">???????</th> 
+                                </tr> 
+                            </table> 
+                            <table style="border:none;margin-top:50px;width:90%;> 
+                                <tr style="border:none;background-color:#d7d9db"> 
+                                    <th style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;text-align:center;background-color:#d7d9db;">?????</th> 
+                                    <th style="border:none;text-align:left;background-color:#d7d9db;">???????</th> 
+                                </tr> 
+                                <tr style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;"> 
+                                    <td style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;">???? ?????</td> 
+                                </tr> 
+                                <tr style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;"> 
+                                    <td style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;">????? ?? / ?????????? ??</td> 
+                                </tr> 
+                                <tr style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;"> 
+                                    <td style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;">?????</td> 
+                                </tr> 
+                                <tr style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;"> 
+                                    <td style="border-top:none;border-left:none;border-bottom:none;border-right:1px solid;text-align:right;">???</td> 
+                                </tr> 
+                            </table> 
+                        </div>'); 
+     
+    END; 
+ 
+--************************** 
+ 
+end "COSMIC_SATELITE_REPORTS"; 
+/
+

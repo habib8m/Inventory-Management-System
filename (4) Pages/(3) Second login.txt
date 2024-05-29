@@ -1,0 +1,25 @@
+
+.logo{
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#login_btn{
+  display: block;
+  margin-top: 30px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+--******************
+<img class="logo" width="120" height="92" src="#APP_FILES#logo/&P10_ORG_ID..png">
+
+--*****************
+<h1 class="entry-title" itemprop="headline" style="text-align: center; margin-top: 50px;">
+    Welcome to &P10_ORG_NAME.
+</h1>
+
+--*****************
+<h2><p style="text-align: center;">Please click on the "ERP login" button to use your application software.</p></h2>
+

@@ -1,0 +1,108 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace PACKAGE item_reports 
+AS 
+	procedure item_tree_3s (P_PROJECT_CODE    NUMBER, p_catagory number); 
+	procedure  item_tree_all (P_PROJECT_CODE    NUMBER, p_catagory number); 
+     
+ 
+end; 
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace PACKAGE BODY item_reports 
+AS 
+	procedure  item_tree_3s (P_PROJECT_CODE    NUMBER, p_catagory number) 
+	is 
+    v_count number := 0; 
+	BEGIN 
+        for pro in (select DISTINCT CODE, CODE_DESC, OTHER_DESC from g_uni_codes  
+                        where p_code = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'0001'  
+                        and code = nvl(P_PROJECT_CODE,code) 
+                        AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')   
+                        order by code) 
+        loop 
+        v_count := v_count+1; 
+            htp.p('<h3 style="margin-top: 0px; margin-bottom: 0px; text-align: left;"> '||htf.escape_sc(pro.CODE_DESC)||'</h3>'); 
+ 
+            for cat in (select CODE, CODE_DESC from g_inv_codes 
+                        where p_code = 0--'0000' 
+                        and code = nvl(p_catagory,code) 
+                        AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') ) 
+            loop 
+                null; 
+            htp.p('<h5 style="margin-left: 40px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x25C6; '||htf.escape_sc(cat.CODE_DESC)||'</h5>'); 
+                 
+                for i in (select CODE, CODE_DESC from g_inv_codes 
+                            where INV_LEVEL = 2 
+                            and p_code = cat.CODE--cat.code 
+                            AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') ) 
+                loop 
+                    null; 
+                htp.p('<h6 style="margin-left: 80px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x25C7; '||htf.escape_sc(i.CODE_DESC)||'</h6>'); 
+                 
+                    for r in (select CODE, CODE_DESC||'-'||PACKING ITEM from g_inv_codes 
+                                where INV_LEVEL = 3 
+                                and p_code = i.code 
+                                AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') ) 
+                    loop 
+                        null; 
+                    htp.p('<p style="margin-left: 120px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; '||htf.escape_sc(r.ITEM)||'</p>'); 
+                    end loop; 
+                end loop; 
+            end loop; 
+        end loop; 
+	end;     
+
+--**************************
+
+	procedure  item_tree_all (P_PROJECT_CODE    NUMBER, p_catagory number) 
+	is 
+    v_count number := 0; 
+	BEGIN 
+        for pro in (select DISTINCT CODE, CODE_DESC, OTHER_DESC from g_uni_codes  
+                        where p_code = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'0001'  
+                        and code = nvl(P_PROJECT_CODE,code) 
+                        AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')   
+                        order by code) 
+        loop 
+        v_count := v_count+1; 
+            htp.p('<h2 style="margin-top: 0px; margin-bottom: 0px; text-align: left;">'||v_count|| ' : : '||htf.escape_sc(pro.CODE_DESC)||'</h2>'); 
+ 
+            for cat in (select CODE, CODE_DESC from g_inv_codes 
+                        where p_code = 0--'0000' 
+                        and code = nvl(p_catagory,code) 
+                        AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') ) 
+            loop 
+                null; 
+            htp.p('<h4 style="margin-left: 40px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x25C6; '||htf.escape_sc(cat.CODE_DESC)||'</h4>'); 
+                 
+                for i in (select CODE, CODE_DESC from g_inv_codes 
+                            where INV_LEVEL = 2 
+                            and p_code = cat.CODE--cat.code 
+                            AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') ) 
+                loop 
+                    null; 
+                htp.p('<h5 style="margin-left: 80px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x25C7; '||htf.escape_sc(i.CODE_DESC)||'</h5>'); 
+                 
+                    for r in (select CODE, CODE_DESC from g_inv_codes 
+                                where INV_LEVEL = 3 
+                                and p_code = i.code 
+                                AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') ) 
+                    loop 
+                        null; 
+                    htp.p('<p style="margin-left: 120px; margin-top: 0px; margin-bottom: 0px; text-align: left">&#x2756; '||htf.escape_sc(r.CODE_DESC)||'</p>'); 
+                    end loop; 
+                end loop; 
+            end loop; 
+        end loop; 
+	end;     
+
+--**************************
+
+end;
+/
+

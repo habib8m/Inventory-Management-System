@@ -1,0 +1,140 @@
+
+create or replace PROCEDURE "PR_BONUS_PROCESS" (P_BONUS_NO IN NUMBER, P_USER_ID IN NUMBER, P_ORG_ID IN NUMBER)
+AS
+   V_SL          NUMBER;
+   V_TOTAL_DAY   NUMBER;
+
+   CURSOR C1
+   IS
+      SELECT BONUS_NO, P_FDATE, P_TDATE, 
+      NVL(BONUS_AMOUT,0) BONUS_AMOUNT, NVL(BANUS_RATE,0) BONUS_RATE
+      , OT_TYPE,REMARKS
+        FROM PR_BONUS_SETUP BM
+       WHERE BM.BONUS_NO = P_BONUS_NO
+       AND   BM.ORG_ID = P_ORG_ID
+       AND   BM.P_FDATE IS NOT NULL
+       AND   BM.P_TDATE IS NOT NULL;       
+    V_PROCESS_ON  VARCHAR2(10);
+    V_BONUS_DATE  Date;
+   
+BEGIN
+    
+    BEGIN     
+    SELECT NVL(PROCESS_ON,'G'),BONUS_DATE INTO V_PROCESS_ON,v_BONUS_DATE 
+    FROM PR_BONUS_M BM
+    WHERE BM.BONUS_NO=P_BONUS_NO
+    AND BM.ORG_ID = P_ORG_ID;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END; 
+    
+    DELETE FROM PR_BONUS_D  WHERE  BONUS_NO =P_BONUS_NO;
+    COMMIT; 
+    
+    
+    INSERT INTO PR_BONUS_D
+                  (BONUS_NO, CID_NO, UID_NO, DESIG_CODE,LINE_CODE, JOINING_DATE,
+                   PRESEN_SALARY, BASIC_SAL,BONUS,SERVICE_AGE,REMARKS,ORG_ID)
+     SELECT     P_BONUS_NO, EI.CID_NO, EI.UID_NO, EI.DESIG_CODE,EI.LINE_CODE,
+                EI.JOINING_DATE, EI.PRESENT_SAL,
+                case when ei.SEC_CODE IN(SELECT CODE FROM G_UNI_CODES G 
+                WHERE ei.sec_code=g.code
+                And G.HOLIDAY_ALLW_STATUS=1) then ROUND (NVL(ei.PRESENT_SAL-300-100,0)/1.35) else 
+                ROUND((EI.PRESENT_SAL-1100)/1.4) end BASIC_SAL,
+                bm.BONUS BONUS,
+                v_BONUS_DATE -Ei.Joining_date+1 Service_Age,
+                bm.Remarks ,P_ORG_ID
+           FROM EMP_INFO EI,PR_BONUS_MAN BM
+          WHERE EI.UID_NO=BM.UID_NO
+            and bm.BONUS_NO=P_BONUS_NO
+            AND EI.ORG_ID = P_ORG_ID
+            AND NOT EXISTS (SELECT 1 
+                            FROM PR_BONUS_D BD 
+                            WHERE BD.CID_NO =EI.CID_NO AND BD.BONUS_NO=P_BONUS_NO );
+                            
+                            
+                                                    
+        
+   FOR CC IN C1
+   LOOP  
+    
+     
+      IF V_PROCESS_ON='G' THEN
+      
+      INSERT INTO PR_BONUS_D
+                  (BONUS_NO, CID_NO, UID_NO, DESIG_CODE,LINE_CODE, JOINING_DATE,
+                   PRESEN_SALARY, BASIC_SAL,BONUS,SERVICE_AGE,REMARKS,ORG_ID)
+         SELECT P_BONUS_NO, EI.CID_NO, EI.UID_NO, EI.DESIG_CODE,EI.LINE_CODE,
+                EI.JOINING_DATE, EI.PRESENT_SAL,
+                case when ei.SEC_CODE IN(SELECT CODE FROM G_UNI_CODES G 
+                WHERE ei.sec_code=g.code
+                And G.HOLIDAY_ALLW_STATUS=1) then ROUND (NVL(ei.PRESENT_SAL-300-100,0)/1.35) else
+                ROUND((EI.PRESENT_SAL-1100)/1.4) end BASIC_SAL,
+                (SELECT   
+                
+                ROUND (EI.PRESENT_SAL * NVL(BS.BANUS_RATE,0) / 100)
+                        + NVL(BS.BONUS_AMOUT,0)
+                   FROM PR_BONUS_SETUP BS
+                  WHERE BS.BONUS_NO = P_BONUS_NO
+                    AND  ROWNUM=1
+                    AND BS.ORG_ID = P_ORG_ID
+                    AND EI.JOINING_DATE BETWEEN BS.P_FDATE AND BS.P_TDATE
+                    AND NVL (EI.OT_TYPE, 'N') = NVL(BS.OT_TYPE,NVL (EI.OT_TYPE, 'N'))) BONUS,
+                v_BONUS_DATE -Ei.Joining_date+1 Service_Age,cc.REMARKS ,P_ORG_ID                
+           FROM EMP_INFO EI
+          WHERE EI.JOINING_DATE BETWEEN CC.P_FDATE AND CC.P_TDATE
+            AND EI.ORG_ID = P_ORG_ID
+            AND NVL (EI.EMP_OUT, 'N') <> 'Y'
+            AND NVL (EI.OT_TYPE, 'N')     = NVL(CC.OT_TYPE,NVL (EI.OT_TYPE, 'N'))
+            AND NOT EXISTS (SELECT 1 
+                            FROM PR_BONUS_D BD 
+                            WHERE BD.CID_NO =EI.CID_NO AND BD.BONUS_NO=P_BONUS_NO );
+        ELSE
+         INSERT INTO PR_BONUS_D
+                  (BONUS_NO, CID_NO, UID_NO, DESIG_CODE,LINE_CODE, JOINING_DATE,
+                   PRESEN_SALARY, BASIC_SAL,BONUS,SERVICE_AGE,Remarks,ORG_ID)
+         SELECT P_BONUS_NO, EI.CID_NO, EI.UID_NO, EI.DESIG_CODE,EI.LINE_CODE,
+                EI.JOINING_DATE, EI.PRESENT_SAL,
+                case when ei.SEC_CODE IN(SELECT CODE FROM G_UNI_CODES G 
+                WHERE ei.sec_code=g.code
+                And G.HOLIDAY_ALLW_STATUS=1) then ROUND (NVL(ei.PRESENT_SAL-300-100,0)/1.35) else
+                ROUND((EI.PRESENT_SAL-1100)/1.4) end BASIC_SAL,
+                (SELECT   
+                case when ei.SEC_CODE IN(SELECT CODE FROM G_UNI_CODES G 
+                WHERE ei.sec_code=g.code
+                And G.HOLIDAY_ALLW_STATUS=1) then round(ROUND (NVL(ei.PRESENT_SAL-300-100,0)/1.35)* NVL(BS.BANUS_RATE,0) / 100) else
+                ROUND ((ROUND((EI.PRESENT_SAL-1100)/1.4)) * NVL(BS.BANUS_RATE,0) / 100) end 
+                        + NVL(BS.BONUS_AMOUT,0)
+                   FROM PR_BONUS_SETUP BS
+                  WHERE BS.BONUS_NO = P_BONUS_NO
+                      AND  ROWNUM=1
+                    AND EI.JOINING_DATE BETWEEN BS.P_FDATE AND BS.P_TDATE
+                    AND NVL (EI.OT_TYPE, 'N') = NVL(BS.OT_TYPE,NVL (EI.OT_TYPE, 'N'))) BONUS,
+                    v_BONUS_DATE -Ei.Joining_date+1 Service_Age,cc.Remarks ,P_ORG_ID
+           FROM EMP_INFO EI
+          WHERE EI.JOINING_DATE BETWEEN CC.P_FDATE AND CC.P_TDATE
+            AND EI.ORG_ID = P_ORG_ID
+            AND NVL (EI.EMP_OUT, 'N') <> 'Y'
+              AND NVL (EI.OT_TYPE, 'N')     = NVL(CC.OT_TYPE,NVL (EI.OT_TYPE, 'N'))
+            AND NOT EXISTS (SELECT 1 
+                            FROM PR_BONUS_D BD 
+                            WHERE BD.CID_NO =EI.CID_NO AND BD.BONUS_NO=P_BONUS_NO );
+                            
+        END IF;                  
+
+      COMMIT;
+   END LOOP;
+   
+   Update  PR_BONUS_D BD Set BD.BONUS=
+                            NVL((select g.bonus 
+                      from g_uni_codes g 
+                      where g.code=bd.DESIG_CODE),0)
+    Where Bd.BONUS_NO =P_bonus_no
+    and    bd.bonus=0;            
+   Commit;
+   delete From  PR_BONUS_D BD 
+   WHEre BD.Bonus=0
+   AND   Bd.BONUS_NO =P_bonus_no;
+   Commit;     
+END;
+/
+

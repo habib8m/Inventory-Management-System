@@ -1,0 +1,477 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace PACKAGE pay_slip_report 
+AS 
+	procedure general (p_project_code number,p_section_code number,p_shift_code number,p_from_date date,p_to_date date,p_org_id number); 
+    procedure lOOM (p_project_code number,p_section_code number,p_shift_code number,p_period_id number,p_from_date date,p_to_date date,p_org_id number); 
+end;
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace PACKAGE BODY        pay_slip_report 
+AS 
+	procedure  general (p_project_code number,p_section_code number,p_shift_code number,p_from_date date,p_to_date date,p_org_id number) 
+	is 
+    V_TOTAL     NUMBER      := 0; 
+    V_TOTAL_G     NUMBER    := 0; 
+    V_HOUR_SAL      NUMBER  := 0; 
+    V_SHIFT         VARCHAR2(30); 
+    v_count     number      := 0; 
+	BEGIN     
+        -- v_count := 0; 
+ 
+		htp.p('<html>'); 
+        REPORT_UTILS.table_boarder; 
+        for i in (  SELECT EP.CID_NO, 
+                                  E.UID_NO, 
+                                  nvl(E.EMP_NAME_B,EMP_NAME) EMP_NAME_B, 
+                                  G.OTHER_DESC, 
+                                  EP.SEC_CODE, 
+                                  EP.SHIFT_CODE, 
+                                  nvl(EP.DAY,0) DAY, 
+                                  nvl(EP.SALARY,0) SALARY, 
+                                  nvl(EP.FRIDAY_HOUR,0) FRIDAY_HOUR, 
+                                  nvl(EP.OT_HOUR,0) OT_HOUR, 
+                                  nvl(EP.ADD_BONUS,0) ADD_BONUS, 
+                                  nvl(EP.CAINTIN_BILL,0) CAINTIN_BILL, 
+                                  nvl(EP.ADV_DEDUCTION,0) ADV_DEDUCTION, 
+                                  nvl(G.code_level,0) code_level ,
+                                  ep.friday_sal,
+                                  ep.ot_sal,
+                                  ep.basic,
+                                  ep.gross_salary,
+                                  ep.total_salary
+                    FROM ERP_PROCESSED_SALARY EP, EMP_INFO E, G_UNI_CODES g 
+                   WHERE EP.CID_NO = E.CID_NO  
+                   AND EP.SEC_CODE = g.code 
+                   AND EP.org_id = p_org_id  
+                   AND E.org_id = p_org_id  
+                   AND SALARY_FROM_DT = p_from_date 
+                   AND SALARY_TO_DT = p_to_date
+                   and ep.sec_code = nvl(p_section_code,ep.sec_code)
+                   and ep.shift_code = p_shift_code
+                  and ep.DAY > 0 
+                order by e.uid_no) 
+        loop 
+        v_count := v_count+1; 
+        IF I.SHIFT_CODE = 40002012 then--2012 THEN 
+        V_SHIFT := 'এ'; 
+        ELSIF I.SHIFT_CODE = 40002013 then-- 2013 THEN 
+        V_SHIFT := 'বি'; 
+        END IF; 
+if MOD(v_count,2) = 1 then 
+		htp.p('<div style="width:50%; float: left;"> 
+        <h4 style="text-align:center; margin-bottom: 0px; ">বগুড়া জুট মিল লিঃ</h4>'); 
+        htp.p('<p style="width:100%; margin-top: 0px; text-align: center; font-size: 13px;">সেকশন  : <b>'||htf.escape_sc(i.OTHER_DESC)||'</b> - '||htf.escape_sc(P_from_date)||' To '||htf.escape_sc(P_To_date)||'</p>'); 
+ 
+        htp.p(' 
+        <table style="width:95%; border: none;"><tr style="border: none; font-size: 12px;"> 
+                                <td  style="width:2%; border: none;font-size:13px;text-align:left;" >নাম: <b>'||htf.escape_sc(i.EMP_NAME_B)||'</b></td> 
+                                <td  style="width:1%; border: none;font-size:13px;text-align:left;" >আইডি:<b> '||htf.escape_sc(translate_bn.only_num(i.UID_NO))||'</b></td> 
+                                <td  style="width:1%; border: none;" >শিফট: '|| HTF.escape_sc (V_SHIFT)||'</td>  </tr> </table>');         
+        htp.p('<table style="width:95%;  font-size: 11px; padding: 0px; margin: 0px;margin-bottom:10px;"><tr> 
+                                <td  style="width:1%" >কার্য দিবস</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.only_num(i.DAY))||' </td> 
+                                <td  style="width:1%" ></td>                 			 
+                                           
+                    			</tr> 
+                                <tr> 
+                                <td  style="width:1%" >দৈনিক বেতন</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.SALARY,'99,99,999'))||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.basic,'99,99,999'))||' </td>                 			 
+                                           
+                    			</tr> 
+                                <tr> 
+                                <td  style="width:1%" >শুক্রবারের কাজ</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.only_num(i.FRIDAY_HOUR))||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.friday_sal,'99,99,999'))||' </td> 
+                                </tr>
+                                <tr> 
+                                <td  style="width:1%" >অতিরিক্ত কাজ</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.only_num(i.OT_HOUR))||' </td> 
+                                <td  style="width:1%" > '|| HTF.escape_sc (translate_bn.num_formate(i.ot_sal,'99,99,999'))||'</td>                 			 
+                                           
+                    			</tr>   
+                                 <tr> 
+                                <td  style="width:1%" >বোনাস</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (null)||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.ADD_BONUS,'99,99,999'))||' </td>                 			 
+                                           
+                    			</tr>  
+                                 <tr> 
+                                <td  style="width:1%" >মোট টাকা </td> 
+                                <td  style="width:1%" > </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.gross_salary,'99,99,999'))||' </td>            			 
+                                           
+                    			</tr>  
+                                  <tr> 
+                                <td  style="width:1%" >অগ্রিম বেতন</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (null)||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.ADV_DEDUCTION,'99,99,999'))||' </td>            			 
+                                           
+                    			</tr>  
+                                    <tr> 
+                                <td  style="width:1%" >ক্যান্টিন বিল</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (null)||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.CAINTIN_BILL,'99,99,999'))||' </td>             			 
+                                           
+                    			</tr>  
+                                    <tr> 
+                                <td  style="width:1%;font-size:12px;" ><b>প্রাপ্য বেতন</b></td> 
+                                <td  style="width:1%" > </td> 
+                                <td  style="width:1%;font-size:12px;" ><b>'|| HTF.escape_sc (translate_bn.num_formate(i.total_salary,'99,99,999'))||'</b></td>              			 
+                                           
+                    			</tr>  
+ 
+                                           
+                    			</tr>'); 
+                                
+                                
+         
+        htp.p('</table>');
+        htp.p('<p style="text-align:center;border:1px solid black;width:100px;margin:auto;">কর্মচারীর স্বাক্ষর:</p>');
+        htp.p('<hr style="border-top: 1px solid black;margin-top:20px;"></div>'); 
+        end if;
+if MOD(v_count,2) = 0 then 
+		htp.p('<div style="width:50%; float: right; margin-left 5%; border-left: 1px solid black;"> 
+        <h4 style="text-align:center; margin-bottom: 0px;">বগুড়া জুট মিল লিঃ</h4>'); 
+        htp.p('<p style="width:100%; margin-top: 0px; text-align: center; font-size: 13px;">সেকশন  : <b>'||htf.escape_sc(i.OTHER_DESC)||'</b> - '||htf.escape_sc(P_from_date)||' TO '||htf.escape_sc(P_To_date)||' </p>'); 
+ 
+        htp.p(' 
+        <table style="width:width:95%; border: none; margin-left: 5%; font-size: 12px;"><tr style="border: none;"> 
+                                <td  style="width:2%; border: none;font-size:13px;text-align:left;" >নাম: <b>'||htf.escape_sc(i.EMP_NAME_B)||'</b></td> 
+                                <td  style="width:1%; border: none;font-size:13px;text-align:left;" >আইডি:<b> '||htf.escape_sc(translate_bn.only_num(i.UID_NO))||'</b></td> 
+                                <td  style="width:1%; border: none;" >শিফট: '|| HTF.escape_sc (V_SHIFT)||'</td>  </tr> </table>');           
+        htp.p('<table style="width:width:95%; margin-left: 5%; font-size: 11px;margin-bottom:10px;"><tr> 
+                                <td  style="width:1%" >কার্য দিবস</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.only_num(i.DAY))||' </td> 
+                                <td  style="width:1%" ></td>                			 
+                                           
+                    			</tr> 
+                                <tr> 
+                                <td  style="width:1%" >দৈনিক বেতন</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.SALARY,'99,99,999'))||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.basic,'99,99,999'))||' </td>                 			 
+                                           
+                    			</tr> 
+                                <tr> 
+                                <td  style="width:1%" >শুক্রবারের কাজ</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.only_num(i.FRIDAY_HOUR))||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.friday_sal,'99,99,999'))||' </td> 
+                                </tr>
+                                <tr> 
+                                <td  style="width:1%" >অতিরিক্ত কাজ</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.only_num(i.OT_HOUR))||' </td> 
+                                <td  style="width:1%" > '|| HTF.escape_sc (translate_bn.num_formate(i.ot_sal,'99,99,999'))||'</td>                 			 
+                                           
+                    			</tr>   
+                                 <tr> 
+                                <td  style="width:1%" >বোনাস</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (null)||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.ADD_BONUS,'99,99,999'))||' </td>                 			 
+                                           
+                    			</tr>  
+                                 <tr> 
+                                <td  style="width:1%" >মোট টাকা </td> 
+                                <td  style="width:1%" > </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.gross_salary,'99,99,999'))||' </td>            			 
+                                           
+                    			</tr>  
+                                  <tr> 
+                                <td  style="width:1%" >অগ্রিম বেতন</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (null)||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.ADV_DEDUCTION,'99,99,999'))||' </td>            			 
+                                           
+                    			</tr>  
+                                    <tr> 
+                                <td  style="width:1%" >ক্যান্টিন বিল</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (null)||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.num_formate(i.CAINTIN_BILL,'99,99,999'))||' </td>             			 
+                                           
+                    			</tr>  
+                                    <tr> 
+                                <td  style="width:1%;font-size:12px;" ><b>প্রাপ্য বেতন</b></td> 
+                                <td  style="width:1%" > </td> 
+                                <td  style="width:1%;font-size:12px;" ><b>'|| HTF.escape_sc (translate_bn.num_formate(i.total_salary,'99,99,999'))||'</b></td>               			 
+                                           
+                    			</tr>  
+ 
+                                           
+                    			</tr>');
+                                
+                                
+         
+        htp.p('</table>');
+        htp.p('<p style="text-align:center;border:1px solid black;width:100px;margin:auto;">কর্মচারীর স্বাক্ষর:</p>');
+        htp.p('<hr style="border-top: 1px solid black;margin-top:20px;"></div>'); 
+        end if; 
+        end loop; 
+      htp.p('</html>'); 
+	end; 
+
+--*****************************
+
+    procedure lOOM (p_project_code number,p_section_code number,p_shift_code number,p_period_id number,p_from_date date,p_to_date date,p_org_id number)
+	is 
+    V_TOTAL         NUMBER      := 0; 
+    V_TOTAL_G       NUMBER      := 0; 
+    V_HOUR_SAL      NUMBER      := 0; 
+    V_SHIFT         VARCHAR2(30); 
+    v_count         number      := 0; 
+    V_TOTAL_PCS_AMOUNT  NUMBER  := 0;
+	BEGIN     
+        -- v_count := 0; 
+ 
+		htp.p('<html>'); 
+        REPORT_UTILS.table_boarder; 
+        for i in (  SELECT  
+                    		E.EMP_NAME_B, 
+                    		E.UID_NO,
+                            e.SHIFT_CODE, 
+                    	   nvl(SAL.GM1200_TOTALROLL,0) GM1200_TOTALROLL, 
+                           SAL.GM1200_RATE, 
+                           nvl(SAL.GM1200_PCS,0) GM1200_PCS, 
+                    	   ROUND(nvl(SAL.GM1200_RATE,0) * nvl(SAL.GM1200_PCS,0)) t1200, 
+                           nvl(SAL.GM1134_TOTALROLL,0) GM1134_TOTALROLL, 
+                           SAL.GM1134_RATE, 
+                           nvl(SAL.GM1134_PCS,0) GM1134_PCS, 
+                    	   ROUND(nvl(SAL.GM1134_RATE,0) * nvl(SAL.GM1134_PCS,0)) t1134, 
+                           nvl(SAL.GM1060_TOTALROLL,0) GM1060_TOTALROLL, 
+                           SAL.GM1060_RATE, 
+                           nvl(SAL.GM1060_PCS,0) GM1060_PCS, 
+                    	   ROUND(nvl(SAL.GM1060_RATE,0) * nvl(SAL.GM1060_PCS,0)) t1060, 
+                           nvl(SAL.GM850_TOTALROLL,0) GM850_TOTALROLL, 
+                           SAL.GM850_RATE, 
+                           nvl(SAL.GM850_PCS,0) GM850_PCS, 
+                    	   ROUND(nvl(SAL.GM850_RATE,0) * nvl(SAL.GM850_PCS,0)) t850, 
+                    	   nvl(SAL.GM1200_PCS,0) + nvl(SAL.GM1134_PCS,0) + nvl(SAL.GM850_PCS,0)+NVL(SAL.GM1060_PCS,0)Total_Pcs,
+                           NVL(SAL.GM1200_TOTALROLL,0)+NVL(SAL.GM1134_TOTALROLL,0)+NVL(SAL.GM1060_TOTALROLL,0)+NVL(SAL.GM850_TOTALROLL,0)  TOTAL_ROLL,      
+                    	   SAL.BONUS, 
+                           SAL.ADD_BONUS, 
+                    	   SAL.ADV_DEDUCTION, 
+                           SAL.CAINTIN_BILL,
+                           SAL.BASIC,
+                           SAL.GROSS_SALARY,
+                           NVL(SAL.GROSS_SALARY,0) - NVL(SAL.BONUS,0) TOTAL_PCS_AMOUNT,
+                           SAL.TOTAL_SALARY,
+                           G.OTHER_DESC SECTION
+                        --    (select other_desc from g_uni_codes where code = e.shift_code) shift       
+                FROM EMP_INFO E,ERP_PROCESSED_SALARY SAL, g_uni_codes g 
+                WHERE E.CID_NO=SAL.CID_NO  
+                   AND SAL.SEC_CODE = g.code 
+                   AND SAL.org_id = p_org_id  
+                   AND E.org_id = p_org_id  
+                   AND SALARY_FROM_DT = p_from_date 
+                   AND SALARY_TO_DT = p_to_date
+                   and SAL.sec_code = nvl(p_section_code,SAL.sec_code)
+                   and SAL.shift_code = p_shift_code
+                   AND (GM1200_PCS >0 OR GM1134_PCS >0 OR GM1060_PCS >0 OR GM850_PCS >0)
+                ORDER BY TO_NUMBER(UID_NO))
+        loop 
+        v_count := v_count+1; 
+        V_TOTAL_PCS_AMOUNT := i.t1200 + i.t1134 + i.t1060 + i.t850;
+        IF I.SHIFT_CODE = 40002012 then--2012 THEN 
+        V_SHIFT := 'এ'; 
+        ELSIF I.SHIFT_CODE = 40002013 then-- 2013 THEN 
+        V_SHIFT := 'বি'; 
+        END IF; 
+if MOD(v_count,2) = 1 then 
+		htp.p('<div style="width:50%; float: left;"> 
+        <h4 style="text-align:center; margin-bottom: 0px; ">বগুড়া জুট মিল লিঃ</h4>'); 
+        htp.p('<p style="width:100%; margin-top: 0px; text-align: center; font-size: 12px;">সেকশন  : <b>'||htf.escape_sc(i.section)||'</b> - '||htf.escape_sc(P_from_date)||' To '||htf.escape_sc(P_To_date)||'</p>'); 
+ 
+        htp.p(' 
+        <table style="width:90%; border: none;"><tr style="border: none; font-size: 12px;"> 
+                                <td  style="width:4%; border: none;font-size:13px;text-align:left;" >নাম: <b>'||htf.escape_sc(i.EMP_NAME_B)||'</b></td> 
+                                <td  style="width:4%; border: none;font-size:13px;text-align:left;" >আইডি:<b> '||htf.escape_sc(translate_bn.only_num(i.UID_NO))||'</b></td> 
+                                <td  style="width:1%; border: none;" >শিফট: '|| HTF.escape_sc (V_SHIFT)||'</td>  </tr> </table>');         
+        htp.p('<table style="width:90%;  font-size: 11px; padding: 0px; margin: 0px;margin-bottom:10px;"><tr> 
+                                <td  style="width:4%;height:60px;" >সর্ব মোট রোল</td> 
+                                <td  style="width:4%"; >');
+                                if i.GM1200_TOTALROLL > 0 then 
+                                htp.p('১২০০ গ্রাম রোল='|| HTF.escape_sc (translate_bn.only_num(I.GM1200_TOTALROLL))||'<br>'); 
+                                end if; 
+                                if i.GM1134_TOTALROLL > 0 then 
+                                                       htp.p('১১৩৪ গ্রাম রোল='|| HTF.escape_sc (translate_bn.only_num(I.GM1134_TOTALROLL))||'<br>'); 
+                                end if; 
+                                if i.GM1060_TOTALROLL > 0 then 
+                                                       htp.p('১১৬০ গ্রাম রোল='|| HTF.escape_sc (translate_bn.only_num(I.GM1060_TOTALROLL))||'<br>'); 
+                                end if; 
+                                if i.GM850_TOTALROLL > 0 then 
+                                                       htp.p('৮৫০/৯৩৬গ্রাম রোল='|| HTF.escape_sc (translate_bn.only_num(I.GM850_TOTALROLL)));
+                                end if;                                                        
+                                 htp.p('</td>
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.only_num(I.TOTAL_ROLL))||'</td>               			 
+                                           
+                    			</tr> 
+                                <tr> 
+                                    <td  style="width:1%;height:60px;" >প্রতি পিসের মজুরি</td>  
+                                    <td  style="width:1%" >');
+                                        if i.GM1200_PCS > 0 then 
+                                            htp.p(HTF.escape_sc  (translate_bn.only_num(I.GM1200_PCS))||'×'|| (translate_bn.only_num(I.GM1200_RATE))||'='|| (translate_bn.only_num(I.T1200))||'<br>');
+                                        end if;
+                                        if i.GM1134_PCS > 0 then 
+                                            htp.p(HTF.escape_sc  (translate_bn.only_num(I.GM1134_PCS))||'×'|| (translate_bn.only_num(I.GM1134_RATE))||'='|| (translate_bn.only_num(I.T1134))||'<br>');
+                                        end if;
+                                        if i.GM1060_PCS > 0 then 
+                                            htp.p(HTF.escape_sc  (translate_bn.only_num(I.GM1060_PCS))||'×'|| (translate_bn.only_num(I.GM1060_RATE))||'='|| (translate_bn.only_num(I.T1060))||'<br>');
+                                        end if;
+                                        if i.GM850_PCS > 0 then 
+                                          htp.p(HTF.escape_sc (translate_bn.only_num(I.GM850_PCS))||'×'||(translate_bn.only_num(I.GM850_RATE))||'='||(translate_bn.only_num(I.T850))||'
+                                    </td>');
+                                        end if;
+                                   htp.p('<td  style="width:1%" >'|| HTF.escape_sc (translate_bn.only_num(I.BASIC))||' </td>                 
+                    			</tr> 
+                                <tr> 
+                                <td  style="width:1%" >সর্ব মোট পিস ও টাকা</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (TRANSLATE_BN.only_num(i.Total_Pcs))||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (TRANSLATE_BN.num_formate(V_TOTAL_PCS_AMOUNT,'99,99,999'))||' </td> 
+                                </tr>
+                                <tr> 
+                                <td  style="width:1%" >পিস বোনাস</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (NULL)||' </td> 
+                                <td  style="width:1%" > '|| HTF.escape_sc (TRANSLATE_BN.num_formate(I.BONUS,'99,99,999'))||'</td>                 			 
+                                           
+                    			</tr>   
+                                 <tr> 
+                                <td  style="width:1%" >বোনাস</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (null)||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (TRANSLATE_BN.num_formate(i.ADD_BONUS,'99,99,999'))||' </td>                 			 
+                                           
+                    			</tr>  
+                                 <tr> 
+                                <td  style="width:1%" >মোট মজুরি </td> 
+                                <td  style="width:1%" > </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (TRANSLATE_BN.num_formate(i.gross_salary,'99,99,999'))||' </td>            			 
+                                           
+                    			</tr>  
+                                  <tr> 
+                                <td  style="width:1%" >অগ্রিম বেতন</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (null)||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (TRANSLATE_BN.num_formate(i.ADV_DEDUCTION,'99,99,999'))||' </td>            			 
+                                           
+                    			</tr>  
+                                    <tr> 
+                                <td  style="width:1%" >ক্যান্টিন বিল</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (null)||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (TRANSLATE_BN.num_formate(i.CAINTIN_BILL,'99,99,999'))||' </td>             			 
+                                           
+                    			</tr>  
+                                    <tr> 
+                                <td  style="width:1%;font-size:13px;"><b>প্রাপ্য বেতন</b></td> 
+                                <td  style="width:1%" > </td> 
+                                <td  style="width:1%;font-size:13px;" ><b>'|| HTF.escape_sc (TRANSLATE_BN.num_formate(i.total_salary,'99,99,999'))||'</b> </td>                  			   
+                    			</tr>   
+                    			</tr>'); 
+                                
+                                
+         
+        htp.p('</table><br>');
+        htp.p('<p style="text-align:center;border:1px solid black;width:100px;margin:auto;font-size:11px;">কর্মচারীর স্বাক্ষর:</p><br><br><br><br>');
+        htp.p('<hr style="border-top: 1px solid black;margin-top:20px;"></div>'); 
+        end if;
+if MOD(v_count,2) = 0 then 
+		htp.p('<div style="width:50%; float: right; margin-left 2%; border-left: 1px solid black;"> 
+        <h4 style="text-align:center; margin-bottom: 0px;">বগুড়া জুট মিল লিঃ</h4>'); 
+        htp.p('<p style="width:100%; margin-top: 0px; text-align: center; font-size: 12px;">সেকশন  : <b>'||htf.escape_sc(i.SECTION)||'</b> - '||htf.escape_sc(P_from_date)||' TO '||htf.escape_sc(P_To_date)||' </p>'); 
+ 
+        htp.p(' 
+        <table style="width:width:90%; border: none; margin-left: 5%; font-size: 12px;"><tr style="border: none;"> 
+                                <td  style="width:2%; border: none;font-size:13px;text-align:left;" >নাম: <b>'||htf.escape_sc(i.EMP_NAME_B)||'</b></td> 
+                                <td  style="width:1%; border: none;font-size:13px;text-align:left;" > আইডি: <b>'||htf.escape_sc(TRANSLATE_BN.only_num(i.UID_NO))||'</b></td> 
+                                <td  style="width:1%; border: none;" >শিফট: '|| HTF.escape_sc (V_SHIFT)||'</td>  </tr> </table>');         
+        htp.p('<table style="width:width:90%; margin-left: 5%; font-size: 11px;margin-bottom:10px;"><tr> 
+                                <td  style="width:4%;height:60px;" >সর্ব মোট রোল</td>
+                                <td  style="width:4%" >');
+                                if i.GM1200_TOTALROLL > 0 then 
+                                htp.p('১২০০ গ্রাম রোল='|| HTF.escape_sc (translate_bn.only_num(I.GM1200_TOTALROLL))||'<br>'); 
+                                end if; 
+                                if i.GM1134_TOTALROLL > 0 then 
+                                                       htp.p('১১৩৪ গ্রাম রোল='|| HTF.escape_sc (translate_bn.only_num(I.GM1134_TOTALROLL))||'<br>'); 
+                                end if; 
+                                if i.GM1060_TOTALROLL > 0 then 
+                                                       htp.p('১১৬০ গ্রাম রোল='|| HTF.escape_sc (translate_bn.only_num(I.GM1060_TOTALROLL))||'<br>'); 
+                                end if; 
+                                if i.GM850_TOTALROLL > 0 then 
+                                                       htp.p('৮৫০/৯৩৬গ্রাম রোল='|| HTF.escape_sc (translate_bn.only_num(I.GM850_TOTALROLL)));
+                                end if;                                                        
+                                 htp.p('</td>
+                                <td  style="width:1%" >'|| HTF.escape_sc (translate_bn.only_num(I.TOTAL_ROLL))||'</td>                  			 
+                                           
+                    			</tr> 
+                                <tr> 
+                                    <td  style="width:1%;height:60px;" >প্রতি পিসের মজুরি</td>  
+                                    <td  style="width:1%" >');
+                                        if i.GM1200_PCS > 0 then 
+                                            htp.p(HTF.escape_sc  (translate_bn.only_num(I.GM1200_PCS))||'×'|| (translate_bn.only_num(I.GM1200_RATE))||'='|| (translate_bn.only_num(I.T1200))||'<br>');
+                                        end if;
+                                        if i.GM1134_PCS > 0 then 
+                                            htp.p(HTF.escape_sc  (translate_bn.only_num(I.GM1134_PCS))||'×'|| (translate_bn.only_num(I.GM1134_RATE))||'='|| (translate_bn.only_num(I.T1134))||'<br>');
+                                        end if;
+                                        if i.GM1060_PCS > 0 then 
+                                            htp.p(HTF.escape_sc  (translate_bn.only_num(I.GM1060_PCS))||'×'|| (translate_bn.only_num(I.GM1060_RATE))||'='|| (translate_bn.only_num(I.T1060))||'<br>');
+                                        end if;
+                                        if i.GM850_PCS > 0 then 
+                                          htp.p(HTF.escape_sc (translate_bn.only_num(I.GM850_PCS))||'×'||(translate_bn.only_num(I.GM850_RATE))||'='||(translate_bn.only_num(I.T850))||'
+                                    </td>');
+                                        end if;
+                               htp.p('<td  style="width:1%" >'|| HTF.escape_sc (translate_bn.only_num(I.BASIC))||' </td> 
+                    			</tr> 
+                                <tr> 
+                                <td  style="width:1%" >সর্ব মোট পিস ও টাকা</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (TRANSLATE_BN.only_num(i.Total_Pcs))||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (TRANSLATE_BN.num_formate(V_TOTAL_PCS_AMOUNT,'99,99,999'))||' </td> 
+                                </tr>
+                                <tr> 
+                                <td  style="width:1%" >পিস বোনাস</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (NULL)||' </td> 
+                                <td  style="width:1%" > '|| HTF.escape_sc (TRANSLATE_BN.num_formate(I.BONUS,'99,99,999'))||'</td>                 			 
+                                           
+                    			</tr>   
+                                 <tr> 
+                                <td  style="width:1%" >বোনাস</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (null)||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (TRANSLATE_BN.num_formate(i.ADD_BONUS,'99,99,999'))||' </td>                 			 
+                                           
+                    			</tr>  
+                                 <tr> 
+                                <td  style="width:1%" >মোট মজুরি </td> 
+                                <td  style="width:1%" > </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (TRANSLATE_BN.num_formate(i.gross_salary,'99,99,999'))||' </td>            			 
+                                           
+                    			</tr>  
+                                  <tr> 
+                                <td  style="width:1%" >অগ্রিম বেতন</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (null)||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (TRANSLATE_BN.num_formate(i.ADV_DEDUCTION,'99,99,999'))||' </td>            			 
+                                           
+                    		</tr>  
+                                <tr> 
+                                <td  style="width:1%" >ক্যান্টিন বিল</td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (null)||' </td> 
+                                <td  style="width:1%" >'|| HTF.escape_sc (TRANSLATE_BN.num_formate(i.CAINTIN_BILL,'99,99,999'))||' </td>             			 
+                                           
+                    		</tr>  
+                                <tr> 
+                                <td  style="width:1%;font-size:13px;"><b>প্রাপ্য বেতন</b></td> 
+                                <td  style="width:1%" > </td> 
+                                <td  style="width:1%;font-size:13px;" ><b>'|| HTF.escape_sc (TRANSLATE_BN.num_formate(i.total_salary,'99,99,999'))||'</b> </td>               			            
+                    	        </tr>     
+                    	        </tr>');
+                                
+        htp.p('</table><br>');
+        htp.p('<p style="text-align:center;border:1px solid black;width:100px;margin:auto;font-size:11px;">কর্মচারীর স্বাক্ষর:</p><br><br><br><br>');
+        htp.p('<hr style="border-top: 1px solid black;margin-top:20px;"></div>'); 
+        end if; 
+        end loop; 
+      htp.p('</html>');
+ end;
+
+--*****************************
+ 
+end;
+/
+

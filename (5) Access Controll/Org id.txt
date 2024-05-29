@@ -1,0 +1,2 @@
+
+select ORG_NAME from ERP_ORGANIZATION where ORG_ID = :APP_ORG_ID

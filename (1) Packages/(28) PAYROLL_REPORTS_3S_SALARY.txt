@@ -1,0 +1,216 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "PAYROLL_REPORTS_3S_SALARY" as 
+procedure country_salary_reports(P_COMPANY_ID  NUMBER ,p_org_id number, p_warehouse_id number,p_salry_period number); 
+ 
+end "PAYROLL_REPORTS_3S_SALARY"; 
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "PAYROLL_REPORTS_3S_SALARY" as 
+procedure country_salary_reports(P_COMPANY_ID NUMBER,p_org_id number, p_warehouse_id number,p_salry_period number) 
+IS 
+	v_sl                number    := 0; 
+	v_tot_sl            number    := 0; 
+    v_basic             number    := 0; 
+    v_total_basic       number    := 0; 
+    v_rent              number    := 0; 
+    v_total_rent        number    := 0; 
+    v_conv              number    := 0; 
+    v_total_conv        number    := 0; 
+    v_medical           number    := 0; 
+    v_total_medical     number    := 0; 
+    v_sp_all            number    := 0; 
+    v_total_sp_all      number    := 0; 
+    v_total             number    := 0; 
+    v_g_total           number    := 0; 
+    v_pf                number    := 0; 
+    v_total_pf          number    := 0; 
+    v_gross_S           number    := 0; 
+    v_total_gross       number    := 0; 
+    v_bonus             number    := 0; 
+    v_total_bonus       number    := 0; 
+    v_advance_d         number    := 0; 
+    v_advance_total_d   number    := 0; 
+    v_tds               number    := 0; 
+    v_total_tds         number    := 0; 
+    v_n_s_payable       number    := 0; 
+    v_n_s_total_payable number    := 0; 
+    v_gross             number    := 0; 
+    v_payable           number    := 0; 
+    v_count             number    := 0; 
+ 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL,'Country Salary Reports'); 
+ 
+       select title into v_salry_title FROM ERP_SALARY_INFO where pk_id = p_salry_period; 
+ 
+       htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(v_salry_title)||'</h4>'); 
+ 
+        FOR wh in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE = p_org_id||'00067' --warehouse 
+                    and org_id = p_org_id 
+                    and code = nvl(p_warehouse_id,code) 
+                    ORDER BY CODE) 
+       loop 
+
+	        htp.p('<h3> '||htf.escape_sc(wh.CODE_DESC)||'</h3>'); 
+			htp.p('<table style="width:100%"><tr>             
+    			<th style="width:5%">SL</th> 
+    			<th style="width:5%">EC</th> 
+    			<th style="width:10%">Employee Name</th>  
+                <th style="width:10%">Designation</th> 
+    			<th style="width:5%">Date Of Join</th> 
+    			<th style="width:5%">Teritory</th> 
+                <th style="width:5%">Basic</th> 
+    			<th style="width:5%">HRA</th> 
+                <th style="width:5%">Conv.</th> 
+                <th style="width:5%">Medical</th> 
+                <th style="width:5%">Spl. All.</th> 
+                <th style="width:5%">Total</th> 
+    			<th style="width:5%">P.F.</th> 
+                <th style="width:5%">Gross S. P.</th> 
+                <th style="width:5%">Bonus</th> 
+                <th style="width:5%">Adv. Adj.</th> 
+                <th style="width:5%">TDS</th> 
+                <th style="width:5%">N.S. Payable</th> 
+                <th style="width:5%">Status</th> 
+    			</tr>'); 
+            v_sl := 0; 
+        
+              
+ 
+            for i in (select  eps.sp_id 
+                            ,EPS.uid_no 
+                    		,emp.emp_name 
+                    		,desi.code_desc Designation 
+                    		,war.code_desc Warehouse 
+                    		,emp.joining_date 
+							,ter.code_desc territory 
+							,EPS. SALARY 
+                            ,EPS. HRA 
+                        	,EPS. CONVANCE 
+                            ,EPS. MEDICAL 
+                        	,EPS. SP_ALL 
+                        	,EPS. TOTAL_SALARY 
+							,EPS. TOTAL_P_F 
+                        	,EPS. GROSS_SALARY 
+                            ,EPS.BONUS 
+                            ,EPS. ADV_DEDUCTION 
+                        	,EPS. TDS 
+                        	,EPS. NET_PAYABLE_SALARY 
+                        	,EPS. SALARY_INFO_ID 
+                        	,EMP. MODE_OF_PAYMENT 
+                    		 
+                    		 
+                    from ERP_PROCESSED_SALARY eps 
+                    join emp_info emp on emp.cid_no = eps.cid_no 
+                    left join g_uni_codes desi on emp.desig_code = desi.code and emp.org_id = desi.org_id 
+                    left join g_uni_codes ter on emp.territory_id=ter.code 
+                    left join sales_chanel sl on sl.TERRITORY_ID = emp.TERRITORY_ID and emp.org_id = sl.org_id 
+                    left join g_uni_codes war on war.CODE = sl.WAREHOUSE_ID 
+                    where emp.org_id = p_ORG_ID 
+                    and sl.warehouse_id = wh.code 
+					and SALARY_INFO_ID = p_salry_period 
+                        ) 
+            loop 
+ 
+                v_sl            		:= v_sl + 1; 
+                v_tot_sl        		:=v_tot_sl +nvl(i.salary,0); 
+                 v_rent         		:= v_rent + nvl(i.HRA,0); 
+                 v_conv         		:= v_conv + nvl(i.CONVANCE,0); 
+                 v_medical      		:=v_medical +nvl(i.MEDICAL,0); 
+                 v_sp_all       		:=v_sp_all  + nvl(i.SP_ALL,0); 
+                 v_total        		:=v_total  + nvl(i.total_salary,0); 
+                 v_pf           		:= v_pf + nvl(i.total_p_f,0); 
+                 v_gross_s      		:=v_gross_s  + nvl(i.GROSS_SALARY,0); 
+                 v_bonus        		:=v_bonus + nvl(i.BONUS,0); 
+                v_advance_d     		:=v_advance_d + nvl(i.ADV_DEDUCTION,0); 
+                v_tds           		:=v_tds + nvl(i.TDS,0); 
+                v_n_s_payable   		:=v_n_s_payable + nvl(i.net_payable_salary,0); 
+                 
+                v_total_basic   		:=v_total_basic +nvl(v_tot_sl ,0); 
+                v_total_rent    		:=v_total_rent +nvl(v_rent,0); 
+                v_total_conv    		:=v_total_conv +nvl( v_conv,0); 
+                v_total_medical 		:=v_total_medical +nvl(v_medical,0); 
+                v_total_sp_all  		:=v_total_sp_all +nvl(v_sp_all ,0); 
+                v_g_total       		:=v_g_total +nvl( v_total,0); 
+                v_total_pf      		:=v_total_pf +nvl(v_pf,0); 
+                v_total_gross   		:=v_total_gross +nvl(v_gross_s ,0); 
+                v_total_bonus   		:=v_total_bonus +nvl(v_bonus ,0); 
+                v_advance_total_d     	:=v_advance_total_d+nvl(v_advance_d ,0); 
+                v_total_tds      		:=v_total_tds +nvl(v_tds, 0); 
+                v_n_s_total_payable 	:=v_n_s_total_payable +nvl(v_n_s_payable , 0); 
+             	 
+                HTP.p ('<tr> 
+                       <td style="text-align: center">' 
+                   || HTF.escape_sc (V_SL) 
+                   || '</td>                  
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.UID_NO) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (i.EMP_NAME) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (i.Designation) 
+                   || '</td>                     
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (i.JOINING_DATE) 
+                   || '</td> 
+                   <td style="text-align: CENTER">' 
+                   || HTF.escape_sc(I.territory) 
+                   || '</td> 
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (i.SALARY) 
+                   || '</td> 
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (i.HRA) 
+                   || '</td> 
+                   <td style="text-align: left">'|| HTF.escape_sc (i.CONVANCE) 
+                   ||'</td> 
+                    <td>'||HTF.escape_sc (i.MEDICAL) 
+                   ||'</td> 
+                    <td>'||HTF.escape_sc (i.SP_ALL) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.total_salary) 
+                   ||'</td>                   
+                   <td>'||HTF.escape_sc (i.total_p_f) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.ADV_DEDUCTION) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.TDS) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.net_payable_salary) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.net_payable_salary) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.net_payable_salary) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.MODE_OF_PAYMENT) 
+                   ||'</td> 
+                    </tr>'); 
+    			end loop; 
+                       
+            HTP.p ('<tr> 
+                <td colspan="6" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_basic,'99,99,999')) 
+               ||'</b></td> 
+                 
+                </tr>');    
+              -- end if; 
+             htp.p('</table>');              
+        end loop;  
+     
+    END; 
+
+--*****************************
+ 
+end "PAYROLL_REPORTS_3S_SALARY"; 
+/
+

@@ -1,0 +1,537 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "SALES_REPORTS" as 
+ 
+procedure Customer_List(P_project_id number,P_CUSTOMER number,p_territory_code number,P_area_code NUMBER ,p_warehouse_code number,p_org_id number); 
+procedure Officer_List(P_project_id number,P_CUSTOMER number); 
+procedure Invoice_Wise_Report (P_project_id NUMBER,P_invoice NUMBER,P_FROM_DATE DATE,P_TO_DATE DATE); 
+procedure Item_Wise_Sales_Report (P_project_id NUMBER,P_ITEM NUMBER,P_FROM_DATE DATE,P_TO_DATE DATE); 
+procedure Customer_Wise_Sales_Report(P_project_id NUMBER,P_CUSTOMER NUMBER, P_ITEM NUMBER,P_FROM_DATE DATE,P_TO_DATE DATE); 
+procedure Customer_Group_Wise_Sales_Report(P_project_id NUMBER,P_CUSTOMER NUMBER, P_ITEM NUMBER,P_FROM_DATE DATE,P_TO_DATE DATE); 
+procedure Invoice_Report(p_business_unit varchar2,p_item_code number,p_customer number,p_warehouse number,p_territory number,p_area number,p_invoice varchar,p_from_date  
+                            date,p_to_date date,p_org_id number);
+end "SALES_REPORTS";
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "SALES_REPORTS" as 
+ 
+procedure Customer_List(P_project_id number,P_CUSTOMER number,p_territory_code number,P_area_code NUMBER ,p_warehouse_code number,p_org_id number) 
+is  
+	v_sl number := 0; 
+    v_count number :=0; 
+BEGIN 
+    
+		report_utils.header_without_boarder(P_project_id,'Customer List'); 
+ 
+ 
+			htp.p('<table style="width:100%"> 
+			<tr> 
+			<th style="width:2%;">SL</th> 
+			<th style="width:12%;"> Name</th>  
+			<th style="width:12%;">Address</th> 
+			<th style="width:10%;">Phone</th> 
+			<th style="width:10%;">NID No</th>
+			<th style="width:10%;">Officer</th> 
+            <th style="width:10%;"> Territory </th> 
+            <th style="width:10%;"> Area</th> 
+			<th style="width:8%;">Warehouse</th> 
+			</tr>'); 
+            v_sl := 0; 
+			FOR i in (  SELECT A.CODE, A.CODE_DESC , 
+                                 A.CODE_DESC_OTHER address,  
+                                 A.P_MOBILE,
+                                 a.membership_no nid_no,  
+                                 G.CODE_DESC TERRITORY, 
+                                 ga.code_desc area, 
+                                 gw.code_desc warehouse, 
+                                 emp.emp_name 
+                          FROM g_acc_codes a , G_UNI_CODES G, SALES_CHANEL C,g_uni_codes ga,g_uni_codes gw,emp_info emp 
+                         WHERE a.TERRITORY_CODE = C.TERRITORY_ID(+) 
+                         AND  C.TERRITORY_ID = G.CODE(+) 
+                         and c.area_id = ga.code(+) 
+                         and c.warehouse_id = gw.code(+) 
+                         and c.territory_id = emp.territory_id 
+                         AND A.P_CODE = p_org_id||'004562'  
+                        --   AND  B_CODE < 10   
+                        AND A.ORG_ID = p_org_id 
+                        and A.CODE not in (select p_code FROM G_ACC_CODES WHERE ORG_ID = p_org_id) 
+                        and a.code = nvl(p_customer,a.code) 
+                        and c.territory_id = nvl(p_territory_code,c.territory_id) 
+                        and c.area_id = nvl(p_area_code,c.area_id) 
+                        and c.warehouse_id = nvl(p_warehouse_code,c.warehouse_id) 
+                      ) 
+			LOOP 
+                v_sl := v_sl + 1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.CODE_DESC)||'</td> 
+				<td style="text-align: left">'||htf.escape_sc(i.address)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(i.P_MOBILE)||'</td> 
+                <td style="text-align: LEFT">'||htf.escape_sc(i.nid_no)||'</td> 
+                <td style="text-align: LEFT">'||htf.escape_sc(i.emp_name)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(i.TERRITORY)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.AREA)||'</td> 
+                 <td style="text-align: center">'||htf.escape_sc(i.warehouse)||'</td> 
+				<tr>'); 
+ 
+			 
+			 
+			 
+		end loop; 
+        htp.p('</table>'); 
+		 
+ 
+	END; 
+
+--*****************************
+ 
+    procedure Officer_List(    P_project_id number,P_CUSTOMER number) 
+is  
+	v_sl number     := 0; 
+    v_count number  :=0; 
+BEGIN 
+    
+		report_utils.header_without_boarder(P_project_id,'Officer List'); 
+ 
+ 
+			htp.p('<table style="width:100%"> 
+			<tr> 
+			<th >Code</th> 
+			<th> Name</th>  
+			<th >Address</th> 
+			<th >Phone</th> 
+            <th >Email</th> 
+			</tr>'); 
+			FOR i in (SELECT CODE 
+                        ,CODE_DESC 
+                        ,CODE_DESC_OTHER 
+                        ,P_MOBILE  
+                       FROM G_ACC_CODES 
+                       WHERE P_CODE='70010' 
+                       -- P_CODE = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'00010' 
+                       --P_CODE='70010' 
+                    --    where P_CODE = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'0001' 
+                    --    AND P_CODE = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'00010' 
+                       ORDER BY code) 
+			LOOP 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(i.CODE)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.CODE_DESC)||'</td> 
+				<td style="text-align: left">'||htf.escape_sc(i.CODE_DESC_OTHER)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.P_MOBILE)||'</td> 
+				<tr>'); 
+ 
+			 
+			 
+			 
+		end loop; 
+        htp.p('</table>'); 
+		 
+ 
+	END; 
+
+--*****************************
+
+procedure Invoice_Wise_Report (  P_project_id NUMBER 
+                                ,P_invoice NUMBER 
+                                ,P_FROM_DATE DATE 
+                                ,P_TO_DATE DATE) 
+is  
+    v_sl number := 0; 
+    BEGIN 
+		report_utils.header_without_boarder(P_project_id,'Invoice Wise Report'); 
+		FOR r in (select distinct CODE, CODE_DESC  
+					from G_UNI_CODES  
+					where P_CODE = 0  
+                    AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+					--and code = nvl(P_SYSTEM_CODE,code) 
+					order by code) 
+		LOOP 
+ 
+			htp.p('<h3>'||htf.escape_sc(r.CODE_DESC)||'</h3>'); 
+			htp.p('<table style="width:100%"> 
+			<tr> 
+			<th style="width:7%"> Date</th> 
+			<th style="width:5%">Invoice No</th>  
+			<th style="width:15%">Customer</th> 
+			<th style="width: 20%">Total Amount</th> 
+			<th style="width:5%">Total Disc</th> 
+			<th style="width: 10%">Total VAT</th>  
+			<th style="width:5%">Net Amount</th> 
+			<th style="width:5%">Options</th> 
+			</tr>'); 
+			v_sl := 0; 
+			FOR i in (	SELECT      M.TRANS_DATE 
+                                    ,M.INVOICE_NO 
+                                    ,G.CODE_DESC 
+                                    ,(NVL(D.QTY,0)* NVL(D.RATE,0)) TOTAL 
+                                    ,M.DISCOUNT 
+                                    ,M.NET_AMOUNT 
+                        FROM SP_STORE_M M ,SP_STORE_D D, G_ACC_CODES G 
+                        WHERE M.TRANS_ID=D.TRANS_ID 
+                        AND M.PARTY_CODE = G.CODE 
+                        AND M.org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') ) 
+			LOOP 
+			v_sl := v_sl+1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(I.TRANS_DATE)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(I.INVOICE_NO)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.CODE_DESC)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i. TOTAL)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.DISCOUNT)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(i.NET_AMOUNT)||'</td> 
+				<tr>'); 
+			END LOOP; 
+			 
+			htp.p('</table>'); 
+			 
+		end loop; 
+		 
+ 
+	END; 
+ 
+--*****************************
+
+procedure Item_Wise_Sales_Report (  P_project_id NUMBER 
+                                    ,P_ITEM NUMBER 
+                                    ,P_FROM_DATE DATE 
+                                    ,P_TO_DATE DATE) 
+is  
+	v_sl number := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(P_project_id,'Item Wise Sales Report'); 
+		FOR r in (select distinct CODE, CODE_DESC  
+					from G_UNI_CODES  
+					where P_CODE = 0  
+                    AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+					--and code = nvl(P_SYSTEM_CODE,code) 
+					order by code) 
+		LOOP 
+ 
+			htp.p('<h3>'||htf.escape_sc(r.CODE_DESC)||'</h3>'); 
+			htp.p('<table style="width:100%"> 
+			<tr> 
+			<th style="width:7%">Invoice Date</th> 
+			<th style="width:5%">Invoice No</th>  
+			<th style="width:15%">Customer</th> 
+			<th style="width: 20%">Address</th> 
+			<th style="width:5%">Item Name</th> 
+			<th style="width: 10%">LotNo</th>  
+			<th style="width:4%">Rate</th> 
+			<th style="width:4%">Qty</th> 
+			<th style="width:12%">Total Disc</th>  
+			<th style="width:5%">Net Amount</th> 
+			</tr>'); 
+			v_sl := 0; 
+			FOR i in (	select  CODE_DESC, 
+								CODE_DESC_OTHER , 
+								P_MOBILE    
+								from G_ACC_CODES 
+								WHERE P_CODE =1074  
+                                AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+								order by code_level) 
+			LOOP 
+			v_sl := v_sl+1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.CODE_DESC)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.CODE_DESC_OTHER)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.P_MOBILE)||'</td> 
+				<tr>'); 
+			END LOOP; 
+			 
+			htp.p('</table>'); 
+			 
+		end loop; 
+		 
+ 
+	END; 
+
+--*****************************
+
+procedure Customer_Wise_Sales_Report(   P_project_id NUMBER 
+                                        ,P_CUSTOMER NUMBER 
+                                        ,P_ITEM NUMBER 
+                                        ,P_FROM_DATE DATE 
+                                        ,P_TO_DATE DATE) 
+is  
+	v_sl number := 0; 
+    BEGIN 
+		report_utils.header_without_boarder(P_project_id,'Customer Wise Sales Report'); 
+		FOR r in (select distinct CODE, CODE_DESC  
+					from G_UNI_CODES  
+					where P_CODE = 1 
+                    AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+					--and code = nvl(P_SYSTEM_CODE,code) 
+					order by code) 
+		LOOP 
+ 
+			htp.p('<h3>'||htf.escape_sc(r.CODE_DESC)||'</h3>'); 
+			htp.p('<table style="width:100%"><tr> 
+			<th> Order Date	</th> 
+			<th> Order No</th> 
+			<th> Customer</th> 
+			<th>Exp No</th> 
+			<th>Item Name</th> 
+			<th>In USD</th> 
+			<th> Rate</th> 
+            <th>Qty</th> 
+			<th>Net Amount</th> 
+			 
+			</tr>'); 
+			v_sl := 0; 
+			FOR i in (	select  CODE_DESC, 
+								CODE_DESC_OTHER , 
+								P_MOBILE    
+								from G_ACC_CODES 
+								WHERE P_CODE =1074  
+                                AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+								order by code_level) 
+			LOOP 
+			v_sl := v_sl+1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.CODE_DESC)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.CODE_DESC_OTHER)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.P_MOBILE)||'</td> 
+				<tr>'); 
+			END LOOP; 
+			 
+			htp.p('</table>'); 
+			 
+		end loop; 
+		 
+ 
+	END; 
+ 
+--*****************************
+
+procedure Customer_Group_Wise_Sales_Report( P_project_id NUMBER 
+                                            ,P_CUSTOMER NUMBER 
+                                            ,P_ITEM NUMBER 
+                                            ,P_FROM_DATE DATE 
+                                            ,P_TO_DATE DATE) 
+is  
+	v_sl number := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(P_project_id,'Customer Group Wise Sales Report'); 
+		FOR r in (select distinct CODE, CODE_DESC  
+					from G_UNI_CODES  
+					where P_CODE = 0  
+                    AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+					--and code = nvl(P_SYSTEM_CODE,code) 
+					order by code) 
+		LOOP 
+ 
+			htp.p('<h3>'||htf.escape_sc(r.CODE_DESC)||'</h3>'); 
+			htp.p('<table style="width:100%"><tr> 
+			<th> Order Date	</th> 
+			<th> Order No</th> 
+			<th> Customer</th> 
+			<th>Exp No</th> 
+			<th>Item Name</th> 
+			<th>In USD</th> 
+			<th> Rate</th> 
+            <th>Qty</th> 
+			<th>Net Amount</th> 
+			 
+			</tr>'); 
+			v_sl := 0; 
+			FOR i in (	select  CODE_DESC, 
+								CODE_DESC_OTHER , 
+								P_MOBILE    
+								from G_ACC_CODES 
+								WHERE P_CODE =1074 
+                                AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')   
+								order by code_level) 
+			LOOP 
+			v_sl := v_sl+1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.CODE_DESC)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.CODE_DESC_OTHER)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.P_MOBILE)||'</td> 
+				<tr>'); 
+			END LOOP; 
+			 
+			htp.p('</table>'); 
+			 
+		end loop; 
+		 
+ 
+	END; 
+
+--*****************************
+ 
+  procedure Invoice_Report(p_business_unit varchar2,p_item_code number,p_customer number,p_warehouse number,p_territory number,p_area number,p_invoice varchar,p_from_date date,p_to_date date,p_org_id number) 
+  IS 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number      := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Sales Report '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%;font-size:12px;"><tr> 
+			<th style="width:6%">Invoice Date</th> 
+			<th style="width:8%">Invoice No.</th> 
+			<th style="width:10%">Customer</th> 
+			<th style="width:10%">Items</th> 
+            <th style="width:5%">Unit <br>Price</th> 
+            <th style="width:5%">Vat</th> 
+            <th style="width:5%">Rate</th> 
+            <th style="width:5%">Qty</th> 
+            <th style="width:5%">Disc.</th> 
+			<th style="width:6%">Net Amount</th> 
+			<th style="width:10%">Territory</th> 
+            <th style="width:10%">Area</th> 
+            <th style="width:10%">Warehouse</th> 
+            <th style="width:10%">Officer</th> 
+             
+			</tr>'); 
+                    v_tot_sl := 0; 
+         
+         for i in (	SELECT TRANS_DATE, 
+                           substr(INVOICE_NO,5) invoice_no, 
+                           item_desc||'-'||item_name||' '||packing||' ('||unit||')' item_name, 
+                           unit, 
+                           unit_price, 
+                           VAT_AMOUNT, 
+                           VAT_PERSENT, 
+                           rate, 
+                           qty, 
+                           discount, 
+                           PARTY_NAME, 
+                           user_name, 
+                           TOATAL, 
+                           NET_AMOUNT, 
+                           territory_name, 
+                           area_name, 
+                           warehouse_name, 
+                           officer 
+                    FROM V_ALL_INV 
+                   WHERE TRANS_DATE BETWEEN p_from_date AND p_to_date 
+                   and org_id = p_org_id 
+                   and trans_type='SV' 
+                   AND  WAREHOUSE_id =nvl(p_warehouse,warehouse_id) 
+                   AND  TERRITORY_id =nvl(p_territory,territory_id) 
+                   AND AREA_id       =nvl(p_area,area_id) 
+                   AND INVOICE_NO    =nvl(p_invoice,INVOICE_NO) 
+                   and party_code    =nvl(p_customer,party_code) 
+                   and business_unit =nvl(p_business_unit,business_unit) 
+                   and item_code     =nvl(p_item_code,item_code) 
+                   order by TRANS_DATE 
+                ) 
+                    loop 
+                    v_tot_sl := v_tot_sl+nvl(i.toatal,0); 
+         	 
+            HTP.p ( 
+                  '<tr> 
+ 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (to_char(i.TRANS_DATE,'dd-mm-yy')) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.INVOICE_NO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PARTY_NAME) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.item_name) 
+               || '</td> 
+               <td>'|| HTF.escape_sc (i.unit_price) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.VAT_AMOUNT) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.rate) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.qty) 
+               ||'</td> 
+
+               <td>'|| HTF.escape_sc (i.discount) 
+               ||'</td> 
+               <td  style="text-align: right">'|| HTF.escape_sc (to_char(i.TOATAL,'99,99,99,990.00')) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.territory_name) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.area_name) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.warehouse_name) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.officer) 
+               ||'</td> 
+                <tr>'); 
+			end loop;
+            HTP.p ('<tr> 
+                        <td colspan="4" style="text-align:right;"><b>Total Sales :</b> </td> 
+                        <td style="text-align:right;"></td> 
+                        <td style="text-align:right;"></td> 
+                        <td style="text-align:right;"></td> 
+                        <td style="text-align:right;"></td> 
+                        <td style="text-align:right;"></td> 
+                        <td style="text-align:right;">'||(to_char(v_tot_sl,'99,99,99,990.00'))||'</td> 
+                    <tr>'); 
+			htp.p('</table>'); 
+	END; 
+ 
+--*****************************
+     
+procedure Sales_Person_Wise_Customer_List(    P_project_id number ,P_CUSTOMER number) 
+is  
+	v_sl number := 0; 
+    v_count number :=0; 
+BEGIN 
+    
+		report_utils.header_without_boarder(P_project_id,'Sales Person Wise Customer List'); 
+ 
+ 
+			htp.p('<table style="width:100%"> 
+			<tr> 
+			<th >Code</th> 
+			<th> Name</th>  
+			<th >Address</th> 
+			<th >Phone</th> 
+			</tr>'); 
+			FOR i in (SELECT CODE 
+                        ,CODE_DESC 
+                        ,CODE_DESC_OTHER 
+                        ,P_MOBILE  
+                       FROM G_ACC_CODES 
+                       WHERE P_CODE='70010'
+                       ORDER BY code) 
+			LOOP 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(i.CODE)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(i.CODE_DESC)||'</td> 
+				<td style="text-align: left">'||htf.escape_sc(i.CODE_DESC_OTHER)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.P_MOBILE)||'</td> 
+				<tr>'); 
+ 
+			 
+			 
+			 
+		end loop; 
+        htp.p('</table>'); 
+		 
+ 
+	END; 
+
+--*****************************
+
+end "SALES_REPORTS";
+/
+

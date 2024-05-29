@@ -1,0 +1,4 @@
+
+select org_id,ORG_NAME feedback_status, count(*) feedback_count
+from ERP_FEEDBACK
+group by org_id,ORG_NAME

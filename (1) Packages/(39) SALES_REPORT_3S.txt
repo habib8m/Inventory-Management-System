@@ -1,0 +1,1110 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace PACKAGE sales_report_3s
+AS 
+procedure  ware_house_qty (p_value number, p_b_unit varchar2, p_from_date date, p_to_date date, p_business_unit varchar2, P_ORG_ID    NUMBER); 
+procedure  area_wise_sales (p_value number, p_b_unit varchar2, p_from_date date, p_to_date date, p_business_unit varchar2, P_ORG_ID    NUMBER); 
+procedure  month_wise_sales (p_value number, p_b_unit varchar2, p_from_date date, p_to_date date, p_business_unit varchar2, P_ORG_ID    NUMBER); 
+procedure  sales_outstand_report_details (p_value number, p_party_code number, p_territory_code number, p_area_code number, p_warehouse_code number, p_from_date date, p_to_date date, P_ORG_ID NUMBER);  
+procedure  sales_outstand_report_cust_wise (p_value number, p_emp_code number, p_territory_code number, p_area_code number, p_warehouse_code number, p_from_date date, p_to_date date, P_ORG_ID    NUMBER); 
+procedure  officer_list_report(p_value number, p_party_code number, p_warehouse_code number, P_ORG_ID    NUMBER);                                                        
+ PROCEDURE sales_bu_wise_details (p_project_id NUMBER, p_territory_code NUMBER, p_area_code NUMBER, p_warehouse_code NUMBER, p_from_date DATE, p_to_date DATE, P_ORG_ID NUMBER);
+end;
+/
+
+                                                  ===============================BODY=============================
+
+create or replace PACKAGE BODY sales_report_3s 
+AS 
+procedure  ware_house_qty (p_value number, p_b_unit varchar2, p_from_date date, p_to_date date, p_business_unit varchar2, P_ORG_ID NUMBER) 
+    is
+ 
+    v_sl        number := 0; 
+    V_TRANS_ID  NUMBER := 0; 
+    v_qty       number := 0; 
+    v_item_id   number := 0; 
+    v_war_id    number := 0; 
+    v_total     number := 0; 
+    v_total_amt number := 0; 
+    v_tot       number := 0; 
+    v_amt_tot   number := 0; 
+    v_amt_1     number := 0; 
+    v_amt_2     number := 0; 
+    v_amt_3     number := 0; 
+    v_amt_4     number := 0; 
+    v_amt_5     number := 0; 
+    v_amt_6     number := 0; 
+    v_amt_7     number := 0; 
+    v_amt_8     number := 0; 
+    v_amt_9     number := 0; 
+    v_amt_10    number := 0; 
+    v_amt_11    number := 0; 
+    v_amt_12    number := 0;
+ 
+	BEGIN 
+	report_utils.header_without_boarder(p_value, 'Warehouse Wise Sales Summary'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to ' ||htf.escape_sc(P_To_date)||'</h4>'); 
+        htp.p('<h6 style="margin-top: 0px; text-align: left; font-size:16px;"><b>Business Unit: '||htf.escape_sc(nvl(p_business_unit,'ALL'))||'</b></h6>');                                                                          
+ 
+			htp.p('<table style="width:100%; font-size: 12px;"> 
+			<tr> 
+			<th style="width:5%">SL No.</th> 
+			<th style="width:8%">Business Unit</th> 
+			<th style="width:12%">Item Name</th> 
+            		<th style="width:6%">Packing</th> '); 
+
+        for i in (select rownum, 
+			CODE, 
+			CODE_DESC 
+			from g_uni_codes 
+			where org_id = 7 
+			and p_code = '700067' 
+			order by rownum)
+ 
+        loop 
+            htp.p(' 
+		<th>'||htf.escape_sc(i.CODE_DESC)||' <br>Qty</th> 
+		<th>'||htf.escape_sc(i.CODE_DESC)||' <br>Amount</th>'); 
+        end loop;
+ 
+           htp.p('<th style="width: 5%">Total<br>Qty</th> 
+                <th style="width: 8%">Total<br>Amount</th>'); 
+		
+	htp.p('</tr>');
+ 
+      for j in (SELECT distinct ITEM_CODE, item_name, BUSINESS_UNIT,PACKING 
+                        FROM V_ALL_INV 
+                        WHERE TRANS_TYPE = 'SV' 
+                        and org_id=P_ORG_ID 
+                        and BUSINESS_UNIT = nvl(p_b_unit,BUSINESS_UNIT) 
+                        and trans_date between p_from_date and p_to_date
+                        ORDER BY BUSINESS_UNIT, item_name)
+ 
+       loop 
+        v_sl := v_sl+1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(j.BUSINESS_UNIT)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(j.item_name)||'</td> 
+                		<td style="text-align: center">'||htf.escape_sc(j.PACKING)||'</td>');
+ 
+                v_total :=0; 
+                v_total_amt := 0;
+ 
+                    for r in (select rownum, 
+				CODE, 
+				CODE_DESC 
+				from g_uni_codes 
+				where org_id = 7 
+				and p_code = '700067' order by rownum) 
+
+                    loop 
+                            begin 
+                                  SELECT ITEM_CODE, 
+                                   NVL(SUM (qty),0) QTY, 
+                                   WAREHOUSE_ID, sum(TOTAL) total 
+                                   into v_item_id, v_qty, v_war_id, v_tot 
+                                   FROM V_ITEM_TRANSACTION_ALL_3S 
+                                   WHERE TRANS_TYPE = 'SV' 
+                                   and org_id=P_ORG_ID 
+                                   and ITEM_CODE = j.ITEM_CODE 
+                                   and WAREHOUSE_ID = r.code 
+                                   and trans_date between p_from_date and p_to_date
+                                   GROUP BY ITEM_CODE, WAREHOUSE_ID;
+ 
+                            exception 
+                                when others then
+  
+                                v_qty := 0; 
+                                v_tot := 0;
+ 
+                            end; 
+
+                        htp.p('<td style="text-align: center;background-color:#ccc;">'||htf.escape_sc(v_qty)||'</td>'); 
+                        htp.p('<td style="text-align: right">'||htf.escape_sc(to_char(v_tot,'99,99,99,990.00'))||'</td>');
+ 
+                        v_total := nvl(v_total,0)+nvl(v_qty,0); 
+                        v_total_amt := nvl(v_total_amt,0)+nvl(v_tot,0); 
+
+                        if r.rownum = 1 then 
+                        v_amt_1  := nvl(v_amt_1,0)+nvl(v_tot,0);
+ 
+                        elsif r.rownum = 2 then 
+                        v_amt_2  := nvl(v_amt_2,0)+nvl(v_tot,0);
+ 
+                        elsif r.rownum = 3 then 
+                        v_amt_3  := nvl(v_amt_3,0)+nvl(v_tot,0);
+ 
+                        elsif r.rownum = 4 then 
+                        v_amt_4  := nvl(v_amt_4,0)+nvl(v_tot,0);
+ 
+                        elsif r.rownum = 5 then 
+                        v_amt_5  := nvl(v_amt_5,0)+nvl(v_tot,0);
+ 
+                        elsif r.rownum = 6 then 
+                        v_amt_6  := nvl(v_amt_6,0)+nvl(v_tot,0); 
+
+                        elsif r.rownum = 7 then 
+                        v_amt_7  := nvl(v_amt_7,0)+nvl(v_tot,0); 
+
+                        elsif r.rownum = 8 then 
+                        v_amt_8  := nvl(v_amt_8,0)+nvl(v_tot,0);
+ 
+                        elsif r.rownum = 9 then 
+                        v_amt_9  := nvl(v_amt_9,0)+nvl(v_tot,0); 
+
+                        elsif r.rownum = 10 then 
+                        v_amt_10  := nvl(v_amt_10,0)+nvl(v_tot,0); 
+
+                        elsif r.rownum = 11 then 
+                        v_amt_11  := nvl(v_amt_11,0)+nvl(v_tot,0);
+ 
+                        elsif r.rownum = 12 then 
+                        v_amt_12  := nvl(v_amt_12,0)+nvl(v_tot,0);
+ 
+                        end if; 
+
+                    end loop; 
+ 
+                     htp.p('<td style="text-align: center;background-color:#ccc;">'||htf.escape_sc(v_total)||'</td>'); 
+                     htp.p('<td style="text-align: right">'||htf.escape_sc(to_char(v_total_amt,'99,99,99,990.00'))||'</td>');
+ 
+                     v_amt_tot := nvl(v_amt_tot,0)+nvl(v_total_amt,0); 
+                     
+      	end loop; 
+		   htp.p('</tr>');
+ 
+             HTP.p ( 
+                  '<tr> 
+                <td colspan="5" style="text-align: right;"><b>Total</b> :</td>');
+ 
+        for k in (select rownum, CODE, CODE_DESC from g_uni_codes where org_id = 7 and p_code = '700067' order by rownum) 
+        loop 
+              if k.rownum = 1 then 
+              htp.p(' 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_1,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 2 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_2,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 3 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_3,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 4 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_4,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 5 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_5,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 6 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_6,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 7 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_7,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 8 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_8,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 9 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_9,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 10 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_10,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 11 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_11,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 12 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_12,'99,99,99,990.00'))||'</b></td>'); 
+              end if; 
+ 
+        end loop; 
+            htp.p(' 
+              <td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_tot,'99,99,99,990.00'))||'</b></td>'); 
+                htp.p('</tr>'); 
+ 
+			htp.p('</table>'); 
+             
+		report_utils.footer; 
+	end;
+ 
+--*****************************
+
+    procedure  area_wise_sales (p_value number, p_b_unit varchar2,p_from_date date,p_to_date date,p_business_unit varchar2, P_ORG_ID    NUMBER) 
+    is 
+    v_sl    number  := 0; 
+    v_qty   number  := 0; 
+    v_item_id   number := 0; 
+    v_war_id   number := 0; 
+    v_total     number; 
+    v_total_amt     number; 
+    v_tot       number := 0; 
+    v_amt_tot   number := 0; 
+    v_amt_1     number := 0; 
+    v_amt_2     number := 0; 
+    v_amt_3     number := 0; 
+    v_amt_4     number := 0; 
+    v_amt_5     number := 0; 
+    v_amt_6     number := 0; 
+    v_amt_7     number := 0; 
+    v_amt_8     number := 0; 
+    v_amt_9     number := 0; 
+    v_amt_10    number := 0; 
+    v_amt_11    number := 0; 
+    v_amt_12    number := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_value,'Area Wise Sales Summary'); 
+         
+ 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to ' 
+                                                                            ||htf.escape_sc(P_To_date)||'</h4>'); 
+        htp.p('<h6 style="margin-top: 0px; text-align: left;font-size:16px"><b>Business Unit: '||htf.escape_sc(nvl(p_business_unit,'ALL'))||'</b></h6>');                                                                    
+ 
+			htp.p('<table style="width:100%;font-size: 12px;"> 
+			<tr> 
+			<th style="width: 5%" style="width:5%">SL No.</th> 
+			<th style="width:8%;">Business Unit</th> 
+			<th style="width: 10%">Item Name</th>  
+            <th style="width:5%">Packing</th>'); 
+        for i in (select rownum,CODE, CODE_DESC from g_uni_codes where org_id = 7 and p_code = '700068' order by rownum) 
+        loop  
+            htp.p(' 
+			<th>'||htf.escape_sc(i.CODE_DESC)||' <br>Qty</th> 
+			<th>'||htf.escape_sc(i.CODE_DESC)||' <br>Amount</th>'); 
+ 
+        end loop; 
+           htp.p('<th style="width: 5%">Total<br>Qty</th> 
+                <th style="width: 8%">Total<br>Amount</th>');
+      for j in (SELECT distinct ITEM_CODE, item_name, BUSINESS_UNIT,packing 
+                        FROM V_ALL_INV 
+                       WHERE TRANS_TYPE = 'SV' 
+                       and org_id= P_ORG_ID 
+                       and BUSINESS_UNIT = nvl(p_b_unit,BUSINESS_UNIT) 
+                       and trans_date between p_from_date and p_to_date 
+                    ORDER BY BUSINESS_UNIT, item_name) 
+       loop 
+        v_sl := v_sl+1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(j.BUSINESS_UNIT)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(j.item_name)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(j.PACKING)||'</td>'); 
+ 
+                v_total :=0; 
+                v_total_amt := 0; 
+                    for r in (select rownum,CODE, CODE_DESC from g_uni_codes where org_id = 7 and p_code = '700068' order by rownum) 
+                    loop 
+                            begin 
+                                  SELECT ITEM_CODE, 
+                                         SUM (qty)      QTY, 
+                                         AREA_ID,sum(TOTAL) total 
+                                         into v_item_id, v_qty, v_war_id,v_tot 
+                                    FROM V_ITEM_TRANSACTION_ALL_3S 
+                                   WHERE TRANS_TYPE = 'SV' 
+                                   and org_id= P_ORG_ID 
+                                and ITEM_CODE = j.ITEM_CODE 
+                                and AREA_ID = r.code 
+                                and trans_date between p_from_date and p_to_date 
+                                GROUP BY ITEM_CODE, AREA_ID; 
+                            exception 
+                                when others then  
+                                v_qty := 0; 
+                                v_tot := 0; 
+                            end; 
+                        htp.p('<td style="text-align: center;background-color:#ccc;">'||htf.escape_sc(v_qty)||'</td>'); 
+                        htp.p('<td style="text-align: right">'||htf.escape_sc(to_char(v_tot,'99,99,99,990.00'))||'</td>'); 
+                         v_total := nvl(v_total,0)+nvl(v_qty,0); 
+                         v_total_amt := nvl(v_total_amt,0)+nvl(v_tot,0); 
+                        if r.rownum = 1 then 
+                        v_amt_1  := nvl(v_amt_1,0)+nvl(v_tot,0); 
+                        elsif r.rownum = 2 then 
+                        v_amt_2  := nvl(v_amt_2,0)+nvl(v_tot,0); 
+                        elsif r.rownum = 3 then 
+                        v_amt_3  := nvl(v_amt_3,0)+nvl(v_tot,0); 
+                        elsif r.rownum = 4 then 
+                        v_amt_4  := nvl(v_amt_4,0)+nvl(v_tot,0); 
+                        elsif r.rownum = 5 then 
+                        v_amt_5  := nvl(v_amt_5,0)+nvl(v_tot,0); 
+                        elsif r.rownum = 6 then 
+                        v_amt_6  := nvl(v_amt_6,0)+nvl(v_tot,0); 
+                        elsif r.rownum = 7 then 
+                        v_amt_7  := nvl(v_amt_7,0)+nvl(v_tot,0); 
+                        elsif r.rownum = 8 then 
+                        v_amt_8  := nvl(v_amt_8,0)+nvl(v_tot,0); 
+                        elsif r.rownum = 9 then 
+                        v_amt_9  := nvl(v_amt_9,0)+nvl(v_tot,0); 
+                        elsif r.rownum = 10 then 
+                        v_amt_10  := nvl(v_amt_10,0)+nvl(v_tot,0); 
+                        elsif r.rownum = 11 then 
+                        v_amt_11  := nvl(v_amt_11,0)+nvl(v_tot,0); 
+                        elsif r.rownum = 12 then 
+                        v_amt_12  := nvl(v_amt_12,0)+nvl(v_tot,0); 
+                        end if; 
+                    end loop; 
+                    htp.p('<td style="text-align: center;background-color:#ccc;">'||htf.escape_sc(v_total)||'</td>'); 
+                    htp.p('<td style="text-align: right">'||htf.escape_sc(to_char(v_total_amt,'99,99,99,990.00'))||'</td>'); 
+                     v_amt_tot := nvl(v_amt_tot,0)+nvl(v_total_amt,0); 
+      end loop; 
+            htp.p('</tr>'); 
+             HTP.p ( 
+                  '<tr> 
+                <td colspan="5" style="text-align: right;"><b>Total</b> :</td>'); 
+        for k in (select rownum, CODE, CODE_DESC from g_uni_codes where org_id = 7 and p_code = '700068' order by rownum) 
+        loop 
+              if k.rownum = 1 then 
+              htp.p(' 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_1,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 2 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_2,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 3 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_3,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 4 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_4,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 5 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_5,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 6 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_6,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 7 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_7,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 8 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_8,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 9 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_9,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 10 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_10,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 11 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_11,'99,99,99,990.00'))||'</b></td>'); 
+              elsif k.rownum = 12 then 
+              htp.p('<td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_12,'99,99,99,990.00'))||'</b></td>'); 
+              end if; 
+ 
+        end loop; 
+            htp.p(' 
+              <td style="text-align: right"></td> 
+              <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_amt_tot,'99,99,99,990.00'))||'</b></td>'); 
+                htp.p('</tr>'); 
+			htp.p('</table>'); 
+             
+		report_utils.footer; 
+	end; 
+
+--************************************
+ 
+    procedure  month_wise_sales (p_value number, p_b_unit varchar2,p_from_date date,p_to_date date,p_business_unit varchar2, P_ORG_ID    NUMBER) 
+    is 
+    v_sl    number  := 0;  
+    v_trans_month varchar2(50) := 0; 
+    v_months number := trunc(months_between(p_to_date,p_from_date)); 
+    v_total_amt number := 0; 
+    v_total_qty   number := 0; 
+    v_line_amt number := 0; 
+    v_line_qty   number := 0; 
+    v_sls_qty     number := 0; 
+    v_sls_amt     number := 0; 
+    v_sls_qty_m     number := 0; 
+    v_sls_amt_m     number := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_value,'Month Wise Sales Summary'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to ' 
+                                                                            ||htf.escape_sc(P_To_date)||'</h4>'); 
+        htp.p('<h6 style="margin-top: 0px; text-align: left;font-size:16px;"><b>Business Unit: '||htf.escape_sc(nvl(p_business_unit,'ALL'))||'</b></h6>');                                                                      
+ 
+		htp.p('<table style="width:100%"> 
+		<tr> 
+		<th style="width: 5%" style="width:5%">SL No.</th> 
+		<th style="width: 10%">Business Unit</th> 
+		<th style="width: 18%">Item Name</th> 
+        <th style="width:5%">Packing</th>'); 
+        for i in 1..v_months+1  
+        loop 
+            v_trans_month := to_char(add_months(p_from_date,i-1),'MON-YY');
+            htp.p('<th>'||htf.escape_sc(v_trans_month)||'<br>Qty</th>'); 
+            htp.p('<th>'||htf.escape_sc(v_trans_month)||'<br>Amount</th>'); 
+        end loop; 
+        htp.p('<th style="width: 8%">Total<br>Qty</th>'); 
+        htp.p('<th style="width: 8%">Total<br>Amount</th>'); 
+	    htp.p('</tr>'); 
+
+    for bu in (select bu.code_desc BUSINESS_UNIT 
+                , bu.code BU_code
+                from g_inv_codes bu
+        		where bu.code_desc = nvl(p_b_unit,bu.code_desc)
+                and bu.org_id = P_ORG_ID
+    ) loop
+
+        for ig in (select itmg.CODE group_code
+                    , itmg.code_desc item_group
+                    from g_inv_codes itmg 
+            		where itmg.p_code = bu.BU_code
+        ) loop 
+            for itm in (select itm.CODE item_code
+                    , itm.code_desc item_name
+                    , itm.PACKING
+                    from g_inv_codes itm
+            		where itm.p_code = ig.group_code
+            ) loop
+                v_sl := v_sl+1; 
+        		htp.p('<tr> 
+        		<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+        		<td style="text-align: Left">'||htf.escape_sc(bu.BUSINESS_UNIT)||'</td> 
+        		<td style="text-align: Left">'||htf.escape_sc(ig.item_group||' - '||itm.item_name)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(itm.PACKING)||'</td>' 
+                ); 
+
+               for i in 1..v_months+1  
+                loop 
+                    v_trans_month := to_char(add_months(p_from_date,i-1),'MON-YY');
+                    
+                    select sum(sd.qty) ,sum(sd.total)
+                    into v_sls_qty,v_sls_amt
+                    from SP_STORE_D sd
+                    join SP_STORE_m sm on  SD.TRANS_ID   = SM.TRANS_ID
+                    where sm.ORG_ID = P_ORG_ID
+                    AND SM.TRANS_TYPE = 'SV'
+                    and TO_CHAR(SM.TRANS_DATE,'MON-YY') = v_trans_month
+                    and SD.ITEM_CODE = itm.item_code;
+
+                    htp.p('<td style="text-align:center;background-color:#ccc;">'||htf.escape_sc(v_sls_qty)||'</td>'); 
+                    htp.p('<td style="text-align: right">'||htf.escape_sc(v_sls_amt)||'</td>'); 
+                    v_line_qty := v_line_qty+nvl(v_sls_qty,0); 
+                    v_line_amt:= v_line_amt+nvl(v_sls_amt,0);
+                    v_total_amt := v_total_amt+nvl(v_sls_amt,0); 
+                    v_total_qty := v_total_qty+nvl(v_sls_qty,0);
+                end loop; 
+                  htp.p('<td style="text-align:center;background-color:#ccc;">'||htf.escape_sc(v_line_qty)||'</td>'); 
+                  htp.p('<td style="text-align: right">'||htf.escape_sc(to_char(v_line_amt,'99,99,99,990.00'))||'</td>'); 
+                    
+                    v_line_amt := 0; 
+                    v_line_qty := 0;
+    end loop; 
+    end loop; 
+    end loop; 
+    htp.p('</tr>'); 
+    htp.p('<td colspan="4" style="text-align: right"><b>Total</b></td> ');
+    v_sls_qty_m := 0;
+    v_sls_amt_m := 0;
+        for i in 1..v_months+1  
+        loop 
+            v_trans_month := to_char(add_months(p_from_date,i-1),'MON-YY');
+
+                    select sum(sd.qty) ,sum(sd.total)
+                    into v_sls_qty_m, v_sls_amt_m
+                    from SP_STORE_D sd
+                    join SP_STORE_m sm on  SD.TRANS_ID   = SM.TRANS_ID
+                    where sm.ORG_ID = P_ORG_ID
+                    AND SM.TRANS_TYPE = 'SV'
+                    and TO_CHAR(SM.TRANS_DATE,'MON-YY') = v_trans_month;
+
+            
+    htp.p('<td style="text-align: center"><b>'||htf.escape_sc(to_char(null,'99,99,99,990.00'))||'</b></td> '); 
+            htp.p('<td style="text-align: center"><b>'||htf.escape_sc(to_char(v_sls_amt_m,'99,99,99,990.00'))||'</b></td> '); 
+        end loop;
+      HTP.P('<td style="text-align: center"><b>'||htf.escape_sc(to_char(v_total_qty,'99,99,99,990.00'))||'</b></td> 
+      <td style="text-align: right"><b>'||htf.escape_sc(to_char(v_total_amt,'99,99,99,990.00'))||'</b></td>'); 
+    htp.p('</tr>'); 
+	htp.p('</table>');      
+	report_utils.footer; 
+end; 
+ 
+--***********************************
+
+PROCEDURE sales_bu_wise_details2 (p_project_id       NUMBER, 
+                                 p_territory_code   NUMBER, 
+                                 p_area_code        NUMBER, 
+                                 p_warehouse_code   NUMBER, 
+                                 p_from_date        DATE, 
+                                 p_to_date          DATE, 
+                                 P_ORG_ID           NUMBER) 
+IS 
+    v_opening     NUMBER := 0; 
+    v_opening_sls     NUMBER := 0; 
+    v_opening_collection     NUMBER := 0; 
+    v_sales       NUMBER := 0; 
+    v_total       NUMBER := 0; 
+    v_collection  number  := 0; 
+    v_outstanding NUMBER := 0; 
+    v_grand_opening     NUMBER := 0; 
+    v_grand_sales       NUMBER := 0; 
+    v_grand_total       NUMBER := 0; 
+    v_grand_collection  number  := 0; 
+    v_grand_outstanding NUMBER := 0; 
+BEGIN 
+    report_utils.header_without_boarder (p_project_id,'BU Wise Transaction Analysis'); 
+    HTP.p ('<h4 style="margin-top: 0px; text-align: center">Date from : '||HTF.escape_sc(P_from_date)||' to '||HTF.escape_sc(P_To_date)||'</h4>'); 
+
+    HTP.p ('<table style="width:100%;font-size:12px;"> 
+			<tr>			
+			<th style="width: 6%">Business Unit</th>  
+            <th style="width: 5%">Opening</th> 
+			<th style="width: 5%">Sales</th> 
+			<th style="width: 5%">Total</th> 
+            </tr>'); 
+
+    FOR bu 
+        IN (select * from  g_inv_codes where OTHER_DESC = 'BU')
+    LOOP 
+     
+        v_opening_sls      := 0;
+        
+        select sum(nvl(TOTAL,0)) into v_opening_sls 
+        from v_sales_transaction_all sta 
+        join G_ACC_CODES acc on sta.party_code = acc.code
+        join SALES_CHANEL Sc on acc.TERRITORY_CODE = sc.TERRITORY_ID
+        where bu_code = bu.code 
+        and sc.TERRITORY_ID = nvl(p_territory_code,sc.TERRITORY_ID)
+        and sc.AREA_ID = nvl(p_area_code,sc.AREA_ID)
+        and sc.WAREHOUSE_ID = nvl(p_warehouse_code,sc.WAREHOUSE_ID)
+        --and sta.PARTY_CODE = 7005256
+        and TRANS_DATE < p_from_date
+        ;       
+
+        v_opening := 0;
+        v_opening := nvl(v_opening_sls,0)-nvl(v_opening_collection,0);
+
+        v_sales        := 0; 
+        select sum(nvl(TOTAL,0)) 
+        into v_sales 
+        from v_sales_transaction_all sta
+        join G_ACC_CODES acc on sta.party_code = acc.code
+        join SALES_CHANEL Sc on acc.TERRITORY_CODE = sc.TERRITORY_ID
+        where bu_code = bu.code 
+        and sc.TERRITORY_ID = nvl(p_territory_code,sc.TERRITORY_ID)
+        and sc.AREA_ID = nvl(p_area_code,sc.AREA_ID)
+        and sc.WAREHOUSE_ID = nvl(p_warehouse_code,sc.WAREHOUSE_ID)
+        --and sta.PARTY_CODE = 7005256
+        and TRANS_DATE between p_from_date and p_to_date;
+
+        v_total        := 0; 
+        v_total := nvl(v_opening_sls,0) +v_sales;
+        
+         v_grand_opening := v_grand_opening + nvl(v_opening_sls,0);
+         v_grand_sales := v_grand_sales + nvl(v_sales,0);
+        
+        HTP.p ('<tr> 
+				    <td style="text-align: center">' || HTF.escape_sc (bu.code_desc)|| '</td> 
+                    <td style="text-align: right">'  || HTF.escape_sc (to_char(nvl(v_opening_sls,0),'99,99,99,99,990.00')) || '</td> 
+                    <td style="text-align: right">'  || HTF.escape_sc (to_char(nvl(v_sales,0),'99,99,99,99,990.00')) || '</td> 
+                    <td style="text-align: right">'  || HTF.escape_sc (to_char(nvl(v_total,0),'99,99,99,99,990.00')) || '</td>                              
+                </tr>'); 
+    END LOOP; 
+       v_grand_total := v_grand_opening + v_grand_sales ;
+        --   v_grand_outstanding := v_grand_total - v_grand_collection;
+
+    HTP.p ('<tr> 
+               <td style="text-align: right;"><b>Total</b> :</td> 
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (v_grand_opening, '99,99,99,99,99,99,990.99'))||'</b></td> 
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (v_grand_sales, '99,99,99,99,99,99,990.99'))||'</b></td> 
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (v_grand_total, '99,99,99,99,99,99,990.99'))||'</b></td>
+            </tr>');
+    v_opening_collection := 0;
+        select sum(nvl(CAMOUNT,0)) 
+        into v_opening_collection 
+        from v_acc_transaction_all ata 
+        where TDATE < p_from_date 
+        and TTYPE = 'BR' 
+        and P_ORG_ID = ata.ORG_ID
+        and TERRITORY_ID = nvl(p_territory_code,TERRITORY_ID)
+        and AREA_ID = nvl(p_area_code,AREA_ID)
+        and WAREHOUSE_ID = nvl(p_warehouse_code,WAREHOUSE_ID)
+        --and CODE = 7005256
+        ;
+ 
+    v_collection    := 0; 
+        select sum(nvl(CAMOUNT,0)) 
+        into v_collection 
+        from v_acc_transaction_all ata 
+        where TDATE between p_from_date and p_to_date 
+        and TTYPE = 'BR' 
+        and P_ORG_ID = ata.ORG_ID
+        and TERRITORY_ID = nvl(p_territory_code,TERRITORY_ID)
+        and AREA_ID = nvl(p_area_code,AREA_ID)
+        and WAREHOUSE_ID = nvl(p_warehouse_code,WAREHOUSE_ID)
+        --and CODE = 7005256
+        ;          
+         v_grand_collection := v_grand_collection + nvl(v_collection,0);
+         
+        v_outstanding  := 0; 
+        v_outstanding := v_grand_total - (nvl(v_opening_collection,0)+nvl(v_collection,0));            
+
+    HTP.p ('<tr> 
+               <td style="text-align: right;"><b>Previous Collection</b> :</td><td></td>
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (nvl(v_opening_collection,0), '99,99,99,99,99,99,990.99'))||'</b></td><td></td> 
+            </tr>'); 
+    HTP.p ('<tr> 
+               <td style="text-align: right;"><b>This Period Collection</b> :</td><td></td> 
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (nvl(v_grand_collection,0), '99,99,99,99,99,99,990.99'))||'</b></td><td></td> 
+            </tr>');
+    HTP.p ('<tr> 
+               <td style="text-align: right;"><b>Total Collection</b> :</td><td></td><td></td> 
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (nvl(v_opening_collection,0)+nvl(v_grand_collection,0), '99,99,99,99,99,99,990.99'))||'</b></td>
+            </tr>');
+    HTP.p ('<tr> 
+               <td style="text-align: right;"><b>Total Outstanding</b> :</td><td></td><td></td> 
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (v_outstanding, '99,99,99,99,99,99,990.99'))||'</b></td>
+           </tr>');
+    HTP.p ('</table>'); 
+
+    report_utils.footer; 
+    
+END;
+
+--*****************************
+
+PROCEDURE sales_bu_wise_details (p_project_id       NUMBER, 
+                                 p_territory_code   NUMBER, 
+                                 p_area_code        NUMBER, 
+                                 p_warehouse_code   NUMBER, 
+                                 p_from_date        DATE, 
+                                 p_to_date          DATE, 
+                                 P_ORG_ID           NUMBER) 
+IS 
+    v_opening     NUMBER := 0;     
+    v_start_opening     NUMBER := 0;     
+    v_grand_opening     NUMBER := 0; 
+    v_grand_sales       NUMBER := 0; 
+    v_grand_total       NUMBER := 0; 
+    v_grand_outstanding NUMBER := 0; 
+    v_grand_receive NUMBER := 0; 
+    v_sales_return      number := 0;
+    v_grand_sales_return    number := 0;
+    
+BEGIN 
+    report_utils.header_without_boarder (p_project_id,'BU Wise Transaction Analysis'); 
+    HTP.p ('<h4 style="margin-top: 0px; text-align: center">Date from : '||HTF.escape_sc(P_from_date)||' to '||HTF.escape_sc(P_To_date)||'</h4>'); 
+
+    HTP.p ('<table style="width:100%;font-size:12px;"> 
+			<tr>			
+			<th style="width: 6%">Business Unit</th>  
+            <th style="width: 5%">Opening</th> 
+			<th style="width: 5%">Sales</th> 
+			<th style="width: 5%">Sales Return</th> 
+			<th style="width: 5%">Total Bill</th> 
+			<th style="width: 5%">Collection</th> 
+			<th style="width: 5%">Outstanding</th> 
+            </tr>'); 
+
+    FOR bu 
+        IN (SELECT --s.WAREHOUSE_NAME,s.AREA_NAME,s.TERRITORY_NAME,
+                   bu.CODE_DESC b_unit, bu.code bu_code,
+                   sum(sd.TOTAL) bill_amount,
+                   sum(sd.RECEIVE_AMOUNT) RECEIVE_AMOUNT, 
+                   sum(sd.TOTAL) - sum(sd.RECEIVE_AMOUNT) outstanding_AMOUNT
+              FROM sp_store_m  sm 
+                   JOIN sp_store_d sd ON (sm.trans_id = sd.trans_id) 
+                   JOIN g_acc_codes g ON (g.code = sm.party_code) 
+                   JOIN V_SALES_CHANEL_ALL s ON (g.territory_code = s.territory_id)
+                   JOIN g_inv_codes gi ON (gi.code = sd.item_code) 
+                   JOIN g_inv_codes bu ON (bu.code = gi.b_code)  
+             WHERE     sm.org_id = 7 
+                   AND sm.trans_type    = 'SV' 
+                   and s.territory_id = nvl(p_territory_code,s.territory_id) 
+                   and s.area_id      = nvl(p_area_code,s.area_id) 
+                   and s.warehouse_id = nvl(p_warehouse_code,s.warehouse_id) 
+                   and sm.trans_date between p_from_date and p_to_date 
+                   group by --s.WAREHOUSE_NAME, s.AREA_NAME, s.TERRITORY_NAME,
+                   bu.CODE_DESC,bu.code
+                   order by 1)
+    LOOP  
+        if bu.bu_code = 228 then      -- for the start opening balance only for Hybrid Maize       
+            select  sum(d.DAMOUNT-d.CAMOUNT) --m.TDATE,D.TRANS_CODE 
+            into v_start_opening
+            FROM TMP_TRAN_M M 
+            join TMP_TRAN_D D  on M.TRAN_ID = D.TRAN_ID and M.ORG_ID = d.ORG_ID
+            join G_ACC_CODES G on D.TRANS_CODE = G.CODE and M.ORG_ID = g.ORG_ID
+            WHERE M.ORG_ID = 7 
+            and m.delete_status != 1 
+            and m.TTYPE = 'JV'
+            and m.TDATE = to_date ('30-JUN-2023','dd-MON-yyyy')
+            and D.TRANS_CODE in (select code from G_ACC_CODES where p_code=7004562)
+            ; 
+        else v_start_opening := 0;
+        end if;
+
+          SELECT sum(sd.TOTAL) - sum(sd.RECEIVE_AMOUNT) outstanding_AMOUNT
+          into v_opening
+          FROM sp_store_m  sm 
+               JOIN sp_store_d sd ON (sm.trans_id = sd.trans_id) 
+               JOIN g_acc_codes g ON (g.code = sm.party_code) 
+               JOIN V_SALES_CHANEL_ALL s ON (g.territory_code = s.territory_id)
+               JOIN g_inv_codes gi ON (gi.code = sd.item_code) 
+         WHERE     sm.org_id = 7 
+               AND sm.trans_type    = 'SV' and bu.bu_code = gi.b_code
+               and s.territory_id = nvl(p_territory_code,s.territory_id) 
+               and s.area_id      = nvl(p_area_code,s.area_id) 
+               and s.warehouse_id = nvl(p_warehouse_code,s.warehouse_id) 
+               and sm.trans_date < p_from_date
+        ;    
+
+        SELECT nvl(sum(total),0) into v_sales_return
+              FROM sp_store_m  sm 
+                   JOIN sp_store_d sd ON (sm.trans_id = sd.trans_id) 
+                   JOIN g_acc_codes g ON (g.code = sm.party_code) 
+                   JOIN g_inv_codes gi ON (gi.code = sd.item_code) 
+                   JOIN g_inv_codes b ON (b.code = gi.b_code)  
+             WHERE     sm.org_id = 7 
+                   AND sm.trans_type    = 'SR' 
+                   and b.code = bu.bu_code
+                   and sm.trans_date between p_from_date and p_to_date; 
+
+
+         v_opening := nvl(v_opening,0) + v_start_opening;
+        HTP.p ('<tr> 
+				    <td style="text-align: center">' || HTF.escape_sc (bu.b_unit)|| '</td> 
+                    <td style="text-align: right">'  
+                    ||  HTF.escape_sc (to_char(nvl(v_opening,0),'99,99,99,99,990.00')) 
+                    || '</td> 
+                    <td style="text-align: right">'  || HTF.escape_sc (to_char(nvl(bu.bill_amount,0),'99,99,99,99,990.00')) || '</td> 
+                    <td style="text-align: right">'  || HTF.escape_sc (to_char(nvl(v_sales_return,0),'99,99,99,99,990.00')) || '</td> 
+                    <td style="text-align: right">'  || HTF.escape_sc (to_char(nvl(nvl(v_opening,0)+bu.bill_amount-v_sales_return,0),'99,99,99,99,990.00')) || '</td>
+                    <td style="text-align: right">'  || HTF.escape_sc (to_char(nvl(bu.RECEIVE_AMOUNT,0),'99,99,99,99,990.00')) || '</td> 
+                    <td style="text-align: right">'  || HTF.escape_sc (to_char(nvl(nvl(v_opening,0)+bu.bill_amount-bu.RECEIVE_AMOUNT,0),'99,99,99,99,990.00')) || '</td> 
+                </tr>'); 
+        v_grand_opening      := v_grand_opening     + nvl(v_opening,0); 
+        v_grand_sales        := v_grand_sales       + nvl(bu.bill_amount,0); 
+        v_grand_receive      := v_grand_receive     + nvl(bu.RECEIVE_AMOUNT,0);
+        v_grand_sales_return := v_grand_sales_return + nvl(v_sales_return,0);
+         
+    END LOOP; 
+    v_grand_total := v_grand_opening+v_grand_sales-v_grand_sales_return;
+    v_grand_outstanding := v_grand_total-v_grand_receive;
+    HTP.p ('<tr> 
+               <td style="text-align: right;"><b>Total</b> :</td> 
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (v_grand_opening, '99,99,99,99,99,99,990.99'))||'</b></td> 
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (v_grand_sales, '99,99,99,99,99,99,990.99'))||'</b></td> 
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (v_grand_sales_return, '99,99,99,99,99,99,990.99'))||'</b></td> 
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (v_grand_total, '99,99,99,99,99,99,990.99'))||'</b></td>
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (v_grand_receive, '99,99,99,99,99,99,990.99'))||'</b></td>
+               <td style="text-align: right"><b>'||HTF.escape_sc (TO_CHAR (v_grand_outstanding, '99,99,99,99,99,99,990.99'))||'</b></td>
+            </tr>');
+    
+    HTP.p ('</table>'); 
+
+    report_utils.footer; 
+    
+END;
+
+--*****************************
+
+PROCEDURE sales_outstand_report_details (p_value            NUMBER, 
+                                     p_party_code       NUMBER, 
+                                     p_territory_code   NUMBER, 
+                                     p_area_code        NUMBER, 
+                                     p_warehouse_code   NUMBER, 
+                                     p_from_date        DATE, 
+                                     p_to_date          DATE, 
+                                     P_ORG_ID           NUMBER) 
+IS 
+    v_sl           NUMBER := 0; 
+    v_bil_amount          NUMBER := 0; 
+    v_rcv_amount      NUMBER := 0; 
+    v_balance   number  := 0; 
+    v_total        NUMBER; 
+    v_amt          NUMBER; 
+    v_tot_amt      NUMBER; 
+    v_balance_total  number := 0;
+BEGIN 
+    report_utils.header_without_boarder (p_value,'Sales Outstand Report (Details)'); 
+    HTP.p ('<h4 style="margin-top: 0px; text-align: center">Date from : ' 
+        || HTF.escape_sc (P_from_date) || ' to ' 
+        || HTF.escape_sc (P_To_date) || '</h4>'); 
+    HTP.p ('<table style="width:100%;font-size:12px;"> 
+			<tr> 
+			<th style="width: 2%" style="width:3%">SL No.</th> 
+			<th style="width: 8%">Date</th> 
+			<th style="width: 5%">Business Unit</th> 
+			<th style="width: 15%">Customer Name</th> 
+			<th style="width: 25%">Customer Address</th> 
+			<th style="width: 5%">Invoice No</th> 
+            <th style="width: 5%">Bill Amount</th> 
+			<th style="width: 5%">Received</th> 
+			<th style="width: 5%">Balance</th> 
+			<th style="width: 4%">Territory</th> 
+			<th style="width: 4%">Area</th> 
+			<th style="width: 4%">Warehouse</th>'); 
+            v_balance := 0;
+            v_balance_total := 0;
+
+    FOR i 
+        IN (SELECT sm.TRANS_DATE,
+                   g.CODE_DESC customer_name, 
+                   sm.party_code, 
+                   g.CODE_DESC_OTHER cust_address, 
+                   s.WAREHOUSE_NAME, 
+                   s.AREA_NAME, 
+                   s.TERRITORY_NAME,
+                   bu.CODE_DESC b_unit, 
+                   SUBSTR (sm.INVOICE_NO, 5) invoice_no, 
+                   sum(sd.TOTAL) bill_amount,
+                   sum(sd.RECEIVE_AMOUNT) RECEIVE_AMOUNT
+                --    emp.emp_name officer, 
+                --    emp.UID_NO 
+              FROM sp_store_m  sm 
+                   JOIN sp_store_d sd ON (sm.trans_id = sd.trans_id) 
+                   JOIN g_acc_codes g ON (g.code = sm.party_code) 
+                   JOIN V_SALES_CHANEL_ALL s ON (g.territory_code = s.territory_id)
+                   JOIN g_inv_codes gi ON (gi.code = sd.item_code) 
+                   JOIN g_inv_codes bu ON (bu.code = gi.b_code)  
+                --    JOIN emp_info emp   ON (g.territory_code = emp.TERRITORY_ID) 
+             WHERE     sm.org_id = 7 
+                   AND sm.trans_type    = 'SV' 
+                   and sm.party_code = nvl(p_party_code,sm.party_code) 
+                   and s.territory_id = nvl(p_territory_code,s.territory_id) 
+                   and s.area_id      = nvl(p_area_code,s.area_id) 
+                   and s.warehouse_id = nvl(p_warehouse_code,s.warehouse_id) 
+                   and sm.trans_date between p_from_date and p_to_date 
+                   group by sm.TRANS_DATE,
+                   g.CODE_DESC, 
+                   sm.party_code, 
+                   g.CODE_DESC_OTHER, 
+                   s.WAREHOUSE_NAME, 
+                   s.AREA_NAME, 
+                   s.TERRITORY_NAME,
+                   bu.CODE_DESC,SUBSTR (sm.INVOICE_NO, 5)
+                   order by sm.trans_date desc,RECEIVE_AMOUNT
+                   ) 
+    LOOP 
+        v_sl := v_sl + 1; 
+        v_balance := nvl(i.bill_amount,0) - nvl(i.RECEIVE_AMOUNT,0); 
+        v_bil_amount := v_bil_amount + nvl(i.bill_amount,0); 
+        v_rcv_amount := v_rcv_amount + nvl(i.RECEIVE_AMOUNT,0); 
+        v_balance_total    := v_balance_total + nvl(v_balance,0); 
+        HTP.p ( 
+               '<tr> 
+				<td style="text-align: center">' 
+            || HTF.escape_sc (v_sl) 
+            || '</td> 
+                <td style="text-align: center">' 
+            || HTF.escape_sc (to_char(i.TRANS_DATE,'dd-mm-yy')) 
+            || '</td> 
+                <td style="text-align: center">' 
+            || HTF.escape_sc (i.b_unit) 
+            || '</td> 
+                <td style="text-align: Left">' 
+            || HTF.escape_sc (i.customer_name) 
+            || '</td>                  
+                <td style="text-align: left">' 
+            || HTF.escape_sc (i.cust_address) 
+            || '</td> 
+               <td style="text-align: CENTER">' 
+            || HTF.escape_sc (i.invoice_no) 
+            || '</td> 
+                <td style="text-align: right">' 
+            || HTF.escape_sc (to_char(i.bill_amount,'99,99,999.00')) 
+            || '</td> 
+                <td style="text-align: right">' 
+            || HTF.escape_sc (to_char(nvl(i.RECEIVE_AMOUNT,0),'99,99,999.00')) 
+            || '</td> 
+               <td style="text-align: right">' 
+            || HTF.escape_sc (to_char(nvl(i.bill_amount,0)-nvl(i.RECEIVE_AMOUNT,0),'99,99,999.00')) 
+            || '</td> 
+                <td style="text-align: center">' 
+            || HTF.escape_sc (i.TERRITORY_NAME) 
+            || '</td> 
+                <td style="text-align: center">' 
+            || HTF.escape_sc (i.AREA_NAME) 
+            || '</td> 
+               <td style="text-align: center">' 
+            || HTF.escape_sc (i.WAREHOUSE_NAME) 
+            || '</td> 
+                <tr>'); 
+    END LOOP; 
+
+    HTP.p ('<tr> 
+                <td colspan="6" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>' 
+        || HTF.escape_sc (TO_CHAR (v_bil_amount, '99,99,99,99,999.99')) 
+        || '</b></td> 
+         <td><b>' 
+        || HTF.escape_sc (TO_CHAR (v_rcv_amount, '99,99,99,99,999.99')) 
+        || '</b></td> 
+         <td><b>' 
+        || HTF.escape_sc (TO_CHAR (v_balance_total, '99,99,99,99,999.99')) 
+        || '</b></td>                
+                <tr>'); 
+    HTP.p ('</table>'); 
+    report_utils.footer; 
+END; 
+
+--*****************************
+
+procedure  sales_outstand_report_cust_wise (p_value number,p_emp_code number,p_territory_code number,p_area_code number, 
+                                             p_warehouse_code number,p_from_date date,p_to_date date, P_ORG_ID    NUMBER 
+                                            ) 
+IS 
+    v_sl           NUMBER := 0; 
+    v_total_bil_amt      NUMBER := 0; 
+    v_total_rcv_amt      NUMBER := 0; 
+    v_total_bal_amt   VARCHAR2 (50) := 0; 
+    v_balance        NUMBER:=0; 
+    v_amt          NUMBER; 
+    v_rcv_amt          NUMBER := 0; 
+    v_opening_amt          NUMBER; 
+    v_opening_total          NUMBER := 0; 
+    v_tot_amt      NUMBER; 
+    v_officer     number:=0; 
+BEGIN 
+    report_utils.header_without_boarder (p_value,'Sales Outstand Report (Officer Wise)'); 
+    HTP.p ('<h4 style="margin-top: 0px; text-align: center">Date from : ' 
+        || HTF.escape_sc (P_from_date) || ' to ' 
+        || HTF.escape_sc (P_To_date) || '</h4>'); 
+    HTP.p ('<table style="width:100%"> 
+			<tr> 
+			<th style="width: 3%" style="width:3%">SL</th> 
+			<th style="width: 12%">Customer Name</th> 
+			<th style="width: 12%">Customer Address</th> 
+            <th style="width: 5%">Opening</th> 
+            <th style="width: 5%">Bill Amount</th> 
+			<th style="width: 5%">Received</th> 
+			<th style="width: 5%">Balance</th> 
+			<th style="width: 8%">Territory</th> 
+			<th style="width: 8%">Area</th> 
+			<th style="width: 8%">Warehouse</th>  
+            </tr>'); 
+        v_total_bil_amt := 0; 
+        v_total_rcv_amt := 0; 
+        v_total_bal_amt := 0; 
+
+    FOR i IN (SELECT g.CODE_DESC customer_name, g.CODE cust_id,
+                   g.CODE_DESC_OTHER cust_address, 
+                   s.WAREHOUSE_NAME, 
+                   s.AREA_NAME, 
+                   s.TERRITORY_NAME,
+                   --bu.CODE_DESC b_unit, 
+                   sum(sd.TOTAL) bill_amount,
+                   sum(sd.RECEIVE_AMOUNT) RECEIVE_AMOUNT,
+                   emp.emp_name officer, 
+                   emp.cID_NO uid_no 
+              FROM sp_store_m  sm 
+                   JOIN sp_store_d sd ON (sm.trans_id = sd.trans_id) 
+                   JOIN g_acc_codes g ON (g.code = sm.party_code) 
+                   JOIN V_SALES_CHANEL_ALL s ON (g.territory_code = s.territory_id)
+                   JOIN g_inv_codes gi ON (gi.code = sd.item_code) 
+                   JOIN g_inv_codes bu ON (bu.code = gi.b_code)  
+                  left JOIN emp_info emp   ON (g.territory_code = emp.TERRITORY_ID )--and emp.desig_code = 70001403) 
+                   WHERE     sm.org_id = 7 
+                   AND sm.trans_type    = 'SV' 
+                   and emp.warehouse_id is null
+                   and emp.area_id is null
+                   and emp.cID_NO  = nvl(p_emp_code,emp.cID_NO ) 
+                   and s.territory_id = nvl(p_territory_code,s.territory_id) 
+                   and s.area_id      = nvl(p_area_code,s.area_id) 
+                   and s.warehouse_id = nvl(p_warehouse_code,s.warehouse_id) 
+                   and sm.trans_date between p_from_date and p_to_date 
+                   group by g.CODE_DESC,g.CODE , 
+                   g.CODE_DESC_OTHER, 
+                   s.WAREHOUSE_NAME, 
+                   s.AREA_NAME, 
+                   s.TERRITORY_NAME,
+                   --bu.CODE_DESC,
+                   emp.emp_name, 
+                   emp.cID_NO 
+                   order by emp.emp_name
+                   ) 
+    LOOP 
+        
+        select sum(nvl(DAMOUNT,0)) - sum(nvl(CAMOUNT,0)) 
+        into v_opening_amt
+        from tmp_tran_m m 
+        join tmp_tran_d d on m.TRAN_ID = d.TRAN_ID 
+        and d.trans_code = i.cust_id 
+        and  m.VOUCHER_NO like '%JV-%'  
+        and  TDATE < p_from_date;
+        v_opening_total := v_opening_total+nvl(v_opening_amt,0);
+
+        select sum(nvl(cAMOUNT,0)) - sum(nvl(dAMOUNT,0))
+        into v_rcv_amt
+        from tmp_tran_m m 
+        join tmp_tran_d d on m.TRAN_ID = d.TRAN_ID 
+        and TTYPE in( 'BR','JV')
+        and d.trans_code = i.cust_id 
+        and  TDATE between p_from_date and p_to_date ;
+
+        v_sl := v_sl + 1; 
+        v_balance := nvl(i.bill_amount,0) - nvl(v_rcv_amt,0)+nvl(v_opening_amt,0); 
+        v_total_bil_amt := v_total_bil_amt + nvl(i.bill_amount,0); 
+        v_total_rcv_amt := v_total_rcv_amt + nvl(v_rcv_amt,0); --nvl(i.RECEIVE_AMOUNT,0); 
+        v_total_bal_amt := v_total_bal_amt + nvl(v_balance,0); 
+        if v_officer != i.UID_NO then 
+        htp.p('<tr> 
+                <td colspan="9" style="text-align: Left"><b>' 
+            || HTF.escape_sc (i.officer) 
+            || '</b></td></tr>'); 
+        end if; 
+        HTP.p ( 
+               '<tr> 
+    				<td style="text-align: center">'|| HTF.escape_sc (v_sl) ||'</td> 
+                    <td style="text-align: left">'|| HTF.escape_sc (i.customer_name)||'</td> 
+                    <td style="text-align: left">'|| HTF.escape_sc (i.cust_address) ||'</td> 
+                    <td style="text-align: right">'|| HTF.escape_sc (to_char(v_opening_amt ,'99,99,99,99,999.00')) ||'</td> 
+                    <td style="text-align: right">'|| HTF.escape_sc (to_char(i.bill_amount,'99,99,99,99,999.00'))||'</td> 
+                    <td style="text-align: right">'|| HTF.escape_sc (to_char(v_rcv_amt,'99,99,99,99,999.00')) ||'</td> 
+                    <td style="text-align: right">'|| HTF.escape_sc (to_char(v_balance,'99,99,99,99,999.00'))||'</td> 
+                    <td style="text-align: center">'|| HTF.escape_sc (i.TERRITORY_NAME)||'</td> 
+                    <td style="text-align: center">'|| HTF.escape_sc (i.AREA_NAME)||'</td> 
+                    <td style="text-align: center">'|| HTF.escape_sc (i.WAREHOUSE_NAME)||'</td> 
+                </tr>'); 
+        v_officer := i.UID_NO; 
+    END LOOP; 
+
+    HTP.p ( 
+           '<tr> 
+                <td colspan="3" style="text-align: right;"><b>Grand Total</b> :</td> 
+               <td><b>' 
+        || HTF.escape_sc (TO_CHAR (v_opening_total, '99,99,99,99,999.99')) 
+        || '</b></td> 
+               <td><b>'
+        || HTF.escape_sc (TO_CHAR (v_total_bil_amt, '99,99,99,99,999.99')) 
+        || '</b></td> 
+               <td><b>' 
+        || HTF.escape_sc (TO_CHAR (v_total_rcv_amt, '99,99,99,99,999.99')) 
+        || '</b></td> 
+               <td><b>' 
+        || HTF.escape_sc (TO_CHAR (v_total_bal_amt, '99,99,99,99,999.99')) 
+        || '</b></td> 
+               
+                </tr>'); 
+
+    HTP.p ('</table>'); 
+
+    report_utils.footer; 
+END;
+ 
+--*******************************
+
+procedure  officer_list_report(p_value number,p_party_code number,  p_warehouse_code number, P_ORG_ID    NUMBER) 
+is  
+ BEGIN 
+	report_utils.header_without_boarder(NULL ,'Customer List'); 
+    -- htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+
+
+		htp.p('<table style="width:100%"><tr> 
+		<th style="width:5%">Name</th> 
+        <th style="width:20%">Designation</th> 
+		<th style="width:7%">Mobile No.</th> 
+		<th style="width:7%">Email</th> 
+		<th style="width:7%">Warehouse</th> 
+		<th style="width:7%">Teritory</th> 
+		</tr>'); 
+     
+		htp.p('</table>'); 
+END;
+
+--*****************************
+                                                                           
+end;
+/
+

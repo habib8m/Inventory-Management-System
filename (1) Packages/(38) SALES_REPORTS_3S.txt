@@ -1,0 +1,1243 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "SALES_REPORTS_3S" as 
+    procedure Date_Wise_Sales_Report(p_ware_id number, p_area number, p_teritory number, p_from_date date, p_to_date date); 
+    procedure Invoice_wise_Report(p_ware_id number, p_area number, p_teritory number, p_from_date date, p_to_date date); 
+    procedure ITEM_wise_sales_Report(p_ware_id NUMBER, p_area number, p_teritory number, p_item number, p_from_date date, p_to_date date); 
+    procedure Customer_wise_sales_Report(p_cust number, p_teritory number, p_ware_id number, p_business_unit number, p_item  number, p_from_date date, p_to_date date);
+    procedure Date_wise_sales_Summary_Report(p_ware_id number, p_area number, p_teritory number, p_item number, p_from_date date, p_to_date date);
+    procedure Sales_Order_Report(p_ware_id number, p_area number, p_teritory number, p_from_date date, p_to_date date); 
+    procedure Sales_Order_Report(p_ware_id number, p_area number, p_officer number); 
+    procedure Month_wise_sales_Report(p_ware_id number, p_area number, p_teritory number, p_from_date date, p_to_date date); 
+    procedure Officer_Wise_Customer_Outstanding(p_company_id number, p_warehouse number, p_officer number, p_from_date date, p_to_date date); 
+    procedure Pivot_Report(p_from_date date, p_to_date date); 
+    procedure Officer_wise_sales_summary(p_company_id number, p_from_date date, p_to_date date); 
+    procedure Item_Stock_Report(p_org_id number,p_company_id number, p_warehouse_code number, P_item_code NUMBER, p_from_date date, p_to_date date); 
+    procedure Item_Stock_Report2(p_org_id number, p_company_id number, p_warehouse_code number,P_item_code NUMBER, p_from_date date, p_to_date date); 
+    procedure  ware_house (p_b_unit number, p_from_date date, p_to_date date); 
+     
+end "SALES_REPORTS_3S";
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "SALES_REPORTS_3S" as 
+ 
+procedure Date_Wise_Sales_Report(p_ware_id number, p_area number, p_teritory number, p_from_date date, p_to_date date) 
+IS 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+        v_count number      := 0;
+ 
+	BEGIN 
+	report_utils.header_without_boarder(NULL , 'Date Wise Sales Report'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%">
+			<tr> 
+			<th style="width:5%">Invoice Date</th> 
+			<th style="width:5%">Invoice No.</th> 
+			<th style="width:15%">Customer</th>  
+            		<th style="width:20%">Address</th> 
+			<th style="width:7%">Warehouse</th> 
+			<th style="width:7%">Teritory</th> 
+            		<th style="width:10%">Sales By</th> 
+			<th style="width:20%">Item Name</th> 
+            		<th style="width:7%">Packing</th> 
+            		<th style="width:7%">Unit</th> 
+            		<th style="width:7%">Rate</th> 
+            		<th style="width:7%">QTY</th> 
+			<th style="width:7%">Net Amount</th> 
+			</tr>'); 
+	 
+           v_sl       := 0; 
+         
+         for i in (SELECT  substr(m.INVOICE_NO,5) invoice_no 
+                         ,m.TRANS_DATE 
+                        , m.PARTY_CODE 
+                        , cust.CODE_DESC cust_name 
+                        , cust.CODE_DESC_OTHER  cust_address 
+                        , wh.CODE_DESC warehouse  
+                        , te.CODE_DESC teritory  
+                        , m.ENTRY_BY sale_by 
+                        , d.ITEM_CODE 
+                        ,PKG_INVENTORY.GET_ITEM_NAME (d.ITEM_CODE) item_name 
+                        ,itm.PACKING item_packing
+                        ,PKG_INVENTORY.GET_UNIT(itm.MESUREMENT_UNIT) item_unit 
+                        , d.rate 
+                        , d.QTY 
+                        , nvl(d.rate,0)*nvl(d.QTY,0) amount 
+                    FROM SP_STORE_M m  
+                    join SP_STORE_D d on d.TRANS_ID = m.TRANS_ID 
+                    join g_acc_codes cust on cust.CODE =  m.PARTY_CODE 
+                    join SALES_CHANEL Cnl on cust.TERRITORY_CODE = Cnl.CODE 
+                    join G_UNI_CODES te on Cnl.TERRITORY_ID = te.CODE 
+                    join G_UNI_CODES wh on Cnl.WAREHOUSE_ID = wh.CODE 
+                    join G_INV_CODES itm on itm.code = d.ITEM_CODE 
+                    WHERE m.TRANS_TYPE = 'SV' 
+                    AND m.org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID'))
+ 
+                    loop 
+ 
+            v_sl := v_sl + 1; 
+            v_bdt := nvl(i.amount, 0); 
+            v_bdt_g := v_bdt + nvl(v_bdt_g, 0); 
+         	 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">'|| HTF.escape_sc (to_char(i.TRANS_DATE,'dd-mm-yy'))|| '</td> 
+                <td style="text-align: Left">'|| HTF.escape_sc (i.INVOICE_NO)|| '</td> 
+                <td style="text-align: Left">'|| HTF.escape_sc (i.cust_name)|| '</td>  
+                <td style="text-align: left">'|| HTF.escape_sc (i.cust_address)|| '</td> 
+                <td style="text-align: CENTER">'|| HTF.escape_sc(i.warehouse)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.teritory)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.sale_by)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME)||'</td> 
+                <td>'||HTF.escape_sc (i.item_packing)||'</td> 
+                <td>'||HTF.escape_sc (i.item_unit)||'</td> 
+                <td>'||HTF.escape_sc (i.RATE)||'</td> 
+                <td>'||HTF.escape_sc (i.QTY)||'</td> 
+		<td>'||HTF.escape_sc (i.amount)||'</td> 
+                <tr>');
+ 
+		end loop; 
+             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12" style="text-align: right;"><b>Total</b> :</td> 
+                <td><b>'|| HTF.escape_sc (to_char(v_bdt_g,'99,99,999.99'))||'</b></td> 
+                <tr>'); 
+         
+	    htp.p('</table>'); 
+ 
+	END;
+ 
+--************************************
+
+    procedure Invoice_wise_Report(p_ware_id number, p_area number, p_teritory number, p_from_date date, p_to_date date) 
+IS 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    	v_count number      := 0; 
+
+	BEGIN 
+	report_utils.header_without_boarder(NULL , 'Invoice wise Report '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%">
+			<tr> 
+			<th style="width:8%">Invoice Date</th> 
+			<th style="width:8%">Invoice No.</th> 
+			<th style="width:8%">Warehouse</th>  
+			<th style="width:8%">AREA NAME</th> 
+			<th style="width:8%">Teritory</th> 
+            		<th style="width:10%">Customer</th> 
+            		<th style="width:10%">Total Amount</th> 
+            		<th style="width:10%">Total Disc</th> 
+            		<th style="width:10%">Total VAT</th> 
+			<th style="width:10%">Net Amount</th> 
+			</tr>');
+         
+         for i in (SELECT TRANS_DATE 
+                         ,INVOICE_NO 
+                         , WAREHOUSE_NAME 
+                         ,AREA_NAME 
+                         ,TERRITORY_NAME 
+                         ,PARTY_NAME  
+                         FROM V_ALL_INV 
+                   	 WHERE TRANS_DATE BETWEEN NVL(p_from_date,TRANS_DATE) AND NVL(p_to_date,SYSDATE) 
+                   	 and org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID'))
+ 
+                 loop 
+
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">'|| HTF.escape_sc (to_char(i.TRANS_DATE,'dd-mm-yy'))|| '</td> 
+                <td style="text-align: Left">'|| HTF.escape_sc (i.INVOICE_NO)|| '</td> 
+                <td style="text-align: CENTER">'|| HTF.escape_sc (i.WAREHOUSE_NAME)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.AREA_NAME)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.TERRITORY_NAME)|| '</td> 
+                <td>'|| HTF.escape_sc (i.PARTY_NAME)||'</td> 
+                <tr>');
+ 
+		end loop; 
+         
+	htp.p('</table>'); 
+	END;
+ 
+--*************************************
+
+procedure ITEM_wise_sales_Report(p_ware_id NUMBER,p_area number,p_teritory number,p_item number,p_from_date date,p_to_date date) 
+IS 
+	v_sl 		number := 0; 
+	v_QTY   	number := 0; 
+    	v_RATE    	number := 0; 
+	v_DISCOUNT    	number := 0; 
+	v_NET_AMOUNT  	number := 0; 
+    	v_count 	number := 0;
+ 
+	BEGIN 
+	report_utils.header_without_boarder(NULL ,'Item wise sales Report '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+			htp.p('<table style="width:100%">
+			<tr> 
+            		<th style="width:8%">Item Code</th> 
+			<th style="width:8%">Item Name</th> 
+            		<th style="width:8%">Packing Size</th> 
+            		<th style="width:8%">Unit </th> 
+			<th style="width:8%">Customer</th> 
+            		<th style="width:8%">Address</th>  
+            		<th style="width:8%">Invoice Date</th> 
+			<th style="width:8%">Invoice No.</th> 
+			<th style="width:8%">Warehouse</th>  
+			<th style="width:8%">Area Name</th> 
+			<th style="width:8%">Teritory</th> 
+            		<th style="width:10%">Rate</th> 
+            		<th style="width:10%">QTY</th> 
+            		<th style="width:10%">Total Disc</th> 
+			<th style="width:10%">Net Amount</th> 
+			</tr>'); 
+	 
+	 
+         
+         for i in (select 	 item_code 
+                                 ,item_name 
+                                 ,PACKING 
+                                 ,UNIT 
+                                 ,PARTY_NAME 
+                                 ,PARTY_ADDRESS 
+                                 ,TRANS_DATE 
+                                 ,INVOICE_NO 
+                                 ,WAREHOUSE_NAME 
+                                 ,AREA_NAME 
+                                 ,TERRITORY_NAME 
+                                 ,RATE 
+                                 ,QTY 
+                                 ,DISCOUNT 
+                                 ,NET_AMOUNT 
+                    FROM V_ALL_INV 
+                   WHERE TRANS_DATE BETWEEN NVL(p_from_date,TRANS_DATE) AND NVL(p_to_date,SYSDATE) 
+                   AND TRANS_TYPE ='SV' 
+                   and org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')) 
+
+                    loop 
+ 
+                    V_QTY           :=V_QTY + NVL(I.QTY,0); 
+                    V_RATE          :=V_RATE + NVL(I.RATE,0); 
+                    V_DISCOUNT      := V_DISCOUNT + NVL(I.DISCOUNT,0); 
+                    V_NET_AMOUNT    :=V_NET_AMOUNT + NVL(I.NET_AMOUNT,0); 
+             	 
+            HTP.p ( 
+                  '<tr> 
+                  <td style="text-align: center">'|| HTF.escape_sc (i.item_code) 
+                  || '</td> 
+                <td style="text-align: center">' || HTF.escape_sc (i.item_name) 
+               || '</td> 
+                 <td style="text-align: center">'|| HTF.escape_sc (i.PACKING) 
+               || '</td> 
+               <td>'|| HTF.escape_sc (i.UNIT) 
+               ||'</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (i.PARTY_NAME) 
+               || '</td> 
+                <td style="text-align: Left">' || HTF.escape_sc (i.PARTY_ADDRESS) 
+               || '</td> 
+                <td style="text-align: CENTER">'|| HTF.escape_sc (i.TRANS_DATE) 
+               || '</td> 
+                <td style="text-align: left">' || HTF.escape_sc (i.INVOICE_NO) 
+               || '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.WAREHOUSE_NAME) 
+               || '</td> 
+                <td style="text-align: CENTER">'|| HTF.escape_sc (i.AREA_NAME) 
+               || '</td> 
+                <td style="text-align: CENTER">'|| HTF.escape_sc (i.TERRITORY_NAME) 
+               || '</td> 
+                <td style="text-align: CENTER">'|| HTF.escape_sc (i.RATE) 
+               || '</td> 
+                 <td style="text-align: CENTER">'|| HTF.escape_sc (i.QTY) 
+               || '</td> 
+                <td style="text-align: CENTER">'|| HTF.escape_sc (i.DISCOUNT) 
+               || '</td> 
+                <td style="text-align: CENTER">'|| HTF.escape_sc (i.NET_AMOUNT) 
+               || '</td> 
+             
+                <tr>'); 
+	end loop; 
+             
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="11" style="text-align: right;"><b>Total</b> :</td> 
+                  
+                <td><b>'|| HTF.escape_sc (to_char(V_RATE,'99,99,999')) 
+                ||'</b></td> 
+               <td><b>'|| HTF.escape_sc (to_char(V_QTY,'99,99,999')) 
+               ||'</b></td> 
+                <td><b>'|| HTF.escape_sc (to_char(V_DISCOUNT,'99,99,999')) 
+               ||'</b></td> 
+               <td><b>'|| HTF.escape_sc (to_char(V_NET_AMOUNT,'99,99,999')) 
+               ||'</b></td> 
+      
+                <tr>'); 
+         
+	htp.p('</table>'); 
+ 
+	END;
+ 
+--**********************************
+
+      procedure Date_wise_sales_Summary_Report(p_ware_id number,p_area number,p_teritory number,p_item number,p_from_date date,p_to_date date) 
+IS 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number      := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Date wise sales Summary Report '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:8%">Invoice date</th> 
+			<th style="width:8%">Gross Amount</th> 
+			<th style="width:8%">Total Discount</th>  
+			<th style="width:8%">total VAT</th> 
+			<th style="width:8%">Net Amount</th> 
+             
+			</tr>');
+         
+         for i in (	 
+                    select m.trans_date, 
+                            sum(d.qty * d.rate) Gross , 
+                            sum( m.DISCOUNT)  Discount, 
+                            sum (g.VAT_AMOUNT) VAT 
+                             
+                            from sp_store_d d,sp_store_m m,g_inv_codes g,SALES_CHANEL sl 
+                            where m.trans_id=d.trans_id 
+                            and d.item_code =g.code 
+                            and sl.code=g.code 
+                            and TRANS_DATE BETWEEN NVL(p_from_date,TRANS_DATE) AND NVL(p_to_date,SYSDATE) 
+                            -- AND  sl.WAREHOUSE_id    =p_ware_id 
+                            -- AND  sl.TERRITORY_id    =p_teritory 
+                            -- AND sl.AREA_id          =p_area 
+                            
+                            group by m.trans_date  
+                    
+                    
+                    
+                    ) 
+                    loop 
+ 
+                   v_bdt := v_bdt + (nvl(i.Gross,0)-nvl(i.Discount,0)+nvl(i.VAT,0)); 
+            
+         	 
+            HTP.p ( 
+                  '<tr> 
+           
+                <td style="text-align: center">' 
+               || HTF.escape_sc (to_char(i.TRANS_DATE,'dd-mm-yy')) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.Gross) 
+               || '</td> 
+                <td style="text-align: CENTER">' 
+               || HTF.escape_sc (i.Discount) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.VAT) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (v_bdt) 
+               || '</td> 
+                
+             
+                <tr>'); 
+			end loop; 
+         
+			htp.p('</table>'); 
+	END; 
+ 
+--*******************************
+
+    procedure Customer_wise_sales_Report(p_cust number,p_teritory number,p_ware_id number,p_business_unit number,p_item  number ,p_from_date date,p_to_date date) 
+is 
+	v_sl number := 0; 
+    v_count number:=0; 
+	BEGIN 
+		report_utils.header_without_boarder(null, 'Customer wise sales Report'); 
+
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:7%">Invoice Date</th> 
+			<th style="width:7%">Invoice No.</th> 
+            <th style="width:10%">Warehouse</th> 
+			<th style="width:10%">Customer</th>  
+            <th style="width:10%">Officer</th> 
+            <th style="width:15%">Address</th> 
+            <th style="width:5%">Business Unit</th> 
+			<th style="width:20%">Item Name</th> 
+            <th style="width:5%">Pack Sizes</th> 
+            <th style="width:5%">Rate</th> 
+            <th style="width:5%">QTY</th> 
+            <th style="width:5%">Total Disc.</th> 
+             <th style="width:5%">Total VAT</th> 
+			<th style="width:10%">Net Amount</th> 
+            
+			 
+			</tr>'); 
+        
+			v_sl := 0; 
+			FOR i in ( SELECT  TRANS_DATE 
+                            ,substr(INVOICE_NO,5) invoice_no 
+                            ,WAREHOUSE_NAME 
+                            ,PARTY_NAME 
+                            ,ENTRY_BY 
+                            ,PARTY_ADDRESS 
+                            ,BUSINESS_UNIT 
+                            ,ITEM_NAME 
+                            ,UNIT 
+                            ,RATE 
+                            ,QTY 
+                            ,DISCOUNT 
+                            ,VAT_AMOUNT 
+                            ,NET_AMOUNT  
+                        FROM v_all_inv 
+                        WHERE trans_type='SV' 
+                        and org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                            ) 
+			LOOP 
+			v_sl := v_sl+1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(i.TRANS_DATE)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.INVOICE_NO)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.WAREHOUSE_NAME)||'</td> 
+				<td style="text-align: left">'||htf.escape_sc(i.PARTY_NAME)||'</td> 
+                <td style="text-align: left">'||htf.escape_sc(i.ENTRY_BY)||'</td> 
+                <td style="text-align: left">'||htf.escape_sc(i.PARTY_ADDRESS)||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(i.BUSINESS_UNIT)||'</td> 
+                <td style="text-align: left;">'||htf.escape_sc(i.ITEM_NAME)||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(i.UNIT)||'</td> 
+                 
+                <td style="text-align: center;">'||htf.escape_sc(i.RATE)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.QTY)||'</td> 
+                 
+				<td style="text-align: left;">'||htf.escape_sc(i.DISCOUNT)||'</td> 
+                <td style="text-align: left;">'||htf.escape_sc(i.VAT_AMOUNT)||'</td> 
+                <td style="text-align: left;">'||htf.escape_sc(i.NET_AMOUNT)||'</td> 
+ 
+				 
+				</tr>'); 
+		 
+			END LOOP; 
+            htp.p('<tr> 
+				<td colspan="9" style="text-align: right">Total : </td> 
+				<td style="text-align: left;"></td> 
+				 
+				</tr>'); 
+            htp.p('</table>'); 
+		--end loop; 
+		report_utils.footer; 
+	END; 
+ 
+--*********************************
+ 
+   procedure Sales_Order_Report(p_ware_id number,p_area number,p_teritory number,p_from_date date,p_to_date date) 
+IS 
+	v_sl    number      := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number      := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Sales Order Report '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:10%">Order date</th> 
+			<th style="width:10%">Order No.</th> 
+			<th style="width:20%">Customer</th>  
+			<th style="width:10%">Delivered Address</th> 
+			<th style="width:10%">Delivered Phone</th> 
+            <th style="width:10%">Gross Amount</th> 
+            <th style="width:15%">Total Disc</th> 
+			<th style="width:10%">VAT</th> 
+            <th style="width:10%">Net Amount</th> 
+             
+			</tr>');
+           v_sl       := 0; 
+         
+         for i in (SELECT   TRANS_DATE, 
+                            INVOICE_NO, 
+                            PARTY_NAME, 
+                            WAREHOUSE_NAME||','||TERRITORY_NAME||','||AREA_NAME ADDRESS, 
+                            DISCOUNT 
+                   FROM V_ALL_INV 
+                   WHERE  TRANS_TYPE ='SV' 
+                   and TRANS_DATE BETWEEN NVL(p_from_date,TRANS_DATE) AND NVL(p_to_date,SYSDATE)  
+                  and org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID'))
+ 
+                    loop 
+ 
+           v_sl := v_sl +0; 
+            
+            v_bdt_g :=v_bdt_g +nvl(v_bdt,0); 
+         	 
+            HTP.p ( 
+                  '<tr> 
+              
+                <td style="text-align: center">' 
+               || HTF.escape_sc (to_char(i.TRANS_DATE,'dd-mm-yy')) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.INVOICE_NO) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.PARTY_NAME) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.ADDRESS) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.DISCOUNT) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.DISCOUNT) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.DISCOUNT) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.DISCOUNT) 
+               || '</td> 
+             
+               <td>'||HTF.escape_sc (v_bdt) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_bdt_g,'99,99,999')) 
+               ||'</b></td> 
+               
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+	END; 
+
+--**************************
+ 
+ procedure Sales_Order_Report(p_ware_id number,p_area number,p_officer number) 
+IS 
+	v_sl    number      := 0; 
+	v_tot_sl number     := 0; 
+	 
+    v_count number      := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Sales Order Report'); 
+       
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:10%">Name</th> 
+			<th style="width:10%">Designation</th> 
+			<th style="width:20%">Cell No.</th>  
+			 
+			</tr>'); 
+	 
+           v_sl       := 0; 
+         
+         for i in (SELECT   TRANS_DATE, 
+                            INVOICE_NO, 
+                            PARTY_NAME, 
+                            WAREHOUSE_NAME||','||TERRITORY_NAME||','||AREA_NAME ADDRESS, 
+                            DISCOUNT 
+                   FROM V_ALL_INV 
+                   WHERE  TRANS_TYPE ='SV' 
+                  and org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID'))
+ 
+                    loop 
+ 
+           v_sl := v_sl +0; 
+         	 
+            HTP.p ( 
+                  '<tr> 
+              
+                <td style="text-align: center">' 
+               || HTF.escape_sc (to_char(i.TRANS_DATE,'dd-mm-yy')) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.INVOICE_NO) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.PARTY_NAME) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.ADDRESS) 
+               || '</td> 
+                
+                <tr>'); 
+			end loop; 
+ 
+                   
+			htp.p('</table>'); 
+	END; 
+ 
+--***************************** 
+
+     procedure Month_wise_sales_Report(p_ware_id number,p_area number,p_teritory number,p_from_date date,p_to_date date) 
+IS 
+	v_sl    number      := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number      := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Sales Order Report '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:10%">Name of the product</th> 
+			<th style="width:10%">Business Unit</th> 
+			<th style="width:20%">Packing Id</th>  
+			<th style="width:10%">Jan QTY.</th> 
+			<th style="width:10%">Jan Sales</th> 
+            <th style="width:10%">Feb QTY.</th> 
+			<th style="width:10%">Feb Sales</th> 
+            <th style="width:10%">Mar QTY.</th> 
+			<th style="width:10%">Mar Sales</th> 
+            <th style="width:10%">Apr QTY.</th> 
+			<th style="width:10%">Apr Sales</th> 
+            <th style="width:10%">May QTY.</th> 
+			<th style="width:10%">May Sales</th> 
+            <th style="width:10%">Jun QTY.</th> 
+			<th style="width:10%">Jun Sales</th> 
+            <th style="width:10%">July QTY.</th> 
+			<th style="width:10%">July Sales</th> 
+            <th style="width:10%">Agu QTY.</th> 
+			<th style="width:10%">Agu Sales</th> 
+            <th style="width:10%">Sep QTY.</th> 
+			<th style="width:10%">Sep Sales</th> 
+            <th style="width:10%">Oct QTY.</th> 
+			<th style="width:10%">Oct Sales</th> 
+            <th style="width:10%">Nov QTY.</th> 
+			<th style="width:10%">Nov Sales</th> 
+            <th style="width:10%">Dec QTY.</th> 
+			<th style="width:10%">Dec Sales</th> 
+            <th style="width:10%">Gross Amount</th> 
+            <th style="width:15%">Total Disc</th> 
+			<th style="width:10%">Total Qty.</th> 
+            <th style="width:10%">Total Sales</th> 
+             
+			</tr>');
+           v_sl       := 0; 
+         
+         for i in (SELECT   TRANS_DATE, 
+                            INVOICE_NO, 
+                            PARTY_NAME, 
+                            WAREHOUSE_NAME||','||TERRITORY_NAME||','||AREA_NAME ADDRESS, 
+                            DISCOUNT 
+                   FROM V_ALL_INV 
+                   WHERE  TRANS_TYPE ='SV' 
+                   and TRANS_DATE BETWEEN NVL(p_from_date,TRANS_DATE) AND NVL(p_to_date,SYSDATE)  
+                  and org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID'))
+ 
+                    loop 
+ 
+           v_sl := v_sl +0; 
+            
+            v_bdt_g :=v_bdt_g +nvl(v_bdt,0); 
+         	 
+            HTP.p ( 
+                  '<tr> 
+              
+                <td style="text-align: center">' 
+               || HTF.escape_sc (to_char(i.TRANS_DATE,'dd-mm-yy')) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.INVOICE_NO) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.PARTY_NAME) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.ADDRESS) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.DISCOUNT) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.DISCOUNT) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.DISCOUNT) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.DISCOUNT) 
+               || '</td> 
+             
+               <td>'||HTF.escape_sc (v_bdt) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_bdt_g,'99,99,999')) 
+               ||'</b></td> 
+               
+                <tr>'); 
+         
+			htp.p('</table>'); 
+	END; 
+ 
+--******************************** 
+
+      procedure Officer_Wise_Customer_Outstanding(p_company_id number,p_warehouse number,p_officer number,p_from_date date,p_to_date date) 
+IS 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number      := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Invoice wise Report '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+            <th style="width:8%">SL.</th> 
+			<th style="width:8%">Customer Code</th> 
+			<th style="width:8%">Customer</th> 
+			<th style="width:10%">Teritory</th> 
+			<th style="width:10%">Address</th> 
+			<th style="width:10%">Opening Balance</th> 
+			<th style="width:10%">Total Sales</th> 
+            <th style="width:10%">Received</th> 
+            <th style="width:10%">Outstanding</th> 
+             
+			</tr>'); 
+         
+         for i in (	SELECT TRANS_DATE 
+                         ,INVOICE_NO 
+                         , WAREHOUSE_NAME 
+                         ,AREA_NAME 
+                         ,TERRITORY_NAME 
+                         ,PARTY_NAME  
+                         FROM V_ALL_INV 
+                   WHERE TRANS_DATE BETWEEN NVL(p_from_date,TRANS_DATE) AND NVL(p_to_date,SYSDATE) 
+                   and org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID'))
+ 
+                    loop 
+            
+         	 
+            HTP.p ( 
+                  '<tr> 
+           
+                <td style="text-align: center">' 
+               || HTF.escape_sc (to_char(i.TRANS_DATE,'dd-mm-yy')) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.INVOICE_NO) 
+               || '</td> 
+                <td style="text-align: CENTER">' 
+               || HTF.escape_sc (i.WAREHOUSE_NAME) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.AREA_NAME) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.TERRITORY_NAME) 
+               || '</td> 
+               <td>'|| HTF.escape_sc (i.PARTY_NAME) 
+               ||'</td> 
+                <td>'|| HTF.escape_sc (i.INVOICE_NO) 
+               ||'</td> 
+                <td>'|| HTF.escape_sc (i.INVOICE_NO) 
+               ||'</td> 
+                <td>'|| HTF.escape_sc (i.INVOICE_NO) 
+               ||'</td> 
+             
+                <tr>'); 
+			end loop;
+         
+			htp.p('</table>'); 
+	END; 
+ 
+--*********************************
+ 
+    procedure Pivot_Report( p_from_date date,p_to_date date) 
+is 
+	v_sl number := 0; 
+    v_count number:=0; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL, ' Pivot_Report '); 
+		 
+			 
+		LOOP 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:5%">SL#</th> 
+			<th style="width:10%">Customer Name</th> 
+			<th style="width:10%">Item Name</th> 
+			<th style="width:20%">Packing Size</th> 
+			<th style="width:25%">Warehouse</th>  
+			<th style="width:10%">Inventory QTY</th> 
+            <th style="width:10%">Item Price</th> 
+            <th style="width:20%">Total</th> 
+			 
+           
+			</tr>'); 
+ 
+			v_sl := 0; 
+			FOR i in ( select 	 
+                            ITEM_NAME 
+                            ,PACKING 
+                            ,UNIT 
+                            ,WAREHOUSE_NAME 
+                            ,QTY 
+                            ,RATE 
+                            ,NET_AMOUNT 
+                     FROM V_ALL_INV                           
+                    WHERE org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                             
+                             
+                            ) 
+ 
+			LOOP 
+			v_sl := v_sl+1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||v_sl||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.ITEM_NAME)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.PACKING)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.UNIT)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.WAREHOUSE_NAME)||'</td> 
+                <td style="text-align: right">'||htf.escape_sc(i.RATE)||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(I.NET_AMOUNT)||'</td> 
+				 
+				</tr>'); 
+		 
+			END LOOP; 
+            htp.p('</table>'); 
+		end loop; 
+		report_utils.footer; 
+	END;
+ 
+--***********************************
+
+    procedure Officer_wise_sales_summary(p_company_id number,p_from_date date,p_to_date date) 
+is 
+	v_sl number := 0; 
+    v_count number:=0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_ID, 'Officer wise sales summary '); 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:5%">Officer</th> 
+			<th style="width:10%">Total Sales</th> 
+			<th style="width:10%">Received</th> 
+			<th style="width:20%">VAT</th> 
+			<th style="width:25%">Outstanding</th>  
+			 
+			</tr>'); 
+            -- end IF; 
+			v_sl := 0; 
+			FOR i in ( select e.uid_no, 
+	                        e.emp_name, 
+	                        g.code_desc, 
+	                        e.joining_date, 
+                            e.joining_sal, 
+	                        e.present_sal 
+ 
+	                        from emp_info e,g_uni_codes g  
+	                        where e.desig_code=g.code 
+                            AND e.joining_date BETWEEN nvl(p_from_date,e.joining_date) AND nvl(p_to_date,sysdate) 
+                            
+                            AND E.org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                            ) 
+			LOOP 
+			v_sl := v_sl+1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||v_sl||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.UID_NO)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.emp_name)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.CODE_DESC)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(i.joining_date)||'</td> 
+                <td style="text-align: right">'||htf.escape_sc(to_char(i.present_sal,'99,99,999.99'))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(to_char(i.joining_sal,'99,99,999.99'))||'</td> 
+				 
+				</tr>'); 
+		 
+			END LOOP; 
+            htp.p('</table>'); 
+ 
+		report_utils.footer; 
+	END;
+ 
+--*********************************
+ 
+procedure Item_Stock_Report(p_org_id number,p_company_id number,p_warehouse_code number,P_item_code NUMBER,p_from_date date, 
+                            p_to_date date) 
+is 
+	v_sl number := 0; 
+    v_count number:=0; 
+    v_Opening number:=0; 
+    v_Purchase number:=0; 
+    v_Issue number:=0; 
+    v_Sales number:=0; 
+    v_Return number:=0; 
+    v_Transfer number:=0; 
+    v_Receive number:=0; 
+    v_Shortage number:=0; 
+    v_Expired number:=0; 
+    v_Damage number:=0; 
+    v_Balance number:=0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_id, 'Item Stock Report '); 
+            HTP.p ( 
+                   '<h4 style="margin-top: 0px; text-align: center">Date From : ' 
+                || HTF.escape_sc (P_from_date) 
+                || ' To ' 
+                || HTF.escape_sc (P_To_date) 
+                || '</h4>'); 
+ 
+			htp.p('<table style="width:100%"><tr> 
+        			<th >Business Unit</th> 
+        			<th >Item Name</th> 
+                    <th >Packing</th> 
+                    <th >Unit</th> 
+        			<th >Opening</th> 
+        			<th >Purchase</th>  
+        			<th >Issue</th> 
+        			<th >Sales</th> 
+        			<th >Return</th> 
+        			<th >Transfer</th> 
+        			<th >Receive</th> 
+        			<th >Shortage</th> 
+        			<th >Expired</th> 
+        			<th >Damage</th> 
+        			<th >Balance</th> 
+        			</tr>'); 
+	 
+			 FOR i in ( select * 
+                        from V_ITEM_MASTER vim 
+                        where vim.code = nvl(P_item_code,vim.code) 
+                        and org_id=p_org_id 
+                        order by business_unit,ITEM_NAME,packing,unit 
+                       ) 
+			LOOP 
+                -- org id (7) hard code disi, aykhane org id parameter diya nia aste hobe...(fixed) 
+        		v_opening := PKG_INVENTORY.GET_ITEM_OPENING(p_org_id,i.CODE,p_from_date,p_warehouse_code); 
+                -- org id (7) hard code disi, aykhane org id parameter diya nia aste hobe... (fixed) 
+        		v_Balance := PKG_INVENTORY.GET_ITEM_OPENING(p_org_id,i.CODE,P_To_date,p_warehouse_code); 
+ 
+                select nvl(sum(tr.qty),0) into v_Purchase from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('PV') 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate); 
+ 
+                select nvl(sum(tr.qty),0) into v_Issue from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('IP')--what is the ISSUE type?? 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate); 
+ 
+                select nvl(sum(tr.qty),0) into v_Sales from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('SV') 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate); 
+                 
+                select nvl(sum(tr.qty),0) into v_Return from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('SR')--what is the Return type??fixed 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate); 
+                 
+                select nvl(sum(tr.qty),0) into v_Transfer from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('ST') 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate); 
+                  
+                select nvl(sum(tr.qty),0) into v_Receive from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('STR')--what is the Receive type??fixed 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate); 
+                 
+                select nvl(sum(tr.qty),0) into v_Shortage from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('SH') 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate); 
+                 
+                select nvl(sum(tr.qty),0) into v_Expired from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('EXP') --what is the Expired type?? 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate); 
+                 
+                select nvl(sum(tr.qty),0) into v_Damage from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('DM') 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate); 
+          
+				htp.p('<tr> 
+                <td style="text-align: center">'||htf.escape_sc(i.business_unit)||'</td> 
+				<td style="text-align: LEFT">'||htf.escape_sc(i.ITEM_NAME)||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(i.packing)||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(i.unit)||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_opening,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Purchase,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Issue,0))||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(nvl(v_Sales,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Return,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Transfer,0))||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(nvl(v_Receive,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Shortage,0))||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(nvl(v_Expired,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Damage,0))||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(nvl(v_Balance,0))||'</td> 
+				</tr>'); 
+	 
+			END LOOP; 
+                htp.p('</table>'); 
+            
+ 
+		--end loop; 
+		--report_utils.footer; 
+	END; 
+
+--**********************************
+ 
+procedure Item_Stock_Report2(p_org_id number,p_company_id number,p_warehouse_code number,P_item_code NUMBER,p_from_date date, 
+                            p_to_date date) 
+is 
+	v_sl number := 0; 
+    v_count number:=0; 
+    v_Opening number:=0; 
+    v_Purchase number:=0; 
+    v_Issue number:=0; 
+    v_Sales number:=0; 
+    v_Return number:=0; 
+    v_Transfer number:=0; 
+    v_Receive number:=0; 
+    v_Shortage number:=0; 
+    v_Expired number:=0; 
+    v_Damage number:=0; 
+    v_FINISH_GOOD   NUMBER  :=0; 
+    v_Balance number:=0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_id, 'Item Stock Report '); 
+            HTP.p ( 
+                   '<h4 style="margin-top: 0px; text-align: center">Date From : ' 
+                || HTF.escape_sc (P_from_date) 
+                || ' To ' 
+                || HTF.escape_sc (P_To_date) 
+                || '</h4>'); 
+ 
+			htp.p('<table style="width:100%"><tr> 
+        			<th >Business Unit</th> 
+        			<th >Item Name</th> 
+                    <th >Packing</th> 
+                    <th >Unit</th> 
+        			<th >Opening</th> 
+        			<th >Finish<br>Goods</th> 
+        			<th >Purchase</th>  
+        			<th >Issue</th> 
+        			<th >Sales</th> 
+        			<th >Return</th> 
+        			<th >Transfer</th> 
+        			<th >Receive</th> 
+        			<th >Shortage</th> 
+        			<th >Expired</th> 
+        			<th >Damage</th> 
+        			<th >Balance</th> 
+        			</tr>'); 
+			 FOR i in ( select * 
+                        from V_ITEM_3S vim 
+                        where vim.code = nvl(P_item_code,vim.code) 
+                        and org_id=p_org_id 
+                        order by business_unit,ITEM_NAME,packing,unit 
+                       ) 
+			LOOP 
+                -- org id (7) hard code disi, aykhane org id parameter diya nia aste hobe...(fixed) 
+        		v_opening := PKG_INVENTORY.GET_ITEM_OPENING(p_org_id,i.CODE,p_from_date,p_warehouse_code); 
+                -- org id (7) hard code disi, aykhane org id parameter diya nia aste hobe... (fixed) 
+        		-- v_Balance := PKG_INVENTORY.GET_ITEM_OPENING(p_org_id,i.CODE,P_To_date,p_warehouse_code); 
+ 
+                select nvl(sum(tr.qty),0) into v_Purchase from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('PV') 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE = NVL(p_warehouse_code,WAREHOUSE_CODE); 
+ 
+                select nvl(sum(tr.qty),0) into v_Issue from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('IP')--what is the ISSUE type?? 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE = NVL(p_warehouse_code,WAREHOUSE_CODE); 
+ 
+                select nvl(sum(tr.qty),0) into v_Sales from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('SV') 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND nvl(WAREHOUSE_CODE,0) = nvl(NVL(p_warehouse_code,WAREHOUSE_CODE),0); 
+                 
+                select nvl(sum(tr.RETURN_QTY),0) into v_Return from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('SR')--what is the Return type??fixed 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE = NVL(p_warehouse_code,WAREHOUSE_CODE); 
+                 
+                select nvl(sum(tr.qty),0) into v_Transfer from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('ST') 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE = NVL(p_warehouse_code,WAREHOUSE_CODE); 
+                  
+                select nvl(sum(tr.qty),0) into v_Receive from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('STR')--what is the Receive type??fixed 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE = NVL(p_warehouse_code,WAREHOUSE_CODE); 
+                 
+                select nvl(sum(tr.qty),0) into v_Shortage from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('SH') 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE = NVL(p_warehouse_code,WAREHOUSE_CODE); 
+                 
+                select nvl(sum(tr.qty),0) into v_Expired from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('EXP') --what is the Expired type?? 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE = NVL(p_warehouse_code,WAREHOUSE_CODE); 
+                 
+                select nvl(sum(tr.qty),0) into v_Damage from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('DM') 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE = NVL(p_warehouse_code,WAREHOUSE_CODE); 
+ 
+                select nvl(sum(tr.qty),0) into v_FINISH_GOOD from V_ITEM_TRANSACTION_ALL tr  
+                where TR.item_code = i.code and tr.trans_type in ('FR') 
+                and tr.TRANS_DATE between nvl(p_from_date,tr.TRANS_DATE) and nvl(p_to_date,sysdate) 
+                AND WAREHOUSE_CODE = NVL(p_warehouse_code,WAREHOUSE_CODE); 
+ 
+        		v_Balance := nvl(v_Balance,0)+nvl(v_opening,0)+v_Purchase-v_Issue-nvl(v_Sales,0)+v_Return 
+                            -v_Transfer+v_Receive-v_Shortage-v_Expired-v_Damage; 
+         IF v_Balance != 0 THEN 
+				htp.p('<tr> 
+                <td style="text-align: center">'||htf.escape_sc(i.business_unit)||'</td> 
+				<td style="text-align: LEFT">'||htf.escape_sc(i.ITEM_NAME)||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(i.packing)||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(i.unit)||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_opening,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_FINISH_GOOD,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Purchase,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Issue,0))||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(nvl(v_Sales,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Return,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Transfer,0))||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(nvl(v_Receive,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Shortage,0))||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(nvl(v_Expired,0))||'</td> 
+				<td style="text-align: center;">'||htf.escape_sc(nvl(v_Damage,0))||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(nvl(v_Balance,0))||'</td> 
+				</tr>'); 
+         END IF; 
+	v_Balance   := 0; 
+			END LOOP; 
+                htp.p('</table>'); 
+            
+ 
+		--end loop; 
+		--report_utils.footer; 
+	END; 
+
+--**********************************
+
+    procedure  ware_house (p_b_unit number,p_from_date date,p_to_date date) 
+	is 
+    v_sl    number  := 0; 
+    v_qty   number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_b_unit,'Area Wise Sales'); 
+        for k in (select business_unit from v_all_inv) 
+            loop 
+            htp.p('<h3> '||htf.escape_sc(k.business_unit)||'</h3>'); 
+			htp.p('<table style="width:100%"> 
+			<tr> 
+			<th style="width: 80px" style="width:5%">SL No.</th> 
+			<th>Date</th>  
+            <th>Business Unit</th> 
+            <th>Item Name</th> 
+            <th>Packing</th>'); 
+        for i in (select CODE, CODE_DESC from g_uni_codes where org_id = 7 and p_code = '700067' order by code) 
+        loop 
+            htp.p(' 
+			<th>'||htf.escape_sc(i.CODE_DESC)||'</th>'); 
+ 
+        end loop; 
+			htp.p('</tr>'); 
+      for j in (select distinct TRANS_DATE  
+                            ,BUSINESS_UNIT 
+                            ,ITEM_NAME 
+                            ,PACKING 
+                FROM V_ALL_INV 
+                where org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')) 
+       loop 
+        v_sl := v_sl+1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(j.TRANS_DATE)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(j.BUSINESS_UNIT)||'</td> 
+                <td style="text-align: LEFT">'||htf.escape_sc(j.ITEM_NAME)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(j.PACKING)||'</td>'); 
+                    for r in (select CODE, CODE_DESC from g_uni_codes where org_id = 7 and p_code = '700067' order by code) 
+                    loop 
+                            begin 
+                                select (select nvl(sum(QTY),0) from SP_STORE_d where TRANS_ID = m.TRANS_ID) qty  
+                                into v_qty 
+                                from SP_STORE_m m where org_id = 7 
+                                and TRANS_TYPE = 'SV' 
+                                and TRANS_DATE = j.TRANS_DATE 
+                                and DEPOT_FROM = r.code; 
+                            exception 
+                                when others then  
+                                v_qty := 0; 
+                            end; 
+                        htp.p('<td style="text-align: center">'||htf.escape_sc(v_qty)||'</td>'); 
+ 
+                    end loop; 
+                    end loop; 
+			htp.p('</tr>'); 
+       
+      end loop; 
+ 
+			htp.p('</table>'); 
+	end; 
+ 
+--***************************** 
+ 
+end "SALES_REPORTS_3S";
+/
+

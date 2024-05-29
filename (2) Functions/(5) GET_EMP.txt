@@ -1,0 +1,21 @@
+
+create or replace FUNCTION "GET_EMP" (P_MANAGER_ID NUMBER) RETURN VARCHAR2 
+  IS 
+  V_CID     VARCHAR2 (200); 
+  V_CID_M   VARCHAR2 (200);
+ 
+  BEGIN 
+        FOR I IN (select CID_NO, MANAGER_ID 
+	from emp_info 
+	where org_id = 7 
+	and manager_id = P_MANAGER_ID)
+ 
+        LOOP 
+            V_CID := V_CID||','||I.CID_NO; 
+            V_CID_M := V_CID_M||','||GET_EMP(I.CID_NO);  
+            V_CID := V_CID||substr(V_CID_M, 1, length(V_CID_M) -1);        
+        END LOOP; 
+    RETURN SUBSTR(V_CID, 2); 
+  END; 
+
+/

@@ -1,0 +1,45 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace PACKAGE booking 
+AS 
+	function get_book_no (p_agent number) return varchar2; 
+end; 
+/
+
+
+
+                                                  ===============================BODY=============================
+
+create or replace PACKAGE BODY booking 
+AS 
+	function  get_book_no (p_agent number) return varchar2 
+	is 
+    v_result    varchar2 (500); 
+    v_book      varchar2 (50);
+ 
+	BEGIN 
+        for i in (select * 
+		from AGENT_BOOK_INFO 
+		where AGENT_ID = p_agent) 
+        loop  
+            select BOOK_NO 
+		into v_book 
+		from BOOK_INFO 
+		where BOOK_ID = i.BOOK_ID;
+ 
+            v_result := v_result||','||v_book; 
+        end loop;
+ 
+    return SUBSTR(v_result, 2);
+ 
+	end;
+ 
+--******************************
+
+end; 
+/
+
+
+
+

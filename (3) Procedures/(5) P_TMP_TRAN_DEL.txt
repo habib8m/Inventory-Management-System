@@ -1,0 +1,22 @@
+
+create or replace PROCEDURE          "P_TMP_TRAN_DEL" (P_TRAN_ID NUMBER)  
+IS 
+ 
+BEGIN 
+ 
+	   DELETE FROM TMP_TRAN_D  
+            WHERE TRAN_ID = P_TRAN_ID; 
+				 
+			 
+      DELETE FROM TMP_TRAN_M  
+            WHERE TRAN_ID = P_TRAN_ID; 
+			 
+			COMMIT; 
+ 
+   EXCEPTION 
+     WHEN NO_DATA_FOUND THEN 
+       NULL; 
+     WHEN OTHERS THEN 
+       RAISE; 
+END P_TMP_TRAN_DEL;
+/

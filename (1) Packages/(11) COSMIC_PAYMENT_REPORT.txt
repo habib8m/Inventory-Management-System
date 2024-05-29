@@ -1,0 +1,519 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "COSMIC_PAYMENT_REPORT" as 
+    procedure monthly_bill(p_project_code number,p_party_code number,p_membership_no number,p_from_date date,p_to_date date); 
+    procedure monthly_due(p_project_code number,p_party_code number,p_membership_no number,p_from_date date,p_to_date date); 
+    procedure summary_report(p_project_code number,p_party_code number,p_membership_no number,p_from_date date,p_to_date date); 
+    procedure pay_slip  (p_collector number,p_from_date date,p_to_date date); 
+    procedure monthly_collection(p_collector number,p_from_date date,p_to_date date,p_org_id number); 
+    procedure monthly_due_report(p_collector number,p_from_date date,p_to_date date,p_org_id number); 
+    procedure customer_history(p_from_date date,p_to_date date); 
+end "COSMIC_PAYMENT_REPORT"; 
+/
+
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "COSMIC_PAYMENT_REPORT" as 
+ 
+    procedure monthly_bill(p_project_code number,p_party_code number,p_membership_no number,p_from_date date,p_to_date date) 
+    IS 
+    	v_sl number         := 0; 
+    	v_total number     := 0; 
+    	v_qty    number     := 0; 
+    	v_qty_g  number     := 0; 
+    	v_exp    number     := 0; 
+    	v_exp_g  number     := 0; 
+    	v_usd    number     := 0; 
+    	v_usd_g  number     := 0; 
+    	v_bdt    number     := 0; 
+    	v_bdt_g  number     := 0; 
+        v_count number      := 0; 
+	BEGIN 
+		report_utils.header_without_logo(NULL ,'Monthly Payment '); 
+        -- htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%">SL</th> 
+			<th style="width:5%">Membership No</th> 
+			<th style="width:15%">Customer</th>  
+            <th style="width:10%">Address</th> 
+			<th style="width:8%">Payment Date</th> 
+			<th style="width:6%">Pay Amount</th> 
+             
+			</tr>'); 
+	 
+		FOR i in (select a.CODE_DESC cust_name, 
+                            a.MEMBERSHIP_NO,c.PAYMENT,  
+                            to_char(c.PAY_MONTH,'Month') pay_month, 
+                            c.PAY_DATE , 
+                            (select code_desc from g_uni_codes where code = a.territory_code) area 
+                    from customer_collection c 
+                    join g_acc_codes a on (a.code = c.cust_id) 
+                    where c.status = 1 
+                    and c.cust_id = nvl(p_party_code,c.cust_id) 
+                    and c.pay_date between p_from_date and p_to_date 
+                    ) 
+		LOOP 
+           v_sl       := 0; 
+ 
+            v_sl := v_sl + 1; 
+            v_total := v_total + nvl(i.PAYMENT,0); 
+ 
+            -- v_bdt := nvl(i.amount,0); 
+            -- v_bdt_g := v_bdt + nvl(v_bdt_g,0); 
+         	 
+            HTP.p ( 
+                  '<tr> 
+              
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.MEMBERSHIP_NO) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.cust_name) 
+               || '</td> 
+                 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.area) 
+               || '</td> 
+               <td style="text-align: CENTER">' 
+               || HTF.escape_sc(i.PAY_DATE) 
+               || '</td> 
+                <td style="text-align: right">' 
+               || HTF.escape_sc (to_char(i.PAYMENT,'99,99,999.99')) 
+               || '</td> 
+                <tr>'); 
+			end loop; 
+             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="5" style="text-align: right;"><b>Total</b> :</td> 
+               <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_total,'99,99,999.99')) 
+               ||'</b></td> 
+               
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		--report_utils.footer; 
+	END; 
+
+--*************************
+ 
+    procedure monthly_due(p_project_code number,p_party_code number,p_membership_no number,p_from_date date,p_to_date date) 
+    IS 
+    	v_sl number         := 0; 
+    	v_total number     := 0; 
+    	v_qty    number     := 0; 
+    	v_qty_g  number     := 0; 
+    	v_exp    number     := 0; 
+    	v_exp_g  number     := 0; 
+    	v_usd    number     := 0; 
+    	v_usd_g  number     := 0; 
+    	v_bdt    number     := 0; 
+    	v_bdt_g  number     := 0; 
+        v_count number      := 0; 
+	BEGIN 
+		report_utils.header_without_logo(NULL ,'Monthly Due '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%">SL</th> 
+			<th style="width:5%">Membership No</th> 
+			<th style="width:15%">Customer</th>  
+            <th style="width:10%">Address</th> 
+			<th style="width:8%">Date</th> 
+			<th style="width:5%">Due Amount</th> 
+			</tr>'); 
+	 
+		FOR i in (select a.CODE_DESC cust_name, 
+                            a.MEMBERSHIP_NO,c.PAYMENT, 
+                            c.pay_month,  
+                            to_char(c.PAY_MONTH,'Month-YYYY') pay_months, 
+                            c.PAY_DATE , 
+                            (select code_desc from g_uni_codes where code = a.territory_code) area 
+                    from customer_collection c 
+                    join g_acc_codes a on (a.code = c.cust_id) 
+                    where c.cust_id = nvl(p_party_code,c.cust_id) 
+                    and c.status is null 
+                    and c.pay_month between p_from_date and p_to_date 
+                    ) 
+		LOOP 
+            v_sl := v_sl + 1; 
+            v_total := v_total + nvl(i.PAYMENT,0); 
+        --     v_bdt_g := v_bdt + nvl(v_bdt_g,0); 
+         	 
+           HTP.p ( 
+                  '<tr> 
+              
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.MEMBERSHIP_NO) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.cust_name) 
+               || '</td> 
+                 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.area) 
+               || '</td> 
+               <td style="text-align: CENTER">' 
+               || HTF.escape_sc(i.pay_months) 
+               || '</td> 
+                <td style="text-align: right">' 
+               || HTF.escape_sc (to_char(i.PAYMENT,'99,99,999.99')) 
+               || '</td> 
+                <tr>'); 
+			end loop; 
+             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="5" style="text-align: right;"><b>Total</b> :</td> 
+               <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_total,'99,99,999.99')) 
+               ||'</b></td> 
+               
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		--report_utils.footer; 
+    end; 
+
+--******************************
+ 
+    procedure summary_report(p_project_code number,p_party_code number,p_membership_no number,p_from_date date,p_to_date date) 
+    is 
+    v_sl number         := 0; 
+    	v_total number     := 0; 
+    	v_rcv_total    number     := 0; 
+    	v_due_toal  number     := 0; 
+    	v_exp    number     := 0; 
+    	v_exp_g  number     := 0; 
+    	v_usd    number     := 0; 
+    	v_usd_g  number     := 0; 
+    	v_bdt    number     := 0; 
+    	v_bdt_g  number     := 0; 
+        v_due number      := 0; 
+	BEGIN 
+		report_utils.header_without_logo(NULL ,'Payment Summary Report'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%">SL</th> 
+			<th style="width:2%">Membership No</th> 
+			<th style="width:12%">Customer</th>  
+            <th style="width:10%">Address</th> 
+			<th style="width:8%">Pay Amount</th> 
+			<th style="width:5%">Receive Amount</th> 
+			<th style="width:5%">Due Amount</th> 
+			</tr>'); 
+	 
+		FOR i in (select a.CODE_DESC cust_name, 
+                            a.MEMBERSHIP_NO, 
+                            (select code_desc from g_uni_codes where code = a.territory_code) are, 
+                            sum(c.PAYMENT) pay_amount, 
+                            sum(c.RECEIVE_AMOUNT) RECEIVE_AMt 
+                    from customer_collection c 
+                    join g_acc_codes a on (a.code = c.cust_id) 
+                    where c.cust_id = nvl(p_party_code,c.cust_id) 
+                    and c.pay_month between p_from_date and p_to_date 
+                    group by a.CODE_DESC,a.MEMBERSHIP_NO,a.territory_code 
+                    order by a.membership_no 
+                    ) 
+		LOOP 
+            v_sl := v_sl + 1; 
+            v_total := v_total + nvl(i.pay_amount,0); 
+            v_due := nvl(i.pay_amount,0) - nvl(i.receive_amt,0); 
+            v_rcv_total := v_rcv_total + nvl(i.RECEIVE_AMt,0); 
+            v_due_toal  := v_due_toal + nvl(v_due,0); 
+             
+        --     v_bdt_g := v_bdt + nvl(v_bdt_g,0); 
+         	 
+           HTP.p ( 
+                  '<tr> 
+              
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.MEMBERSHIP_NO) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.cust_name) 
+               || '</td> 
+                 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.are) 
+               || '</td> 
+               <td style="text-align: right">' 
+               || HTF.escape_sc(to_char(i.pay_amount,'99,99,999.99')) 
+               || '</td> 
+                <td style="text-align: right">' 
+               || HTF.escape_sc (to_char(i.receive_amt,'99,99,999.99')) 
+               || '</td> 
+                <td style="text-align: right">' 
+               || HTF.escape_sc (to_char(v_due,'99,99,999.99')) 
+               || '</td> 
+                <tr>'); 
+			end loop; 
+             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="4" style="text-align: right;"><b>Total</b> :</td> 
+               <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_total,'99,99,999.99')) 
+               ||'</b></td> 
+               <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_rcv_total,'99,99,999.99')) 
+               ||'</b></td> 
+               <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_due_toal,'99,99,999.99')) 
+               ||'</b></td> 
+               
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		--report_utils.footer; 
+    end; 
+
+
+--***************************
+ 
+    procedure pay_slip(p_collector number,p_from_date date,p_to_date date) 
+	is 
+    V_TOTAL     NUMBER      := 0; 
+    V_TOTAL_G     NUMBER    := 0; 
+    V_HOUR_SAL      NUMBER  := 0; 
+    V_SHIFT         VARCHAR2(30); 
+    v_count     number      := 0; 
+	BEGIN     
+        -- v_count := 0; 
+ 
+		htp.p('<html>'); 
+        REPORT_UTILS.table_boarder; 
+
+		htp.p('<div style="width:50%; float: left;"> 
+        <h4 style="text-align:center; margin-bottom: 0px; ">????? ??? ??? ???</h4>');
+ 
+	end; 
+ 
+--*************************
+
+    procedure monthly_collection(p_collector number,p_from_date date,p_to_date date,p_org_id number) 
+    IS 
+    	v_sl number         := 0; 
+    	v_total number      := 0; 
+        v_count number      := 0; 
+        v_tot_col_amt number := 0; 
+	BEGIN 
+		report_utils.header_without_logo(NULL ,'Monthly Collection '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%">SL</th> 
+			<th style="width:4%">Customer ID</th> 
+			<th style="width:10%">Customer Name</th>  
+            <th style="width:10%">Address</th> 
+			<th style="width:5%">Type</th> 
+			<th style="width:6%">Bill Month</th> 
+            <th style="width:6%">Collection Date</th> 
+            <th style="width:5%">Bill Amount</th> 
+            <th style="width:5%">Collection Amount</th> 
+            <th style="width:5%">Collection Man</th> 
+			</tr>'); 
+            v_sl := 0; 
+            v_tot_col_amt := 0; 
+            for i in (select MEMBERSHIP_NO,CODE_DESC cust_name, 
+                           (select code_desc from g_uni_codes where code = ASSIGNED_COLLECTOR_CODE) collector, 
+                           (select code_desc from g_uni_codes where code = TERRITORY_CODE) area, 
+                           (select code_desc from g_uni_codes where code = SUBSCIBE_TYPE_CODE) subscribe_type, 
+                           INSTALLATION_CHARGE, 
+                           TOTAL_COLL_AMOUNT, 
+                           COLLECTION_DATE, 
+                           MONTHLY_CHARGE 
+                    from g_acc_codes 
+                    where org_id = p_org_id 
+                    and p_code = p_org_id||'0010' 
+                    and ASSIGNED_COLLECTOR_CODE = nvl(p_collector,ASSIGNED_COLLECTOR_CODE) 
+                    and COLLECTION_DATE between p_from_date and p_to_date 
+                    order by MEMBERSHIP_NO 
+                    ) 
+             loop 
+                  v_sl := v_sl + 1; 
+                  v_tot_col_amt := v_tot_col_amt + nvl(i.TOTAL_COLL_AMOUNT,0); 
+                  HTP.p ( '<tr> 
+                            <td style="text-align: center;">'|| HTF.escape_sc (v_sl) 
+                            ||'</td> 
+                            <td style="text-align: center;">'|| HTF.escape_sc (i.MEMBERSHIP_NO) 
+                            ||'</td> 
+                            <td style="text-align: left;">'|| HTF.escape_sc (i.cust_name) 
+                            ||'</td> 
+                            <td style="text-align: left;">'|| HTF.escape_sc (i.area) 
+                            ||'</td> 
+                            <td style="text-align: center;">'|| HTF.escape_sc (i.subscribe_type) 
+                            ||'</td> 
+                            <td style="text-align: right;">'|| HTF.escape_sc (null) 
+                            ||'</td> 
+                            <td style="text-align: center;">'|| HTF.escape_sc (i.COLLECTION_DATE) 
+                            ||'</td> 
+                            <td style="text-align: right;">'|| HTF.escape_sc (null) 
+                            ||'</td> 
+                            <td style="text-align: right;">'|| HTF.escape_sc (to_char(i.TOTAL_COLL_AMOUNT,'99,99,99,999.00')) 
+                            ||'</td> 
+                            <td style="text-align: left;">'|| HTF.escape_sc (i.collector) 
+                            ||'</td> 
+                           <tr>'); 
+            end loop; 
+                 
+ 
+             HTP.p ( 
+                  '<tr> 
+                <td colspan="7" style="text-align: right;"><b>Total</b> :</td> 
+                <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_total,'99,99,999.99')) 
+                ||'</b></td> 
+                <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_tot_col_amt,'99,99,999.99')) 
+                ||'</b></td> 
+               
+                <tr>'); 
+ 
+            htp.p('</table>'); 
+ 
+		--report_utils.footer; 
+    end; 
+
+--********************************
+ 
+    procedure monthly_due_report(p_collector number,p_from_date date,p_to_date date,p_org_id number) 
+    IS 
+    	v_sl number         := 0; 
+    	v_total number      := 0; 
+        v_count number      := 0; 
+        v_tot_col_amt number := 0; 
+	BEGIN 
+		report_utils.header_without_logo(NULL ,'Monthly Due'); 
+        -- htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%">SL</th> 
+			<th style="width:5%">Customer ID</th> 
+			<th style="width:15%">Customer Name</th>  
+            <th style="width:10%">Address</th> 
+			<th style="width:8%">Type</th> 
+			<th style="width:5%">Bill Month</th> 
+            <th style="width:5%">Collection Date</th> 
+            <th style="width:5%">Bill Amount</th> 
+            <th style="width:5%">Collection Amount</th> 
+            <th style="width:5%">Collection Man</th> 
+			</tr>'); 
+            v_sl := 0; 
+            v_tot_col_amt := 0; 
+            for i in (select MEMBERSHIP_NO,CODE_DESC cust_name, 
+                           (select code_desc from g_uni_codes where code = ASSIGNED_COLLECTOR_CODE) collector, 
+                           (select code_desc from g_uni_codes where code = TERRITORY_CODE) area, 
+                           (select code_desc from g_uni_codes where code = SUBSCIBE_TYPE_CODE) subscribe_type, 
+                           INSTALLATION_CHARGE, 
+                           TOTAL_COLL_AMOUNT, 
+                           COLLECTION_DATE, 
+                           MONTHLY_CHARGE 
+                    from g_acc_codes 
+                    where org_id = p_org_id 
+                    and p_code = p_org_id||'0010' 
+                    and ASSIGNED_COLLECTOR_CODE = nvl(p_collector,ASSIGNED_COLLECTOR_CODE) 
+                    and COLLECTION_DATE between p_from_date and p_to_date 
+                    order by MEMBERSHIP_NO 
+                    ) 
+             loop 
+                  v_sl := v_sl + 1; 
+                  v_tot_col_amt := v_tot_col_amt + nvl(i.TOTAL_COLL_AMOUNT,0); 
+                  HTP.p ( '<tr> 
+                            <td style="text-align: center;">'|| HTF.escape_sc (v_sl) 
+                            ||'</td> 
+                            <td style="text-align: center;">'|| HTF.escape_sc (i.MEMBERSHIP_NO) 
+                            ||'</td> 
+                            <td style="text-align: left;">'|| HTF.escape_sc (i.cust_name) 
+                            ||'</td> 
+                            <td style="text-align: left;">'|| HTF.escape_sc (i.area) 
+                            ||'</td> 
+                            <td style="text-align: center;">'|| HTF.escape_sc (i.subscribe_type) 
+                            ||'</td> 
+                            <td style="text-align: right;">'|| HTF.escape_sc (null) 
+                            ||'</td> 
+                            <td style="text-align: center;">'|| HTF.escape_sc (i.COLLECTION_DATE) 
+                            ||'</td> 
+                            <td style="text-align: right;">'|| HTF.escape_sc (null) 
+                            ||'</td> 
+                            <td style="text-align: right;">'|| HTF.escape_sc (to_char(i.TOTAL_COLL_AMOUNT,'99,99,99,999.00')) 
+                            ||'</td> 
+                            <td style="text-align: left;">'|| HTF.escape_sc (i.collector) 
+                            ||'</td> 
+                           <tr>'); 
+            end loop; 
+ 
+             HTP.p ( 
+                  '<tr> 
+                <td colspan="7" style="text-align: right;"><b>Total</b> :</td> 
+                <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_total,'99,99,999.99')) 
+                ||'</b></td> 
+                <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_total,'99,99,999.99')) 
+                ||'</b></td> 
+               
+                <tr>'); 
+ 
+            htp.p('</table>'); 
+ 
+		--report_utils.footer; 
+    end; 
+
+--*******************************
+
+    procedure customer_history(p_from_date date,p_to_date date) 
+    IS 
+    	v_sl number         := 0; 
+    	v_total number      := 0; 
+        v_count number      := 0; 
+	BEGIN 
+		report_utils.header_without_logo(NULL ,'Customer History'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+            htp.p('<div style="margin-left:12%;margin-bottom:20px;"> 
+                    <p><b>Customer ID &emsp;&emsp;:</b><br> 
+                        <b>Customer Name &nbsp;:</b><br> 
+                        <b>Address &emsp;&emsp;&emsp;&emsp;:</b><br> 
+                        <b>Type &emsp;&emsp;&emsp;&emsp;&emsp;&nbsp; :</b></p> 
+                    </div>'); 
+			htp.p('<table style="width:80%;margin-top:20px;margin:auto;"><tr> 
+                            			<th style="width:5%">Date</th> 
+                            			<th style="width:5%">Bill Month</th> 
+                                        <th style="width:5%">Bill Amount</th> 
+                                        <th style="width:5%">Payment</th> 
+                                        <th style="width:5%">Balance</th> 
+                            			</tr>'); 
+ 
+             HTP.p ( 
+                  '<tr> 
+                <td colspan="2" style="text-align: right;"><b>Total</b> :</td> 
+                <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_total,'99,99,999.99')) 
+                ||'</b></td> 
+                <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_total,'99,99,999.99')) 
+                ||'</b></td> 
+               
+                <tr>'); 
+ 
+            htp.p('</table>'); 
+ 
+		--report_utils.footer; 
+    end; 
+ 
+end "COSMIC_PAYMENT_REPORT"; 
+/
+

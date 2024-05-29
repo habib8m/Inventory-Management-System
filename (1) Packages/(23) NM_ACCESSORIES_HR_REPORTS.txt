@@ -1,0 +1,1579 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package        "NM_ACCESSORIES_HR_REPORTS" as 
+    procedure salary_summary_sheet(p_project_code number,p_from_date date,p_to_date date);----page: 330 
+    procedure over_time_summary_sheet(p_project_code number,p_from_date date,p_to_date date); 
+    procedure over_time_report(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_sec_code number,p_desig_code number,p_cid_no number,
+                                    p_pay_type varchar2); 
+    procedure attendance_sheet(p_project_code number,p_from_date date,p_to_date date); 
+    procedure present_report(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_sec_code number,p_desig_code number,p_cid_no number,p_ot_type varchar2); 
+    procedure late_report(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_sec_code number,p_desig_code number,p_cid_no number,p_ot_type varchar2); 
+    procedure job_card_report(p_project_code number,p_emp_id number,p_from_date date,p_to_date date,p_org_id number); 
+    procedure dept_wise_attendence_report(p_project_code number,p_from_date date,p_to_date date); 
+    procedure absent_report(p_project_code number,p_from_date date,p_to_date date,p_org_id NUMBER,p_sec_code number,p_desig_code number,P_CID_NO NUMBER,P_OT_TYPE VARCHAR2); 
+    procedure attendance_register(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_emp_id number,p_sec_code number,
+                                    p_desig_code number,p_cid_no number,p_ot_type varchar2); 
+    procedure section_wise_summary_report_12 (p_company_id number,p_sec_code number,p_from_date date,p_to_date date,p_org_id number);
+end "NM_ACCESSORIES_HR_REPORTS";
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body        "NM_ACCESSORIES_HR_REPORTS" as 
+    procedure salary_summary_sheet(p_project_code number,p_from_date date,p_to_date date) 
+    IS 
+	v_sl                number    := 0; 
+    v_tot_emp       number := 0;
+    v_gr_sal        number := 0;
+    v_net_sal       number := 0;
+    v_pay_sal       number := 0;
+
+ 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(p_project_code ,'SUMEMERY SHEET OF WAGES & SALARY'); 
+        htp.p('<h4 style="margin-top: 10px; text-align: center">For The Month Of : '||htf.escape_sc(to_char(P_from_date,'Month-YYYY'))||'</h4>'); 
+			htp.p('<table style="width:100%"><tr>             
+    			<th style="width:2%">SL</th> 
+    			<th style="width:15%">Description</th> 
+    			<th style="width:8%">Man Power </th>  
+                <th style="width:8%">Gross Salary</th> 
+    			<th style="width:8%">Payable salary</th>  
+    			<th style="width:8%">Deduction</th> 
+                <th style="width:8%">Net Payable</th> 
+                <th style="width:8%">Remarks</th> 
+    			</tr>'); 
+            v_sl := 0;
+            v_tot_emp := 0;
+            v_gr_sal  := 0;
+            v_net_sal := 0;
+            v_pay_sal := 0;
+            for i in ( select CODE,
+                            CODE_DESC,
+                            count(CID_NO) no_of_emp,
+                            sum(GROSS_SALARY)  gross_sal,
+                            sum(gross_pay) pay_salary,
+                            sum(NET_PAY) Net_Payable
+                     from V_SALARY_sheet VS,G_UNI_CODES GI
+                     WHERE VS.SEC_CODE = GI.CODE
+                     AND SALARY_DATE BETWEEN P_FROM_DATE AND P_TO_DATE
+                     group by CODE,CODE_DESC 
+                        ) 
+            loop 
+                v_sl := v_sl + 1; 
+             	 
+                HTP.p ('<tr> 
+                       <td style="text-align: center">' 
+                   || HTF.escape_sc (V_SL) 
+                   || '</td>                  
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (i.CODE_DESC) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.no_of_emp) 
+                   || '</td> 
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (to_char(i.gross_sal,'99,99,99,999')) 
+                   || '</td>                     
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (to_char(i.pay_salary,'99,99,99,999')) 
+                   || '</td> 
+                   <td style="text-align: right">' 
+                   || HTF.escape_sc(null) 
+                   || '</td> 
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (to_char(i.Net_Payable,'99,99,99,999')) 
+                   || '</td> 
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (null) 
+                   || '</td> 
+                    </tr>'); 
+                 v_tot_emp := v_tot_emp + nvl(i.no_of_emp,0);
+                v_gr_sal := v_gr_sal + nvl(i.gross_sal,0);
+                v_net_sal := v_net_sal + nvl(i.Net_Payable,0);
+                v_pay_sal := v_pay_sal + nvl(i.pay_salary,0);
+    	    end loop; 
+        HTP.p ('<tr> 
+            <td colspan="2" style="text-align: right;"><b>Grand Total</b> :</td> 
+           <td><b>'|| HTF.escape_sc (v_tot_emp)
+           ||'</b></td> 
+           <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_gr_sal,'99,99,999')) 
+           ||'</b></td> 
+           <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_pay_sal,'99,99,999')) 
+           ||'</b></td> 
+           <td><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+           ||'</b></td> 
+           <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_net_sal,'99,99,999')) 
+           ||'</b></td> 
+           <td><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+           ||'</b></td>                 
+            </tr>'); 
+        htp.p('</table>'); 
+         HTP.p ('<div style="float:left;margin-bottom:20px;"> 
+                            <p><b>In word:</b> 
+                            ' 
+            ||COM.IN_WORD(v_net_sal) 
+            || '</div>'); 
+ 
+        report_utils.footer; 
+     
+    END; 
+
+--**************************
+ 
+    procedure over_time_summary_sheet(p_project_code number,p_from_date date,p_to_date date) 
+    IS 
+	v_sl                number    := 0; 
+    v_tot_emp           number := 0; 
+    v_gr_sal            number := 0;
+    v_ot_amount         number := 0;
+ 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'SUMEMERY SHEET OF OVER TIME'); 
+        htp.p('<h4 style="margin-top: 10px; text-align: center">For The Month Of : '||htf.escape_sc(to_char(P_from_date,'Month-YYYY'))||'</h4>'); 
+			htp.p('<table style="width:100%"><tr>             
+    			<th style="width:5%">SL</th> 
+    			<th style="width:10%">Description</th> 
+    			<th style="width:10%">Man Power </th>  
+                <th style="width:10%">Gross Salary</th> 
+    			<th style="width:5%">Payable OT</th> 
+    			<th style="width:5%">Net OT</th> 
+                <th style="width:5%">Remarks</th> 
+    			</tr>'); 
+--END IF; 
+            v_sl := 0;
+            v_tot_emp := 0;
+            v_gr_sal := 0;
+            v_ot_amount := 0; 
+ 
+            for i in ( select CODE,CODE_DESC, 
+                            count(CID_NO) no_of_emp,
+                            sum(GROSS_SALARY)  gross_sal,
+                            sum(gross_pay) pay_salary,
+                            sum(NET_PAY) Net_Payable,
+                            SUM(VS.OT_AMOUNT) OT_AMOUNT
+                     from V_SALARY_sheet VS,G_UNI_CODES GI
+                     WHERE VS.SEC_CODE = GI.CODE
+                     AND OT_TYPE = 'Y'
+                     AND NVL(VS.OT_AMOUNT,0) <> 0
+                     AND SALARY_DATE BETWEEN P_FROM_DATE AND P_TO_DATE
+                     group by CODE,CODE_DESC 
+                        ) 
+            loop 
+                v_sl := v_sl + 1; 
+                v_tot_emp := v_tot_emp + nvl(i.no_of_emp,0);
+                v_gr_sal := v_gr_sal + nvl(i.gross_sal,0);
+                v_ot_amount := v_ot_amount + nvl(i.ot_amount,0);
+             	 
+                HTP.p ('<tr> 
+                       <td style="text-align: center">' 
+                   || HTF.escape_sc (V_SL) 
+                   || '</td>                  
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (i.CODE_DESC) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.no_of_emp) 
+                   || '</td> 
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (to_char(i.gross_sal,'99,99,99,999')) 
+                   || '</td>                     
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (to_char(i.OT_AMOUNT,'99,99,99,999')) 
+                   || '</td> 
+                   <td style="text-align: right">' 
+                   || HTF.escape_sc(to_char(i.OT_AMOUNT,'99,99,99,999'))
+                   || '</td> 
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (null) 
+                   || '</td> 
+                    </tr>'); 
+    	end loop; 
+        HTP.p ('<tr> 
+            <td colspan="2" style="text-align: right;"><b>Grand Total</b> :</td> 
+           <td style="text-align: center"><b>'|| HTF.escape_sc (to_char(v_tot_emp,'99,99,999')) 
+           ||'</b></td> 
+           <td style="text-align: right"><b>'|| HTF.escape_sc (to_char(v_gr_sal,'99,99,999')) 
+           ||'</b></td> 
+           <td style="text-align: right"><b>'|| HTF.escape_sc (to_char(v_ot_amount,'99,99,999')) 
+           ||'</b></td> 
+           <td style="text-align: right"><b>'|| HTF.escape_sc (to_char(v_ot_amount,'99,99,999')) 
+           ||'</b></td> 
+           <td><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+           ||'</b></td>                
+            </tr>'); 
+        htp.p('</table>'); 
+         HTP.p ('<div style="float:left;margin-bottom:20px;"> 
+                            <p><b>In word:</b> 
+                            ' 
+            ||COM.IN_WORD(null) 
+            || '</div>'); 
+ 
+        report_utils.footer; 
+     
+    END; 
+
+--**************************
+ 
+    procedure over_time_report(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_sec_code number,p_desig_code number,p_cid_no number,
+                                    p_pay_type varchar2) 
+    is 
+    v_sl                number := 0; 
+    v_sl_g              number := 0; 
+	v_tot_g             number := 0;
+    v_gross_sal         number := 0; 
+    v_gross_sal_g       number := 0;
+    v_ot_rate           number := 0;
+    v_ot_rate_g         number := 0;
+    v_ot_amt            number := 0;
+    v_ot_amt_g          number := 0; 
+    v_count             number := 0; 
+ 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(p_project_code ,'OVER TIME (Factory)'); 
+        htp.p('<h4 style="margin-top: 10px; text-align: center;text-decoration: underline">For The Month Of : '
+                                                                        ||htf.escape_sc(to_char(P_from_date,'Month-YYYY'))||'</h4>'); 
+			htp.p('<table style="width:100%"><tr>             
+    			<th style="width:1%">SL</th> 
+    			<th style="width:4%">ID</th> 
+    			<th style="width:15%">Employee Name</th>  
+                <th style="width:12%">Designation</th> 
+    			<th style="width:4%">Joining Date</th> 
+    			<th style="width:4%">Gross</th> 
+                <th style="width:4%">OT Hour</th> 
+                <th style="width:4%">OT Rate</th> 
+                <th style="width:4%">OT Amount</th> 
+                <th style="width:5%">Signature</th> 
+    			</tr>'); 
+        FOR r in (SELECT CODE, CODE_DESC  
+                                FROM G_UNI_CODES  
+                                WHERE P_CODE = p_org_id||'0003' 
+                                -- AND code = nvl(v_section_code,code) 
+                                AND org_id = p_org_id  ) 
+                    loop 
+                           SELECT COUNT(*) INTO V_COUNT 
+                            from V_SALARY_sheet
+                            where SEC_CODE = r.code
+                            and OT_TYPE = 'Y'
+                            and NVL(OT_AMOUNT,0) <> 0
+                            and sec_code = nvl(p_sec_code,sec_code)
+                            and desig_code = nvl(p_desig_code,desig_code)
+                            and cid_no = nvl(p_cid_no,cid_no)
+                            and pay_type = nvl(p_pay_type,pay_type)
+                            and SALARY_DATE between p_from_date and p_to_date; 
+                    IF V_COUNT > 0 THEN 
+                        HTP.p ('<tr> 
+                                    <td colspan="5"  style="text-align: left;padding-top:4px;padding-bottom:4px;border-right:none;"><b>' 
+                                   || HTF.escape_sc (r.CODE_DESC) 
+                                   || ' Section</b></td>  
+                                <tr>');
+                    end if;
+ 
+            v_sl := 0; 
+            v_gross_sal  := 0;
+            v_ot_rate    := 0;
+            v_ot_amt     := 0;
+        
+            for i in (select rownum,
+                            UID_NO,
+                            EMP_NAME,
+                            DESIG_NAME,
+                            JOINING_DATE,
+                            BASIC_SAL,
+                            HOUSE_RENT,
+                            MEDICAL,
+                            CON_ALLOW_N,
+                            FOOD_ALLOW,
+                            GROSS_SALARY, 
+                            NVL (LEAVE_SL, 0)+ NVL (LEAVE_EL, 0)+ NVL (LEAVE_CL, 0)+ NVL (LEAVE_LWP, 0)+NVL (LEAVE_ML, 0) t_leave,
+                             PRESENT,
+                             gross_pay pay_salary,
+                             ABSENT,
+                             DEDUCT_ABSENT_AMOPUNT absent_deduct,
+                             null Advance_deduct,
+                             NET_PAY,
+                             OT_RATE,
+                             OT_HR,
+                             OT_AMOUNT
+                        from V_SALARY_sheet
+                        where SEC_CODE = r.code
+                        and OT_TYPE = 'Y'
+                        and NVL(OT_AMOUNT,0) <> 0
+                        and sec_code = nvl(p_sec_code,sec_code)
+                        and desig_code = nvl(p_desig_code,desig_code)
+                        and cid_no = nvl(p_cid_no,cid_no)
+                        and pay_type = nvl(p_pay_type,pay_type)
+                        and SALARY_DATE between p_from_date and p_to_date 
+                        ) 
+            loop
+                v_sl          := v_sl + 1;
+                v_sl_g        := v_sl_g + 1;
+                v_gross_sal   := v_gross_sal   + nvl(i.GROSS_SALARY,0);
+                v_gross_sal_g := v_gross_sal_g + nvl(i.GROSS_SALARY,0);
+                v_ot_rate     := v_ot_rate     + nvl(i.OT_RATE,0);
+                v_ot_rate_g   := v_ot_rate_g   + nvl(i.OT_RATE,0);
+                v_ot_amt      := v_ot_amt      + nvl(i.OT_AMOUNT,0); 
+                v_ot_amt_g    := v_ot_amt_g    + nvl(i.OT_AMOUNT,0); 
+             	 
+                HTP.p ('<tr> 
+                       <td style="text-align: center">' 
+                   || HTF.escape_sc (V_SL) 
+                   || '</td>                  
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.UID_NO) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (i.EMP_NAME) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (i.DESIG_NAME) 
+                   || '</td>                     
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (to_char(i.JOINING_DATE,'dd-mm-yy')) 
+                   || '</td> 
+                   <td style="text-align: right">' 
+                   || HTF.escape_sc(to_char(i.GROSS_SALARY,'99,99,99,999')) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.OT_HR) 
+                   || '</td> 
+                    <td style="text-align: CENTER">' 
+                   || HTF.escape_sc (i.OT_RATE) 
+                   || '</td> 
+                   <td style="text-align: right">'
+                   || HTF.escape_sc (to_char(i.OT_AMOUNT,'99,99,99,999')) 
+                   ||'</td> 
+                    <td>'||HTF.escape_sc (null) 
+                   ||'</td>  
+                    </tr>'); 
+    			end loop;
+              IF V_COUNT > 0 THEN  
+                HTP.p ('<tr> 
+                    <td colspan="5" style="text-align: right;"><b>Total '||HTF.escape_sc(r.code_desc)||' Section</b> :</td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_gross_sal,'99,99,999')) 
+                   ||'</b></td>  
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: center;"><b>'|| HTF.escape_sc (to_char(v_ot_rate,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_ot_amt,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                    </tr>');   
+            end if;
+        end loop;    
+         HTP.p ('<tr> 
+                    <td colspan="3" style="text-align: left;"><b>Total Employee : '||(v_sl_g)||'</b> </td> 
+                    <td colspan="2" style="text-align: right;"><b>Grand Total </b> :</td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_gross_sal_g,'99,99,999')) 
+                   ||'</b></td>  
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: center;"><b>'|| HTF.escape_sc (to_char(v_ot_rate_g,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_ot_amt_g,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                    </tr>'); 
+             htp.p('</table>'); 
+     
+    END; 
+
+--**************************
+ 
+    procedure attendance_sheet(p_project_code number,p_from_date date,p_to_date date) 
+    is 
+    v_sl                number    := 0; 
+	v_tot_sl            number    := 0; 
+    v_basic             number    := 0; 
+    v_total_basic       number    := 0; 
+    v_rent              number    := 0; 
+    v_total_rent        number    := 0; 
+    v_conv              number    := 0; 
+    v_total_conv        number    := 0; 
+    v_medical           number    := 0; 
+    v_total_medical     number    := 0; 
+    v_sp_all            number    := 0; 
+    v_total_sp_all      number    := 0; 
+    v_total             number    := 0; 
+    v_g_total           number    := 0; 
+    v_pf                number    := 0; 
+    v_total_pf          number    := 0; 
+    v_gross             number    := 0; 
+    v_total_gross       number    := 0; 
+    v_bonus             number    := 0; 
+    v_total_bonus       number    := 0; 
+    v_advance_d         number    := 0; 
+    v_advance_total_d   number    := 0; 
+    v_tds               number    := 0; 
+    v_total_tds         number    := 0; 
+    v_n_s_payable       number    := 0; 
+    v_n_s_total_payable number    := 0; 
+    v_gross             number    := 0; 
+    v_payable           number    := 0; 
+    v_count             number    := 0; 
+ 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'OVER TIME (Factory)'); 
+ 
+
+ 
+ 
+	        --htp.p('<h3> '||htf.escape_sc(wh.CODE_DESC)||'</h3>'); 
+			htp.p('<table style="width:100%"><tr>             
+    			<th style="width:5%">SL</th> 
+    			<th style="width:5%">ID</th> 
+    			<th style="width:10%">Employee Name</th>  
+                <th style="width:10%">Designation</th> 
+    			<th style="width:5%">Joining Date</th> 
+    			<th style="width:5%">Gross</th> 
+                <th style="width:5%">OT Hour</th> 
+                <th style="width:5%">OT Rate</th> 
+                <th style="width:5%">OT Amount</th> 
+                <th style="width:5%">Signature</th> 
+    			</tr>'); 
+ 
+        report_utils.footer; 
+     
+    END; 
+
+--**************************
+
+    procedure present_report(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_sec_code number,p_desig_code number,p_cid_no number,p_ot_type varchar2) 
+    is 
+    v_sl                number    := 0; 
+	v_tot_sl            number    := 0; 
+    v_basic             number    := 0; 
+    v_count             number    := 0; 
+    v_days             number    := p_to_date-p_from_date+1; 
+ 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Present Report'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		htp.p('<table style="width:100%"><tr>             
+			<th style="width:2%">SL</th> 
+			<th style="width:3%">ID No</th> 
+			<th style="width:10%">Name</th>  
+            <th style="width:12%">Designation</th> 
+			<th style="width:5%">In Time</th> 
+			<th style="width:5%">Out Time</th> 
+            <th style="width:5%">Late</th> 
+            <th style="width:5%">Over Time</th> 
+            <th style="width:10%">Status</th> 
+			</tr>'); 
+
+        if v_days < 1 then v_days := 1; end if;
+       
+        for d in 1..v_days loop
+         v_sl := 0;
+            for j in (select code,code_desc  
+                        from g_uni_codes gi
+                        where gi.code in (select distinct ei.sec_code from emp_info ei where ei.org_id = p_org_id)
+                        and gi.org_id = p_org_id
+                        order by gi.code
+                    ) 
+            loop 
+              select count(*) into v_count
+                    FROM emp_info ei, 
+                     g_uni_codes duc, 
+                     g_uni_codes puc, 
+                     pr_day_wise_attendence pt, 
+                     g_uni_codes pp 
+               WHERE ei.sec_code = duc.code 
+                 AND ei.sec_code = j.code 
+                 AND ei.project_code = pp.code 
+                 AND ei.desig_code = puc.code 
+                 AND ei.cid_no = pt.cid_no 
+                 and ei.org_id = p_org_id 
+                 AND NVL (ei.emp_out, 'N') <> 'Y' 
+                 AND pt.att_status = 1 
+                 and ei.cid_no = nvl(p_cid_no,ei.cid_no)
+                 and ei.ot_type = nvl(p_ot_type,ei.ot_type)
+                --  AND ei.project_code = NVL (:p_project_code, ei.project_code) 
+                --  AND nvl(ei.dept_code,0) = NVL (:p_dept_code, nvl(ei.dept_code,0)) 
+                 AND nvl(ei.sec_code,0) = NVL (p_sec_code, nvl(ei.sec_code,0)) 
+                 AND nvl(ei.desig_code,0) = NVL (p_desig_code, nvl(ei.desig_code,0)) 
+                --  AND NVL(ei.line_code,0) = NVL (:p_line_code, NVL(ei.line_code,0)) 
+                    AND pt.trans_date = p_from_date+d-1 
+                AND pt.trans_date <= NVL (ei.emp_out_date, p_to_date) 
+                AND pt.trans_date >= ei.joining_date 
+            ORDER BY ei.uid_no ASC, 
+                     duc.code_level, 
+                     puc.code_level;
+        if v_count > 0 then
+                HTP.p ('<tr> 
+                            <th colspan="5"  style="text-align: left;padding-top:10px;padding-bottom:10px;border-right:none;">Section: ' 
+                           || HTF.escape_sc (j.CODE_DESC) 
+                           || '</th> 
+                            <th colspan="4"  style="text-align: right;border-left:none;">Attendance Date: ' 
+                           || HTF.escape_sc (p_from_date+d-1) 
+                           || '</th> 
+                        <tr>'); 
+         end if;              
+            for i in (SELECT   pp.code_level project_leve, pp.code_desc project_name, pt.trans_date, 
+                                     duc.code_level sec_level, puc.code_level desig_level, 
+                                     duc.code_desc sec_name, ei.cid_no, '  ' || ei.uid_no emp_code, 
+                                     '  ' || emp_name emp_name, '  ' || puc.code_desc designation, 
+                                     in_time, pt.out_time, 
+                                        TO_CHAR (ROUND (TRUNC((pt.late_min / 60),0), '00')) 
+                                     || ':' 
+                                     || TO_CHAR (ROUND (MOD (pt.late_min, 60)), '00') late, 
+                                        TO_CHAR (ROUND (TRUNC((pt.early_min / 60),0), '00')) 
+                                     || ':' 
+                                     || TO_CHAR (ROUND (MOD (pt.early_min, 60)), '00') early, 
+                                     DECODE (ei.ot_type, 
+                                             'Y', TO_CHAR (ROUND (TRUNC((pt.over_time_min / 60),0), '00')) 
+                                              || ':' 
+                                              || TO_CHAR (ROUND (MOD (pt.over_time_min, 60)), '00'), 
+                                             '' 
+                                            ) over_time, 
+                                        (CASE 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'CL') 
+                                               THEN 'Casual Leave' 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'SL') 
+                                               THEN 'Sick Leave' 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'EL') 
+                                               THEN 'Earn Leave' 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'ML') 
+                                               THEN 'Maternity Leave' 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'LWP') 
+                                               THEN 'Leave Without Pay' 
+                                            WHEN att_status IN (0) 
+                                               THEN 'Absent' 
+                                            WHEN att_status IN (1) 
+                                               THEN    pt.remarks 
+                                                    || DECODE (NVL (late_min, 0), 0, NULL, ' Late') 
+                                            WHEN att_status IN (7) 
+                                               THEN 'Weekend' 
+                                            WHEN att_status IN (8) 
+                                               THEN (SELECT g.description 
+                                                       FROM pr_public_holi_day g 
+                                                      WHERE g.holi_date = trans_date 
+                                                        AND g.project_code = p_project_code
+                                                        ) 
+                                            ELSE NULL 
+                                         END 
+                                        ) 
+                                     || DECODE (NVL (holiday_work, 0), 0, '', ' & Present') 
+                                     || DECODE (TO_CHAR (in_time, 'DDMMRRRRHH24MISS'), 
+                                                NULL, NULL, 
+                                                TO_CHAR (out_time, 'DDMMRRRRHH24MISS'), ' Error Data', 
+                                                NULL 
+                                               ) status 
+                                FROM emp_info ei, 
+                                     g_uni_codes duc, 
+                                     g_uni_codes puc, 
+                                     pr_day_wise_attendence pt, 
+                                     g_uni_codes pp 
+                               WHERE ei.sec_code = duc.code 
+                                 AND ei.sec_code = j.code 
+                                 AND ei.project_code = pp.code 
+                                 AND ei.desig_code = puc.code 
+                                 AND ei.cid_no = pt.cid_no 
+                                 and ei.org_id = p_org_id 
+                                 AND NVL (ei.emp_out, 'N') <> 'Y' 
+                                 AND pt.att_status = 1 
+                                 and ei.cid_no = nvl(p_cid_no,ei.cid_no)
+                                 and nvl(ei.ot_type,'null') = nvl(p_ot_type,nvl(ei.ot_type,'null'))
+                                --  AND ei.project_code = NVL (:p_project_code, ei.project_code) 
+                                --  AND nvl(ei.dept_code,0) = NVL (:p_dept_code, nvl(ei.dept_code,0)) 
+                                 AND nvl(ei.sec_code,0) = NVL (p_sec_code, nvl(ei.sec_code,0)) 
+                                 AND nvl(ei.desig_code,0) = NVL (p_desig_code, nvl(ei.desig_code,0)) 
+                                --  AND NVL(ei.line_code,0) = NVL (:p_line_code, NVL(ei.line_code,0)) 
+                                    AND pt.trans_date = p_from_date+d-1 
+                                AND pt.trans_date <= NVL (ei.emp_out_date, p_to_date) 
+                                AND pt.trans_date >= ei.joining_date 
+                            ORDER BY ei.uid_no ASC, 
+                                     duc.code_level, 
+                                     puc.code_level 
+                                                 ) 
+            loop 
+ 					-- IF upper(i.status) LIKE '%PRESENT%' THEN 
+ 
+                v_sl := v_sl + 1; 
+                HTP.p ('<tr> 
+                       <td style="text-align: center">' 
+                   || HTF.escape_sc (V_SL) 
+                   || '</td>                  
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.emp_code) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (i.emp_name) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (i.designation) 
+                   || '</td>                     
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (to_char(i.in_time,'hh24:mi AM ')) 
+                   || '</td> 
+                   <td style="text-align: CENTER">' 
+                   || HTF.escape_sc(to_char(i.out_time,'hh24:mi AM')) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.late) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.over_time) 
+                   || '</td> 
+                   <td style="text-align: center">'|| HTF.escape_sc (i.status) 
+                   ||'</td> 
+                    </tr>'); 
+                    -- end if;
+    			end loop; 
+             v_sl := 0;
+        	end loop; 
+		END LOOP;
+	    htp.p('</table>');   
+     
+    END; 
+
+--**************************
+
+    procedure late_report(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_sec_code number,p_desig_code number,p_cid_no number,p_ot_type varchar2) 
+    is 
+    v_sl                number    := 0; 
+	v_tot_sl            number    := 0; 
+    v_basic             number    := 0; 
+    v_count             number    := 0; 
+    v_days             number    := p_to_date-p_from_date+1; 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Late Report'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		htp.p('<table style="width:100%"><tr>             
+			<th style="width:2%">SL</th> 
+			<th style="width:5%">ID No</th> 
+			<th style="width:10%">Name</th>  
+            <th style="width:12%">Designation</th> 
+			<th style="width:5%">In Time</th> 
+			<th style="width:5%">Out Time</th> 
+            <th style="width:5%">Late</th> 
+            <th style="width:8%">Status</th> 
+			</tr>'); 
+
+        if v_days < 1 then v_days := 1; end if;
+        for d in 1..v_days loop
+         v_sl := 0;
+            for j in (select code,code_desc  
+                        from g_uni_codes gi
+                        where gi.code in (select distinct ei.sec_code from emp_info ei where ei.org_id = p_org_id)
+                        and gi.org_id = p_org_id
+                        order by gi.code
+                    ) 
+            loop 
+                select count(*) into v_count 
+                    FROM emp_info ei, 
+                         g_uni_codes duc, 
+                         g_uni_codes puc, 
+                         pr_day_wise_attendence pt, 
+                         g_uni_codes pp 
+                   WHERE ei.sec_code = duc.code 
+                   	AND ei.sec_code = j.code 
+                     AND ei.project_code = pp.code 
+                     AND ei.desig_code = puc.code 
+                     and ei.org_id = p_org_id 
+                     AND ei.cid_no = pt.cid_no 
+                     AND NVL (ei.emp_out, 'N') <> 'Y' 
+                     AND ei.project_code = NVL (p_project_code, ei.project_code) 
+                     AND ei.CID_NO = NVL(P_CID_NO,ei.CID_NO)
+                     AND ei.OT_TYPE = NVL(P_OT_TYPE,ei.OT_TYPE)
+                    --  AND NVL (ei.dept_code, 0) = NVL (:p_dept_code, NVL (ei.dept_code, 0)) 
+                     AND NVL (ei.sec_code, 0) = NVL (p_sec_code, NVL (ei.sec_code, 0)) 
+                     AND NVL (ei.desig_code, 0) = NVL (p_desig_code, NVL (ei.desig_code, 0)) 
+                    --  AND NVL (ei.line_code, 0) = NVL (:p_line_code, NVL (ei.line_code, 0)) 
+                     AND  pt.trans_date = p_from_date+d-1  
+                   AND pt.trans_date <= NVL (ei.emp_out_date, p_to_date) 
+                     AND pt.trans_date >= ei.joining_date 
+                ORDER BY ei.uid_no ASC, 
+                         duc.code_level, 
+                         puc.code_level  ;
+
+            if v_count > 0 then
+                HTP.p ('<tr> 
+                            <th colspan="4"  style="text-align: left;border-right:none;padding-top:10px;padding-bottom:10px;">Section: ' 
+                           || HTF.escape_sc (j.CODE_DESC) 
+                           || '</th> 
+                            <th colspan="4"  style="text-align: right;border-left:none;">Attendance Date: ' 
+                           || HTF.escape_sc (p_from_date+d-1) 
+                           || '</th> 
+                        <tr>'); 
+             end if;                     
+            for i in (SELECT   pp.code_level project_leve, pp.code_desc project_name, pt.trans_date, 
+                                     duc.code_level sec_level, puc.code_level desig_level, 
+                                     duc.code_desc sec_name, ei.cid_no, '  ' || ei.uid_no emp_code, 
+                                     '  ' || emp_name emp_name, '  ' || puc.code_desc designation, 
+                                     in_time, pt.out_time, 
+                                        TO_CHAR (ROUND (TRUNC ((pt.late_min / 60), 0), '00')) 
+                                     || ':' 
+                                     || TO_CHAR (ROUND (MOD (pt.late_min, 60)), '00') late, 
+                                        TO_CHAR (ROUND (TRUNC ((pt.early_min / 60), 0), '00')) 
+                                     || ':' 
+                                     || TO_CHAR (ROUND (MOD (pt.early_min, 60)), '00') early, 
+                                     DECODE (ei.ot_type, 
+                                             'Y', TO_CHAR (ROUND (TRUNC ((pt.over_time_min / 60), 0), 
+                                                                  '00' 
+                                                                 ) 
+                                                          ) 
+                                              || ':' 
+                                              || TO_CHAR (ROUND (MOD (pt.over_time_min, 60)), '00'), 
+                                             '' 
+                                            ) over_time, 
+                                        (CASE 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'CL') 
+                                               THEN 'Casual Leave' 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'SL') 
+                                               THEN 'Sick Leave' 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'EL') 
+                                               THEN 'Earn Leave' 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'ML') 
+                                               THEN 'Maternity Leave' 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'LWP') 
+                                               THEN 'Leave Without Pay' 
+                                            WHEN att_status IN (0) 
+                                               THEN 'Absent' 
+                                            WHEN att_status IN (1) 
+                                               THEN    pt.remarks 
+                                                    || DECODE (NVL (late_min, 0), 0, NULL, ' Late') 
+                                            WHEN att_status IN (7) 
+                                               THEN 'Weekend' 
+                                            WHEN att_status IN (8) 
+                                               THEN (SELECT g.description 
+                                                       FROM pr_public_holi_day g 
+                                                      WHERE g.holi_date = trans_date 
+                                                        AND g.project_code = p_project_code) 
+                                            ELSE NULL 
+                                         END 
+                                        ) 
+                                     || DECODE (NVL (holiday_work, 0), 0, '', ' & Present') 
+                                     || DECODE (TO_CHAR (in_time, 'DDMMRRRRHH24MISS'), 
+                                                NULL, NULL, 
+                                                TO_CHAR (out_time, 'DDMMRRRRHH24MISS'), ' Error Data', 
+                                                NULL 
+                                               ) status 
+                                FROM emp_info ei, 
+                                     g_uni_codes duc, 
+                                     g_uni_codes puc, 
+                                     pr_day_wise_attendence pt, 
+                                     g_uni_codes pp 
+                               WHERE ei.sec_code = duc.code 
+                               	AND ei.sec_code = j.code 
+                                 AND ei.project_code = pp.code 
+                                 AND ei.desig_code = puc.code 
+                                 and ei.org_id = p_org_id 
+                                 AND ei.cid_no = pt.cid_no 
+                                 AND NVL (ei.emp_out, 'N') <> 'Y' 
+                                 AND ei.project_code = NVL (p_project_code, ei.project_code) 
+                                 AND ei.CID_NO = NVL(P_CID_NO,ei.CID_NO)
+                                 AND ei.OT_TYPE = NVL(P_OT_TYPE,ei.OT_TYPE)
+                                --  AND NVL (ei.dept_code, 0) = NVL (:p_dept_code, NVL (ei.dept_code, 0)) 
+                                 AND NVL (ei.sec_code, 0) = NVL (p_sec_code, NVL (ei.sec_code, 0)) 
+                                 AND NVL (ei.desig_code, 0) = NVL (p_desig_code, NVL (ei.desig_code, 0)) 
+                                --  AND NVL (ei.line_code, 0) = NVL (:p_line_code, NVL (ei.line_code, 0)) 
+                                 AND  pt.trans_date = p_from_date+d-1  
+                               AND pt.trans_date <= NVL (ei.emp_out_date, p_to_date) 
+                                 AND pt.trans_date >= ei.joining_date 
+                            ORDER BY ei.uid_no ASC, 
+                                     duc.code_level, 
+                                     puc.code_level 
+                        ) 
+            loop 
+ 					IF upper(i.status) LIKE '%LATE%' THEN 
+	                    v_sl := v_sl + 1; 
+	                 	 
+	                    HTP.p ('<tr> 
+	                           <td style="text-align: center">' 
+	                       || HTF.escape_sc (V_SL) 
+	                       || '</td>                  
+	                        <td style="text-align: center">' 
+	                       || HTF.escape_sc (i.emp_code) 
+	                       || '</td> 
+	                        <td style="text-align: Left">' 
+	                       || HTF.escape_sc (i.EMP_NAME) 
+	                       || '</td> 
+	                        <td style="text-align: Left">' 
+	                       || HTF.escape_sc (i.Designation) 
+	                       || '</td>                     
+	                        <td style="text-align: center">' 
+	                       || HTF.escape_sc (to_char(i.in_time,'hh24:mi AM')) 
+	                       || '</td> 
+	                       <td style="text-align: center">' 
+	                       || HTF.escape_sc(to_char(i.out_time,'hh24:mi AM')) 
+	                       || '</td> 
+	                        <td style="text-align: center">' 
+	                       || HTF.escape_sc (i.late) 
+	                       || '</td> 
+	                        <td style="text-align: center">' 
+	                       || HTF.escape_sc (i.status) 
+	                       || '</td> 
+	                        </tr>'); 
+	                  END IF;
+    			end loop; 
+                v_sl := 0;
+            end loop;           
+		END LOOP;
+		htp.p('</table>');              
+    END; 
+
+--**************************
+
+    procedure job_card_report(p_project_code number,p_emp_id number,p_from_date date,p_to_date date,p_org_id number) 
+    is 
+    v_sl            number    := 0; 
+	v_present       number    := 0; 
+    v_absent        number    := 0; 
+    v_late          number    := 0; 
+    v_total_days    number    := 0; 
+    v_leave         number    := 0; 
+    v_ot_hour       number    := 0; 
+    v_ot_min        number    := 0;
+    v_salry_title   varchar2(200); 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Job Card Report'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+        for j in (select  ei.uid_no, 
+                          ei.emp_name, 
+                          ei.joining_date, 
+                          (select code_desc from g_uni_codes where code = ei.dept_code)dept, 
+                          (select code_desc from g_uni_codes where code = ei.desig_code)desig, 
+                          (select code_desc from g_uni_codes where code = ei.sec_code)section, 
+                          (select code_desc from g_uni_codes where code = ei.shift_code)shift, 
+                          (select code_desc from g_uni_codes where code = ei.line_code)line 
+                    from emp_info ei
+                    where ei.org_id = p_org_id   
+                     AND NVL (ei.emp_out, 'N') <> 'Y' 
+                     AND ei.project_code = NVL (p_project_code, ei.project_code)  
+                     AND ei.cid_no = p_emp_id 
+                    ) 
+        loop 
+        htp.p('<div style="margin-bottom:10px;width:100%;"> 
+                    <table style="border:none;width:100%;font-size:12px;"> 
+                        <tr style="border:none;"> 
+                          <td style="border:none;text-align:left;">Card No.&emsp; &emsp;:'|| HTF.escape_sc (j.uid_no)|| '</td> 
+                        </tr> 
+                        <tr style="border:none;"> 
+                          <td style="border:none;text-align:left;">Name&emsp; &emsp; &emsp;:'|| HTF.escape_sc (j.emp_name)|| '</td> 
+                          <td style="border:none;"></td> 
+                          <td style="border:none;text-align:center;">Joining Date&emsp;:'|| HTF.escape_sc (j.joining_date)|| '</td> 
+                        </tr> 
+                        <tr style="border:none;"> 
+                          <td style="border:none;text-align:left;">Designation&emsp;:'|| HTF.escape_sc (j.desig)|| '</td> 
+                          <td style="border:none;"></td> 
+                          <td style="border:none;text-align:center;">Department&emsp;:'|| HTF.escape_sc (j.dept)|| '</td> 
+                        </tr> 
+                    </table> 
+                </div>'); 
+        end loop;  
+			htp.p('<table style="width:100%;font-size:12px;"><tr>             
+    			<th style="width:1%">SL</th> 
+    			<th style="width:6%">Date</th> 
+    			<th style="width:5%">Day</th>  
+    			<th style="width:5%">In Time</th> 
+    			<th style="width:5%">Out Time</th> 
+                <th style="width:5%">Late</th> 
+                <th style="width:5%">Early</th> 
+                <th style="width:5%">Over Time</th> 
+                <th style="width:5%">Status</th> 
+    			</tr>'); 
+            v_sl := 0; 
+ 
+            for i in (SELECT   pp.code_level project_leve, pp.code_desc project_name, pt.trans_date,to_char(pt.trans_date,'Dy') day, 
+                                     duc.code_level sec_level, puc.code_level desig_level, 
+                                     duc.code_desc sec_name, ei.cid_no, '  ' || ei.uid_no emp_code, 
+                                     '  ' || emp_name emp_name, '  ' || puc.code_desc designation, 
+                                     in_time, pt.out_time, 
+                                        TO_CHAR (ROUND (TRUNC ((pt.late_min / 60), 0), '00')) 
+                                     || ':' 
+                                     || TO_CHAR (ROUND (MOD (pt.late_min, 60)), '00') late, 
+                                        TO_CHAR (ROUND (TRUNC ((pt.early_min / 60), 0), '00')) 
+                                     || ':' 
+                                     || TO_CHAR (ROUND (MOD (pt.early_min, 60)), '00') early, 
+                                     DECODE (ei.ot_type, 
+                                             'Y', TO_CHAR (ROUND (TRUNC ((pt.over_time_min / 60), 0), 
+                                                                  '00' 
+                                                                 ) 
+                                                          ) 
+                                              || ':' 
+                                              || TO_CHAR (ROUND (MOD (pt.over_time_min, 60)), '00'), 
+                                             '' 
+                                            ) over_time, 
+                                        (CASE 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'CL') 
+                                               THEN 'Casual Leave' 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'SL') 
+                                               THEN 'Sick Leave' 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'EL') 
+                                               THEN 'Earn Leave' 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'ML') 
+                                               THEN 'Maternity Leave' 
+                                            WHEN att_status IN (SELECT leave_type_id 
+                                                                  FROM leave_type_info 
+                                                                 WHERE leave_type = 'LWP') 
+                                               THEN 'Leave Without Pay' 
+                                            WHEN att_status IN (0) 
+                                               THEN 'Absent' 
+                                            WHEN att_status IN (1) 
+                                               THEN    pt.remarks 
+                                                    || DECODE (NVL (late_min, 0), 0, NULL, ' Late') 
+                                            WHEN att_status IN (7) 
+                                               THEN 'Weekend' 
+                                            WHEN att_status IN (8) 
+                                               THEN (SELECT g.description 
+                                                       FROM pr_public_holi_day g 
+                                                      WHERE g.holi_date = trans_date 
+                                                        AND g.project_code = p_project_code
+                                                        ) 
+                                            ELSE NULL 
+                                         END 
+                                        ) 
+                                     || DECODE (NVL (holiday_work, 0), 0, '', ' & Present') 
+                                     || DECODE (TO_CHAR (in_time, 'DDMMRRRRHH24MISS'), 
+                                                NULL, NULL, 
+                                                TO_CHAR (out_time, 'DDMMRRRRHH24MISS'), ' Error Data', 
+                                                NULL 
+                                               ) status 
+                                FROM emp_info ei, 
+                                     g_uni_codes duc, 
+                                     g_uni_codes puc, 
+                                     pr_day_wise_attendence pt, 
+                                     g_uni_codes pp 
+                               WHERE ei.sec_code = duc.code 
+                                 AND ei.project_code = pp.code 
+                                 AND ei.desig_code = puc.code 
+                                 and ei.org_id = p_org_id 
+                                 AND ei.cid_no = pt.cid_no 
+                                 AND NVL (ei.emp_out, 'N') <> 'Y' 
+                                 AND ei.project_code = NVL (p_project_code, ei.project_code)  
+                                 AND ei.cid_no = p_emp_id 
+                                --  AND NVL (ei.dept_code, 0) = NVL (:p_dept_code, NVL (ei.dept_code, 0)) 
+                                --  AND NVL (ei.sec_code, 0) = NVL (:p_sec_code, NVL (ei.sec_code, 0)) 
+                                --  AND NVL (ei.desig_code, 0) = NVL (:p_desig_code, NVL (ei.desig_code, 0)) 
+                                --  AND NVL (ei.line_code, 0) = NVL (:p_line_code, NVL (ei.line_code, 0)) 
+                                 AND pt.trans_date BETWEEN p_from_date AND p_to_date 
+                               AND pt.trans_date <= NVL (ei.emp_out_date, p_to_date) 
+                                 AND pt.trans_date >= ei.joining_date 
+                            ORDER BY pp.code_level ASC, 
+                                     pp.code_desc DESC, 
+                                     pt.trans_date ASC, 
+                                     ei.uid_no ASC, 
+                                     duc.code_level, 
+                                     puc.code_level 
+                                                    ) 
+            loop 
+ 
+                v_sl := v_sl + 1; 
+                --v_absent := v_absent + 1; 
+
+                v_absent := case when i.status = 'Absent' then v_absent + 1 else v_absent + 0 end;
+                v_late := case when i.status = 'Late' then v_late + 1 else v_late + 0 end;
+                v_leave := case when i.status = 'Leave' then v_leave + 1 else v_leave + 0 end;
+                v_ot_min := v_ot_min + (substr(i.over_time,1,instr(i.over_time,':')-1)*60+substr(i.over_time,instr(i.over_time,':')+1,3));
+                
+             	 
+                HTP.p ('<tr> 
+                       <td style="text-align: center">' 
+                   || HTF.escape_sc (V_SL) 
+                   || '</td>                  
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (to_char(i.trans_date,'dd-mm-yy')) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.day) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (to_char(i.IN_TIME,'hh24:mi AM')) 
+                   || '</td>                     
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (to_char(i.OUT_TIME,'hh24:mi AM')) 
+                   || '</td> 
+                   <td style="text-align: CENTER">' 
+                   || HTF.escape_sc(I.late) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.early) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.over_time) 
+                   || '</td> 
+                   <td style="text-align: center">'|| HTF.escape_sc (i.status) 
+                   ||'</td> 
+                    </tr>'); 
+    			end loop; 
+                      v_total_days :=  v_sl;
+                      v_present :=  v_total_days-(v_absent+v_late);
+                      v_ot_hour :=  trunc(v_ot_min/60);
+                      v_ot_min :=  v_ot_min - (v_ot_hour*60);
+             htp.p('</table>');     
+		htp.p('<div style="margin:auto;border-style: dotted;width:300px;hight:50px;margin-top:20px;"> 
+                    <table style="width:60%;border:none;margin:auto;">
+                       <tr style="width:100%;border:none;">
+                            <th style="text-align:left;border:none;">Total Present :</th>
+                            <th style="text-align:right;border:none;">'|| HTF.escape_sc (v_present)|| '</th>
+                        </tr> 
+                       <tr style="width:100%;border:none;">
+                            <th style="text-align:left;border:none;">Total Absent :</th> 
+                            <th style="text-align:right;border:none;">'|| HTF.escape_sc (v_absent)|| '</th> 
+                        </tr>
+                       <tr style="width:100%;border:none;">
+                            <th style="text-align:left;border:none;">Total Late :</th>
+                            <th style="text-align:right;border:none;">'|| HTF.escape_sc (v_late)|| '</th>
+                        </tr>
+                       <tr style="width:100%;border:none;"> 
+                            <th style="text-align:left;border:none;">Total OT Hour :</h>
+                            <th style="text-align:right;border:none;">'|| HTF.escape_sc (v_ot_hour||':'||v_ot_min)|| '</h>
+                        </tr>
+                       <tr style="width:100%;border:none;"> 
+                            <th style="text-align:left;border:none;">Total Leave :</th> 
+                            <th style="text-align:right;border:none;">'|| HTF.escape_sc (v_leave)|| '</th> 
+                        </tr>
+                    </table>
+                </div>'); 
+     
+    END; 
+
+--**************************
+
+    procedure dept_wise_attendence_report(p_project_code number,p_from_date date,p_to_date date) 
+    is 
+    v_sl                number    := 0; 
+	v_tot_sl            number    := 0; 
+    v_basic             number    := 0; 
+    v_total_basic       number    := 0; 
+    v_rent              number    := 0; 
+    v_total_rent        number    := 0; 
+    v_conv              number    := 0; 
+    v_total_conv        number    := 0; 
+    v_medical           number    := 0; 
+    v_total_medical     number    := 0; 
+    v_sp_all            number    := 0; 
+    v_total_sp_all      number    := 0; 
+    v_total             number    := 0; 
+    v_g_total           number    := 0; 
+    v_pf                number    := 0; 
+    v_total_pf          number    := 0; 
+    v_gross             number    := 0; 
+    v_total_gross       number    := 0; 
+    v_bonus             number    := 0; 
+    v_total_bonus       number    := 0; 
+    v_advance_d         number    := 0; 
+    v_advance_total_d   number    := 0; 
+    v_tds               number    := 0; 
+    v_total_tds         number    := 0; 
+    v_n_s_payable       number    := 0; 
+    v_n_s_total_payable number    := 0; 
+    v_gross             number    := 0; 
+    v_payable           number    := 0; 
+    v_count             number    := 0; 
+ 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Dept. Wise Attendence Report'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+
+			htp.p('<table style="width:100%"><tr>             
+    			<th rowspan="2" style="width:5%">Dept.</th> 
+    			<th rowspan="2" style="width:5%">Section & Line</th> 
+    			<th rowspan="2" style="width:10%">Designation</th>  
+    			<th colspan="3" style="width:5%">Present</th> 
+    			<th colspan="3" style="width:5%">Absent</th> 
+                <th rowspan="2" style="width:5%">Off Day</th> 
+                <th rowspan="2" style="width:5%">Total</th> 
+    			</tr>'); 
+            htp.p('<tr>            
+    			<th rowspan="1" style="width:5%">Male</th> 
+    			<th rowspan="1" style="width:5%">Female</th> 
+    			<th rowspan="1" style="width:5%">Total</th> 
+    			<th rowspan="1" style="width:5%">Male</th> 
+    			<th rowspan="1" style="width:5%">Female</th> 
+    			<th rowspan="1" style="width:5%">Total</th> 
+                    </tr>'); 
+     
+    END; 
+
+--**************************
+
+    procedure absent_report(p_project_code number,p_from_date date,p_to_date DATE,p_org_id NUMBER,p_sec_code number,p_desig_code number,P_CID_NO NUMBER,P_OT_TYPE VARCHAR2) 
+    is 
+    v_sl                number    := 0; 
+	v_tot_sl            number    := 0; 
+    v_basic             number    := 0;  
+    v_count             number    := 0; 
+ v_days             number    := p_to_date-p_from_date+1; 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Absent Report'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		htp.p('<table style="width:100%;font-size:12px;"><tr>             
+			<th style="width:2%">SL</th> 
+			<th style="width:4%">ID No</th> 
+			<th style="width:10%">Name</th>  
+            <th style="width:10%">Designation</th> 
+            <th style="width:5%">Status</th> 
+			</tr>'); 
+
+        if v_days < 1 then v_days := 1; end if;
+        for d in 1..v_days loop
+         v_sl := 0;
+            for j in (select code,code_desc  
+                        from g_uni_codes gi
+                        where gi.code in (select distinct ei.sec_code from emp_info ei where ei.org_id = p_org_id)
+                        and gi.org_id = p_org_id
+                        order by gi.code
+                    ) 
+            loop 
+                   select count(*) into v_count
+                        FROM emp_info ei, 
+                             g_uni_codes duc, 
+                             g_uni_codes puc, 
+                             pr_day_wise_attendence pt, 
+                             g_uni_codes pp 
+                       WHERE ei.sec_code = duc.code 
+                         AND ei.sec_code = j.code 
+                         AND ei.project_code = pp.code 
+                         AND ei.desig_code = puc.code 
+                         and ei.org_id = p_org_id 
+                         AND ei.cid_no = pt.cid_no 
+                         and ei.sec_code = j.code
+                         AND NVL (ei.emp_out, 'N') <> 'Y' 
+                         AND ei.project_code = NVL (p_project_code, ei.project_code)
+                         AND ei.CID_NO = NVL(P_CID_NO,EI.CID_NO)
+                         AND ei.OT_TYPE = NVL(P_OT_TYPE,ei.OT_TYPE) 
+                        --  AND NVL (ei.dept_code, 0) = NVL (:p_dept_code, NVL (ei.dept_code, 0)) 
+                         AND NVL (ei.sec_code, 0) = NVL (p_sec_code, NVL (ei.sec_code, 0)) 
+                         AND NVL (ei.desig_code, 0) = NVL (p_desig_code, NVL (ei.desig_code, 0)) 
+                        --  AND NVL (ei.line_code, 0) = NVL (:p_line_code, NVL (ei.line_code, 0)) 
+                         AND pt.trans_date = p_from_date+d-1 
+                         AND pt.trans_date <= NVL (ei.emp_out_date, p_to_date) 
+                         AND pt.trans_date >= ei.joining_date 
+                    ORDER BY ei.uid_no ASC, 
+                             duc.code_level, 
+                             puc.code_level;
+            if v_count > 0 then
+                HTP.p ('<tr style=""> 
+                            <th colspan="3"  style="text-align: left;border:none;padding-top:10px;padding-bottom:10px;">Section: ' 
+                           || HTF.escape_sc (j.CODE_DESC) 
+                           || '</th> 
+                            <th colspan="4"  style="text-align: right;border:none;">Attendance Date: ' 
+                           || HTF.escape_sc (p_from_date+d-1) 
+                           || '</th> 
+                        <tr>'); 
+            end if;
+                for i in (SELECT   pp.code_level project_leve, pp.code_desc project_name, pt.trans_date, 
+                                         duc.code_level sec_level, puc.code_level desig_level, 
+                                         duc.code_desc sec_name, ei.cid_no, '  ' || ei.uid_no emp_code, 
+                                         '  ' || emp_name emp_name, '  ' || puc.code_desc designation, 
+                                         in_time, pt.out_time, 
+                                            TO_CHAR (ROUND (TRUNC ((pt.late_min / 60), 0), '00')) 
+                                         || ':' 
+                                         || TO_CHAR (ROUND (MOD (pt.late_min, 60)), '00') late, 
+                                            TO_CHAR (ROUND (TRUNC ((pt.early_min / 60), 0), '00')) 
+                                         || ':' 
+                                         || TO_CHAR (ROUND (MOD (pt.early_min, 60)), '00') early, 
+                                         DECODE (ei.ot_type, 
+                                                 'Y', TO_CHAR (ROUND (TRUNC ((pt.over_time_min / 60), 0), 
+                                                                      '00' 
+                                                                     ) 
+                                                              ) 
+                                                  || ':' 
+                                                  || TO_CHAR (ROUND (MOD (pt.over_time_min, 60)), '00'), 
+                                                 '' 
+                                                ) over_time, 
+                                            (CASE 
+                                                WHEN att_status IN (SELECT leave_type_id 
+                                                                      FROM leave_type_info 
+                                                                     WHERE leave_type = 'CL') 
+                                                   THEN 'Casual Leave' 
+                                                WHEN att_status IN (SELECT leave_type_id 
+                                                                      FROM leave_type_info 
+                                                                     WHERE leave_type = 'SL') 
+                                                   THEN 'Sick Leave' 
+                                                WHEN att_status IN (SELECT leave_type_id 
+                                                                      FROM leave_type_info 
+                                                                     WHERE leave_type = 'EL') 
+                                                   THEN 'Earn Leave' 
+                                                WHEN att_status IN (SELECT leave_type_id 
+                                                                      FROM leave_type_info 
+                                                                     WHERE leave_type = 'ML') 
+                                                   THEN 'Maternity Leave' 
+                                                WHEN att_status IN (SELECT leave_type_id 
+                                                                      FROM leave_type_info 
+                                                                     WHERE leave_type = 'LWP') 
+                                                   THEN 'Leave Without Pay' 
+                                                WHEN att_status IN (0) 
+                                                   THEN 'Absent' 
+                                                WHEN att_status IN (1) 
+                                                   THEN    pt.remarks 
+                                                        || DECODE (NVL (late_min, 0), 0, NULL, ' Late') 
+                                                WHEN att_status IN (7) 
+                                                   THEN 'Weekend' 
+                                                WHEN att_status IN (8) 
+                                                   THEN (SELECT g.description 
+                                                           FROM pr_public_holi_day g 
+                                                          WHERE g.holi_date = trans_date 
+                                                            AND g.project_code = p_project_code) 
+                                                ELSE NULL 
+                                             END 
+                                            ) 
+                                         || DECODE (NVL (holiday_work, 0), 0, '', ' & Present') 
+                                         || DECODE (TO_CHAR (in_time, 'DDMMRRRRHH24MISS'), 
+                                                    NULL, NULL, 
+                                                    TO_CHAR (out_time, 'DDMMRRRRHH24MISS'), ' Error Data', 
+                                                    NULL 
+                                                   ) status 
+                                    FROM emp_info ei, 
+                                         g_uni_codes duc, 
+                                         g_uni_codes puc, 
+                                         pr_day_wise_attendence pt, 
+                                         g_uni_codes pp 
+                                   WHERE ei.sec_code = duc.code 
+                                     AND ei.sec_code = j.code 
+                                     AND ei.project_code = pp.code 
+                                     AND ei.desig_code = puc.code 
+                                     and ei.org_id = p_org_id 
+                                     AND ei.cid_no = pt.cid_no 
+                                     and ei.sec_code = j.code
+                                     AND NVL (ei.emp_out, 'N') <> 'Y' 
+                                     AND ei.project_code = NVL (p_project_code, ei.project_code) 
+                                     AND ei.CID_NO = NVL(P_CID_NO,EI.CID_NO)
+                                     AND ei.OT_TYPE = NVL(P_OT_TYPE,ei.OT_TYPE)
+                                    --  AND NVL (ei.dept_code, 0) = NVL (:p_dept_code, NVL (ei.dept_code, 0)) 
+                                     AND NVL (ei.sec_code, 0) = NVL (p_sec_code, NVL (ei.sec_code, 0)) 
+                                     AND NVL (ei.desig_code, 0) = NVL (p_desig_code, NVL (ei.desig_code, 0)) 
+                                    --  AND NVL (ei.line_code, 0) = NVL (:p_line_code, NVL (ei.line_code, 0)) 
+                                     AND pt.trans_date = p_from_date+d-1 
+                                     AND pt.trans_date <= NVL (ei.emp_out_date, p_to_date) 
+                                     AND pt.trans_date >= ei.joining_date 
+                                ORDER BY ei.uid_no ASC, 
+                                         duc.code_level, 
+                                         puc.code_level 
+                            ) 
+                loop 
+     				IF i.status = 'Absent' THEN 
+	                    v_sl := v_sl + 1; 
+	                    HTP.p ('<tr> 
+	                           <td style="text-align: center">' 
+	                       || HTF.escape_sc (V_SL) 
+	                       || '</td>                  
+	                        <td style="text-align: center">' 
+	                       || HTF.escape_sc (i.emp_code) 
+	                       || '</td> 
+	                        <td style="text-align: Left">' 
+	                       || HTF.escape_sc (i.emp_name) 
+	                       || '</td> 
+	                        <td style="text-align: Left">' 
+	                       || HTF.escape_sc (i.designation) 
+	                       || '</td>                                             
+	                       <td style="text-align: center">'|| HTF.escape_sc (i.status) 
+	                       ||'</td> 
+	                        </tr>');
+	                END IF;
+        		end loop; 
+                v_sl := 0;
+           end loop;
+        end loop;    
+        htp.p('</table>');   
+     
+    END; 
+
+--**************************
+
+    procedure attendance_register(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_emp_id number,p_sec_code number,
+                                    p_desig_code number,p_cid_no number,p_ot_type varchar2) 
+    is 
+    v_sl                number    := 0; 
+	v_tot_sl            number    := 0; 
+    v_count             number    := 0; 
+ 	v_days NUMBER := p_to_date-p_from_date+1;
+	v_salry_title varchar2(200)	; 
+	v_day_status varchar2(200)	; 
+	v_attendance_cnt number :=0;
+	v_absent_cnt number :=0;
+	v_leave_cnt number :=0;
+	v_gh_cnt number :=0;
+	v_late_cnt number :=0;
+	v_pay_days_cnt number :=0;
+	v_ot1 number :=0;
+	v_ot2 number :=0;
+	v_ot3 number :=0;
+	v_ot_total number :=0;
+	v_ATT_STATUS number :=0;
+	v_FAC_OT_MIN NUMBER := 0;
+	v_LATE_MIN NUMBER := 0;
+	BEGIN 
+		report_utils.header_without_boarder(p_project_code ,'Attendance Register');         
+        -- htp.p('<h4 style="margin-top: 0px; text-align: center">Attendance Register for the month of '||htf.escape_sc(to_char(P_To_date,'fmMonth-YYYY'))||'</h4>');
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>');  
+        
+        for j in (select code,code_desc  
+                        from g_uni_codes gi
+                        where gi.code in (select distinct ei.sec_code from emp_info ei where ei.org_id = p_org_id)
+                        and gi.org_id = p_org_id
+                        and code = nvl(p_sec_code,code)
+                        order by gi.code
+                    ) 
+            loop 
+              
+                HTP.p ('<table style="width:100%;font-size:12px;"><tr> 
+                            <th style="width:100%;text-align: left;">Section: ' 
+                           || HTF.escape_sc (j.CODE_DESC) 
+                           || '</th> 
+                        <tr></table>'); 
+       
+		htp.p('<table style="width:100%;font-size:11px;"><tr>             
+			<th style="width:1%">SL</th> 
+			<th style="width:3%">Card No</th> 
+			<th style="width:12%">Name</th>  
+            <th style="width:18%">Desig</th> 
+            <th style="width:8%">J. Date</th>');
+       
+        if v_days < 1 then v_days := 1; end if;
+       
+        for d IN 1..v_days
+        loop
+            htp.p('<th>'||htf.escape_sc(d)||'</th>');
+        end loop;
+        htp.p('<th style="width:1%">Attn.<br>Days</th> 
+            <th style="width:1%">Ab</th> 
+            <th style="width:1%">Leave</th> 
+            <th style="width:1%">G.H</th> 
+            <th style="width:1%">Late</th> 
+            <th style="width:1%">Pay<br>Days</th> 
+            <th style="width:1%">OT</th> 
+            <th style="width:1%">Total</th> 
+            <th style="width:1%">Singnature</th> 
+			</tr>');
+		
+		 v_sl := 0; 
+		
+ 			FOR e IN (SELECT ei.uid_no, ei.cid_no,
+                             EI.UID_NO_OLD,
+                               ei.emp_name, 
+                               ei.joining_date, 
+                               desig.code_desc desig_name
+                      FROM emp_info ei LEFT JOIN  
+                           g_uni_codes desig ON  ei.DESIG_CODE = desig.code
+                      WHERE ei.sec_code = j.code
+                      AND NVL (ei.emp_out, 'N') <> 'Y'
+                      and ei.sec_code = nvl(p_sec_code,ei.sec_code)
+                      and ei.desig_code = nvl(p_desig_code,ei.desig_code)
+                      and ei.cid_no = nvl(p_cid_no,ei.cid_no)
+                      and ei.ot_type = nvl(p_ot_type,ei.ot_type) 
+                      and ei.org_id = p_org_id 
+                      ) loop
+    	        v_sl := v_sl + 1; 
+             	v_attendance_cnt  :=0;
+				v_absent_cnt  :=0;
+				v_leave_cnt  :=0;
+				v_gh_cnt  :=0;
+				v_late_cnt  :=0;
+				v_pay_days_cnt  :=0;
+				v_ot1  :=0;
+				v_ot2  :=0;
+				v_ot3  :=0;
+				v_ot_total  :=0;
+				v_ATT_STATUS  :=0;
+				v_FAC_OT_MIN  := 0;
+				v_LATE_MIN  := 0;
+			
+                HTP.p ('<tr> 
+                       <td style="text-align: center">' 
+                   || HTF.escape_sc (V_SL) 
+                   || '</td>                  
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (e.uid_no) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (e.EMP_NAME) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (e.desig_name) 
+                   || '</td>                     
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (to_char(e.JOINING_DATE,'dd-mm-yy')) 
+                   || '</td>');
+				for d IN 1..v_days
+		        loop
+                begin
+		           	SELECT  CASE WHEN pr.ATT_STATUS IN (1) THEN 'P' 
+                            WHEN pr.ATT_STATUS IN (0) THEN 'A' 
+                            WHEN pr.ATT_STATUS IN (7)AND pr.HOLIdaY_WORK=0 THEN 'W' 
+                            WHEN pr.ATT_STATUS IN (8)AND pr.HOLIdaY_WORK=0 THEN 'H' 
+                            WHEN pr.ATT_STATUS IN (SELECT LEAVE_TYPE_ID 
+					                              FROM LEAVE_TYPE_INFO 
+					                             WHERE LEAVE_TYPE IN('CL','EL','SL','ML','LWP')
+					                             ) THEN 'LV' 
+                             WHEN pr.ATT_STATUS IN (10)  THEN 'O' 
+                             WHEN pr.ATT_STATUS IN (7,8) AND pr.HOLIdaY_WORK > 0 THEN 'HP' 
+                           END || ' '|| nvl(nvl(FAC_OT_MIN,0) /60,0) 
+                               || CASE WHEN pr.ATT_STATUS IN (1) AND pr.LATE_MIN > 0 THEN ' LT' END 
+                          emp_status,
+                          pr.ATT_STATUS,FAC_OT_MIN,nvl(LATE_MIN,0)
+		           	INTO v_day_status,v_ATT_STATUS,v_FAC_OT_MIN,v_LATE_MIN
+		           	FROM pr_day_wise_attendence pr
+                    WHERE pr.cid_no = e.cid_no 
+                    AND pr.trans_date = p_from_date+d-1 ;
+                    exception when others then null;
+			        end;
+			        htp.p('<td>'||htf.escape_sc(v_day_status)||'</td>');
+		           
+		            v_attendance_cnt := CASE WHEN v_ATT_STATUS = 1 THEN v_attendance_cnt+1 ELSE v_attendance_cnt end;
+					v_absent_cnt := CASE WHEN v_ATT_STATUS = 0 THEN v_absent_cnt+1 ELSE v_absent_cnt end;
+					v_leave_cnt := CASE WHEN v_day_status LIKE '%LV%' THEN v_leave_cnt+1 ELSE v_leave_cnt end;
+					v_gh_cnt := CASE WHEN v_gh_cnt = 1 THEN v_gh_cnt+1 ELSE v_gh_cnt end;
+					v_late_cnt := CASE WHEN v_LATE_MIN > 0 THEN v_late_cnt+1 ELSE v_late_cnt end;
+					v_pay_days_cnt := CASE WHEN v_ATT_STATUS = 1 THEN v_attendance_cnt+1 ELSE v_attendance_cnt end;
+					v_ot1 := nvl(nvl(v_FAC_OT_MIN,0) /60,0);
+					--v_ot2 := nvl(nvl(FAC_OT_MIN,0) /60,0);
+					--v_ot3 := nvl(nvl(FAC_OT_MIN,0) /60,0);
+					v_ot_total := v_ot_total+v_ot1+v_ot2+v_ot3;
+		           
+		        end loop;
+		     htp.p('<td style="width:1%">'||v_attendance_cnt|| --Attn.<br>Days
+						'</td> 
+			        <td style="width:1%">'||v_absent_cnt|| --Ab
+						'</td> 
+			        <td style="width:1%">'||v_leave_cnt|| --Leave
+						'</td> 
+			        <td style="width:1%">'||v_gh_cnt|| --G.H
+						'</td> 
+			        <td style="width:1%">'||v_late_cnt|| --Late
+						'</td> 
+			        <td style="width:1%">'||v_pay_days_cnt|| --Pay<br>Days
+						'</td> 
+			        <td style="width:1%">'||v_ot1|| --OT1
+						'</td>
+			        <td style="width:1%">'||v_ot_total|| --Total
+						'</td> 
+			        <td style="width:1%"></td> 
+					</tr>');
+
+	        END LOOP;
+	        htp.p('</table>');
+            
+            END LOOP;
+    END; 
+
+--**************************
+
+    procedure section_wise_summary_report_12 (p_company_id number,p_sec_code number,p_from_date date,p_to_date date,p_org_id number)
+    is 
+	v_sl                number := 0; 
+    v_present_count     number := 0; 
+    v_absent_count      number := 0;
+    v_late_count        number := 0;
+    v_leave_count       number := 0;
+    
+	BEGIN 
+		report_utils.header_without_boarder(p_company_id, ' Section Wise Summary Report'); 
+         htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>');
+		 
+			htp.p('<table style="width:80%;margin:auto;"><tr> 
+			<th style="width:2%">SL NO.</th> 
+			<th style="width:20%">Section Name</th> 
+			<th style="width:5%">No Of Employee</th>  
+			<th style="width:5%">Present</th> 
+			<th style="width:5%">Absent</th> 
+            <th style="width:5%">Late</th>
+            <th style="width:5%">Leave</th>
+			</tr>'); 
+
+			v_sl := 0; 
+            
+			FOR i in ( select gi.code_desc section,ei.sec_code,
+                                    count(ei.cid_no) no_of_emp
+                            from g_uni_codes gi,emp_info ei
+                            where gi.code = ei.sec_code
+                            and ei.org_id = p_org_id
+                             AND NVL (ei.emp_out, 'N') <> 'Y' 
+                            group by gi.code_desc,ei.sec_code
+                            order by 1
+                            )
+			LOOP 
+                    v_present_count     := 0; 
+                    SELECT count(distinct ei.cid_no) into v_present_count                         
+		           	FROM pr_day_wise_attendence pr,emp_info ei
+                    WHERE pr.cid_no = ei.cid_no
+                    and ei.sec_code = i.sec_code
+                    and pr.ATT_STATUS IN (1)
+                    and pr.trans_date = p_from_date;
+                    
+                    v_absent_count       := 0;
+                     SELECT count(distinct ei.cid_no) into v_absent_count                         
+		           	FROM pr_day_wise_attendence pr,emp_info ei
+                    WHERE pr.cid_no = ei.cid_no
+                    and ei.sec_code = i.sec_code
+                    and pr.ATT_STATUS IN (0)
+                    and pr.trans_date = p_from_date;
+
+                    v_late_count         := 0;
+                     SELECT count(distinct ei.cid_no) into v_late_count                         
+		           	FROM pr_day_wise_attendence pr,emp_info ei
+                    WHERE pr.cid_no = ei.cid_no
+                    and ei.sec_code = i.sec_code
+                    and pr.ATT_STATUS IN (1) AND pr.LATE_MIN > 0 
+                    and pr.trans_date = p_from_date;
+
+                    v_leave_count        := 0;
+                     SELECT count(distinct ei.cid_no) into v_leave_count                         
+		           	FROM pr_day_wise_attendence pr,emp_info ei
+                    WHERE pr.cid_no = ei.cid_no
+                    and ei.sec_code = i.sec_code
+                    and pr.trans_date = p_from_date
+                    and pr.ATT_STATUS IN (SELECT LEAVE_TYPE_ID 
+		                               FROM LEAVE_TYPE_INFO 
+		                              WHERE LEAVE_TYPE IN('CL','EL','SL','ML','LWP')) ;		           
+                    
+			v_sl := v_sl+1; 
+				htp.p('<tr> 
+    				<td style="text-align: center">'||v_sl||'</td> 
+    				<td style="text-align: left">'||htf.escape_sc(i.section)||'</td> 
+    				<td style="text-align: center;">'||htf.escape_sc(i.no_of_emp)||'</td> 
+    				<td style="text-align: center;">'||htf.escape_sc(v_present_count)||'</td> 
+    				<td style="text-align: center">'||htf.escape_sc(v_absent_count)||'</td> 
+                    <td style="text-align: center">'||htf.escape_sc(v_late_count)||'</td> 
+                    <td style="text-align: center">'||htf.escape_sc(null)||'</td> 
+				</tr>'); 
+		 
+			END LOOP; 
+            htp.p('</table>'); 
+		-- report_utils.footer; 
+	END;
+end "NM_ACCESSORIES_HR_REPORTS";
+/
+

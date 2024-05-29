@@ -1,0 +1,230 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace PACKAGE pkg_inventory 
+AS 
+   FUNCTION GET_INV_ITEM_GROUP_LIST(IN_CODE NUMBER) RETURN VARCHAR2; 
+    
+   FUNCTION GET_INV_CODE_DESC (P_CODE NUMBER) RETURN VARCHAR2; 
+   FUNCTION GET_INV_UNIT(P_ITEM_CODE NUMBER) RETURN VARCHAR2; 
+   FUNCTION GET_INV_P_CODE(IN_CODE NUMBER) RETURN NUMBER; 
+   FUNCTION GET_TERRITORY(P_TERRITORY NUMBER) RETURN varchar2; 
+ 
+   FUNCTION GET_ITEM_OPENING(P_ORG_ID NUMBER,P_ITEM_CODE VARCHAR2, P_dATE DATE, p_warehouse_code number) RETURN NUmBER; 
+   FUNCTION GET_ITEM_NAME(P_ITEM_CODE NUMBER ) RETURN VARCHAR2; 
+   FUNCTION GET_ITEM_PACKGING(P_ITEM_CODE NUMBER ) RETURN VARCHAR2; 
+   FUNCTION GET_UNIT(P_unit_CODE NUMBER ) RETURN VARCHAR2; 
+   FUNCTION GET_INV_BU(P_ITEM_CODE NUMBER) RETURN VARCHAR2; 
+   FUNCTION GET_INV_BU_bangla(P_ITEM_CODE NUMBER) RETURN VARCHAR2; 
+     
+END pkg_inventory;
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace PACKAGE BODY pkg_inventory 
+AS 
+ 
+FUNCTION GET_INV_ITEM_GROUP_LIST (IN_CODE IN NUMBER) 
+   RETURN VARCHAR2 
+IS 
+   l_list     VARCHAR (3000) := ''; 
+   l_b_code   NUMBER (10); 
+   l_p_code   NUMBER (10) := in_code; 
+   l_code     NUMBER (10); 
+   l_parent   VARCHAR2 (50); 
+BEGIN 
+--htp.p('p_code'||IN_CODE); 
+   LOOP 
+      BEGIN 
+         SELECT   b_code, p_code, pkg_inventory.get_inv_code_desc (p_code) 
+           INTO   l_b_code, l_code, l_parent 
+           FROM   g_inv_codes 
+          WHERE   code = l_p_code; 
+      EXCEPTION 
+         WHEN NO_DATA_FOUND 
+         THEN 
+            RETURN 'Record not found for code=' || l_p_code; 
+         WHEN OTHERS 
+         THEN 
+            RETURN 'Exception others occurs for code=' || l_p_code; 
+      END; 
+      l_p_code := l_code; 
+      l_list := l_list || ' || ' || l_parent; 
+      EXIT WHEN l_p_code = l_b_code; 
+   END LOOP; 
+ 
+   l_list := SUBSTR (l_list,4); 
+   RETURN l_list; 
+END; 
+  
+ FUNCTION GET_INV_CODE_DESC (P_CODE NUMBER) RETURN VARCHAR2 
+     IS 
+  V VARCHAR2(300); 
+  PARA_CODE NUMBER; 
+BEGIN 
+    PARA_CODE:=P_CODE; 
+SELECT CODE_DESC INTO V 
+FROM G_INV_CODES G 
+WHERE G.CODE=PARA_CODE; 
+  RETURN V; 
+  EXCEPTION WHEN OTHERS THEN RETURN '';                            
+  END;   
+ 
+   FUNCTION GET_INV_UNIT(P_ITEM_CODE NUMBER) RETURN VARCHAR2 
+   IS 
+  V_UNIT varchar2(50); 
+BEGIN 
+ SELECT code_desc INTO V_UNIT  
+ FROM g_uni_codes G  
+ WHERE G.CODE =(SELECT UNIT_CODE FROM G_INV_CODES I WHERE I.CODE = P_ITEM_CODE); 
+  RETURN V_UNIT; 
+  EXCEPTION WHEN OTHERS THEN RETURN '';                            
+  END;   
+
+--*****************************
+  
+FUNCTION GET_INV_P_CODE(IN_CODE NUMBER) RETURN NUMBER 
+IS 
+  V NUMBER(10); 
+BEGIN 
+	 SELECT P_CODE INTO V 
+	 FROM G_INV_CODES 
+	 WHERE CODE=IN_CODE; 
+ 
+	 RETURN V; 
+	   
+ EXCEPTION WHEN NO_DATA_FOUND THEN 
+ 		   		RETURN 0; 
+		   WHEN OTHERS THEN 
+		   		RETURN 0;  	  
+END; 
+ 
+--*****************************
+ 
+FUNCTION GET_TERRITORY(P_TERRITORY NUMBER) RETURN varchar2 
+IS 
+  V varchar2(50); 
+BEGIN 
+-- 	  SELECT CODE_DESC into V FROM G_UNI_CODES 
+--  WHERE CODE = (SELECT TERRITORY_ID FROM SALES_CHANEL WHERE CODE =  
+--         (SELECT TERRITORY_CODE FROM g_acc_codes WHERE CODE = P_TERRITORY)); 
+ 
+	  SELECT CODE_DESC into V FROM G_UNI_CODES 
+ WHERE CODE = (SELECT TERRITORY_CODE FROM g_acc_codes WHERE CODE = P_TERRITORY); 
+ 
+	 RETURN V; 
+	   
+ EXCEPTION WHEN NO_DATA_FOUND THEN 
+ 		   		RETURN 0; 
+		   WHEN OTHERS THEN 
+		   		RETURN 0;  	  
+END; 
+ 
+--*****************************
+
+FUNCTION GET_ITEM_OPENING(P_ORG_ID NUMBER,P_ITEM_CODE VARCHAR2, P_dATE DATE, p_warehouse_code number) 
+ RETURN NUmBER 
+IS  
+    V_RETURN NUMBER; 
+ BEGIN 
+    SELECT nvl(SUM (nvl(OPENING_QTY,0)),0) 
+        +	 nvl(SUM (nvl(PURCHASE_QTY,0)),0) 
+        -	 nvl(SUM (nvl(SALES_QTY,0)),0) 
+        -	 nvl(SUM (nvl(PURCHASE_RETURN_QTY,0)),0) 
+        +	 nvl(SUM (nvl(SALES_RETURN_QTY,0)),0) 
+        -	 nvl(SUM (nvl(SALES_TRANSFER_QTY,0)),0) 
+        -	 nvl(SUM (nvl(DAMAGE_QTY,0)),0) 
+        -	 nvl(SUM (nvl(SHORTAGE_QTY,0)),0) 
+        -	 nvl(SUM (nvl(PROCESS_LOSS_QTY,0)),0) OPENING_QTY 
+    INTO V_RETURN 
+    FROM v_ALL_transaction_QTY 
+    WHERE ITEM_CODE = P_ITEM_CODE 
+    AND ORG_ID = P_ORG_ID 
+    AND TRANS_DATE < P_dATE 
+    and warehouse_code = nvl(p_warehouse_code,warehouse_code); 
+    RETURN NVL(V_RETURN,0); 
+END; 
+ 
+--*****************************
+ 
+ FUNCTION GET_ITEM_NAME(P_ITEM_CODE NUMBER ) RETURN VARCHAR2 
+  IS 
+  V_ITEM_NAME VARCHAR2(50); 
+  BEGIN 
+  SELECT CODE_DESC INTO V_ITEM_NAME 
+  FROM G_INV_CODES G 
+  WHERE G.CODE=(SELECT ITEM_CODE FROM SP_STORE_D IT WHERE IT.ITEM_CODE=P_ITEM_CODE); 
+  RETURN V_ITEM_NAME; 
+  EXCEPTION WHEN OTHERS THEN RETURN ''; 
+  END ; 
+
+--*****************************
+
+  FUNCTION GET_ITEM_PACKGING(P_ITEM_CODE NUMBER ) RETURN VARCHAR2 
+  IS 
+  V_ITEM_PACK VARCHAR2(50); 
+  BEGIN 
+  SELECT PACKING INTO V_ITEM_PACK 
+  FROM G_INV_CODES G 
+  WHERE G.CODE=(SELECT ITEM_CODE FROM SP_STORE_D IT WHERE IT.ITEM_CODE=P_ITEM_CODE); 
+  RETURN V_ITEM_PACK ; 
+  EXCEPTION WHEN OTHERS THEN RETURN''; 
+  END ; 
+
+--*****************************
+ 
+FUNCTION GET_UNIT(P_unit_CODE NUMBER ) RETURN VARCHAR2 
+  IS 
+  V_UNIT VARCHAR2(50); 
+  BEGIN 
+  SELECT code_desc INTO V_UNIT 
+  FROM G_UNI_CODES G 
+  WHERE G.CODE =(SELECT unit_code FROM g_inv_codes inv WHERE inv.code=P_unit_CODE ); 
+  RETURN V_UNIT; 
+  EXCEPTION WHEN OTHERS THEN RETURN''; 
+  END ; 
+
+--*****************************
+
+FUNCTION GET_INV_BU(P_ITEM_CODE NUMBER) RETURN VARCHAR2 
+  IS 
+  V_BU      VARCHAR2(50); 
+  V_CODE    NUMBER;
+ 
+  BEGIN 
+  select CODE, code_desc INTO V_CODE, V_BU 
+		from g_inv_codes  
+		where code = (select P_CODE 
+		                from g_inv_codes WHERE CODE = P_ITEM_CODE);
+ 
+    V_BU := NVL(PKG_INVENTORY.GET_INV_BU(V_CODE),V_BU);
+                   
+  RETURN V_BU;
+ 
+  EXCEPTION WHEN OTHERS THEN RETURN'';
+ 
+  END ; 
+
+--*****************************
+ 
+  FUNCTION GET_INV_BU_bangla(P_ITEM_CODE NUMBER) RETURN VARCHAR2 
+  IS 
+  V_BU VARCHAR2(50); 
+  V_CODE    NUMBER; 
+  BEGIN 
+  select CODE, other_desc INTO V_CODE, V_BU 
+		from g_inv_codes  
+		where code = (select P_CODE 
+		                from g_inv_codes WHERE CODE = P_ITEM_CODE); 
+    V_BU := NVL(PKG_INVENTORY.GET_INV_BU_bangla(V_CODE),V_BU);                   
+  RETURN V_BU; 
+  EXCEPTION WHEN OTHERS THEN RETURN''; 
+  END ; 
+
+--*****************************
+ 
+end;
+/
+

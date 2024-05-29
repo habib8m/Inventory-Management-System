@@ -1,0 +1,11 @@
+
+select ORG_ID,
+       ORG_NAME title,       
+       ORG_NAME_BN sub_title,
+       ADDRESS_LINE1||' '||PHONE_NO1||' '||PHONE_NO3 Phone,
+       FAX,
+       REG_NO badge_label,
+       EMAIL_ADDRESS,
+       WEBSITE crd_body,
+       LOGO_URL,
+       APEX_UTIL.PREPARE_URL('https://unisoft1999.com/'||org_code) card_link 

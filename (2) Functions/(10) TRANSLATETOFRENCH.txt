@@ -1,0 +1,22 @@
+
+create or replace FUNCTION          "TRANSLATETOFRENCH" ( sentence varchar2 ) return varchar2 is 
+          buffer  clob; 
+          line    varchar2(32767); 
+          i1      integer; 
+          i2      integer; 
+  begin 
+          --make a http call to get the html page result as a clob 
+          buffer :=  WebClob('http://translate.google.co.za/translate_t?hl=&ie=UTF-8&text=~'||replace(sentence,' ','+')||'~&sl=en&tl=fr#'); 
+   
+          -- ugly hack to find the translated sentence (should be done using regexp_substr) 
+          i1 := instr( buffer, '<textarea name=utrans' ); 
+          line := substr( buffer, i1, 1000 ); 
+          i1 := instr( line, '~', 1 ) +1; 
+          i2 := instr( line, '~', -1 ) -1; 
+   
+          -- returns the translated sentence 
+          return( 
+                  trim( substr( line, i1, i2-i1 ) ) 
+          ); 
+  end;
+/

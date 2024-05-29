@@ -1,0 +1,1480 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "COLDSTORAGE_REPORTS" as 
+procedure store_report (p_company_id number, p_from_date date, p_to_date date, p_party_code number, p_agent_id number, p_item_code number, p_item_type number);
+procedure Gate_entry_report (p_company_id number, p_from_date date, p_to_date date );
+procedure rate_wise_summary_report (p_company_id number, p_from_date date, p_to_date date, p_rate number, p_item_code number);
+procedure Booking_Reports (p_company_id number , p_from_date date, p_to_date date ,p_party_code number,p_invoice_no varchar2);--page :281 
+procedure Booking_out_Reports (p_company_id number , p_from_date date, p_to_date date ,p_org_id number,p_agent_id number); --page :316 
+procedure cash_sheet (p_from_date date,p_to_date date,p_org_id number); 
+procedure  potato_qty (p_project_code number, p_from_date date,p_to_date date,p_item_code varchar2, P_ORG_ID    NUMBER,p_item_type number); 
+procedure sr_print_party_wise(p_project_code number,p_from_date date,p_to_date date,p_party_code number);--page :416 
+procedure potato_receive_delivery_report (p_company_id number , p_from_date date, p_to_date date ,p_org_id number); --page : 418 
+ 
+end "COLDSTORAGE_REPORTS";
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "COLDSTORAGE_REPORTS" as 
+procedure store_report (p_company_id number, p_from_date date, p_to_date date, p_party_code number, p_agent_id number, p_item_code number, p_item_type number) 
+is  
+    v_sl 	number := 0; 
+    v_amt 	number := 0; 
+    v_tot_qty 	number :=0; 
+    v_tot_qty_g number :=0; 
+    v_tot_qty_s number :=0; 
+    v_total_amt number := 0; 
+    v_item_type varchar2(50);
+ 
+BEGIN 
+	report_utils.header_without_boarder(p_company_id, 'সংরক্ষণ রিপোর্ট'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">সময়কাল : <u>' ||htf.escape_sc (TRANSLATE_BN.bangla_date(P_from_date))|| '</u> &nbsp; হতে &nbsp;<u>' 
+								||htf.escape_sc (TRANSLATE_BN.bangla_date(P_To_date))|| '</u> </h4>'); 
+		 
+			htp.p('<table style="width:100%; font-size:10">
+				<tr> 
+                                <th rowspan="2" style="width:1%" >ক্রমিক নং</th> 
+                    		<th rowspan="2" style="width:6%" >তারিখ </th> 
+                    		<th rowspan="2" style="width:5%"> গেট এন্ট্রি নং</th>  
+                    		<th rowspan="2" style="width:2%">বুকিং নং</th> 
+                    		<th rowspan="2" style="width:2%">এম.আর.আর নং</th> 
+                                <th rowspan="2" style="width:2%">এস.আর নং</th> 
+                                <th rowspan="2" style="width:3%">কোড</th> 
+                                <th rowspan="2" style="width:5%">আমদানিকারীর নাম</th> 
+                    		<th rowspan="2" style="width:5%">ঠিকানা </th> 
+                    		<th rowspan="2" style="width:5%">পাটীর নাম</th>  
+                    		<th colspan="4" style="width:5%">পণ্যের নাম ও কোয়ালিটি</th> 
+                    		<th colspan="4" style="width:5%">সংরক্ষণের স্থান</th> 
+                                <th rowspan="2" style="width:5%">বস্তা/কার্টুন সংখ্যা</th> 
+                                <th rowspan="2" style="width:5%">রেট (প্রতি বস্তা)</th>  
+                                <th rowspan="2" style="width:5%">মোট ভাড়া</th>          
+                    		</tr>');
+ 
+                                htp.p('<tr> 
+                                <th rowspan="1"  style="width:3%">জাত</th> 
+                                <th rowspan="1"  style="width:3%">পণ্যের নাম</th>  
+                                <th rowspan="1" style="width:3%">বীজ</th> 
+                                <th rowspan="1" style="width:3%">সাধারণ</th> 
+                                <th rowspan="1"  style="width:5%">প্রি-কুলিং</th> 
+                                <th rowspan="1"  style="width:5%">চেম্বার নং</th>  
+                                <th rowspan="1" style="width:3%">ফ্লোর নং </th> 
+                                <th rowspan="1" style="width:3%">পকেট নং </th> 
+        			</tr>'); 
+
+    v_tot_qty     := 0; 
+    v_tot_qty_g   := 0; 
+    v_tot_qty_s   := 0;
+ 
+		FOR i in (select sm.TRANS_DATE, 
+                            sm.party_code, 
+                            sm.invoice_no gate_entry_no, 
+                           (select substr(INVOICE_NO, 5) from sp_store_m where trans_id = sm.REF_TRANS and trans_type = 'BK')  booking_no, 
+                            sd.ITEM_CODE, 
+                            pkg_inventory.GET_INV_BU_bangla(sd.item_code) item_name, 
+                            gi.code_desc jat, 
+                            gi.other_desc jat_bn, 
+                            gu.other_desc item_type_bn, 
+                            order_QTY tottal_qty, 
+                            sd.RATE, 
+                            ga.code_desc cust_name, 
+                            ga.CODE_DESC_OTHER cust_address, 
+                            ga.OTHER_DESC cust_name_bn, 
+                            ga.P_MOBILE, 
+                            sm.page_no, 
+                            ag.AGENT_NAME_EN, 
+                            ag.MOBILE_NO agent_mobile, 
+                            ag.AGENT_NAME_BN, 
+                            ag.FATHER_NAME agent_father_name, 
+                            ag.ADDRESS_EN , 
+                            ag.ADDRESS_BN, 
+                            sd.sr_no, 
+                            (select other_desc from g_uni_codes where code = (select group_type from sp_store_d where trans_id = REF_TRANS)) item_type, 
+                            (select other_desc from g_uni_codes where code = sd.CHAMBER_CODE) chamber,  
+                            (select other_desc from g_uni_codes where code = sd.PREE_COOLING_CODE) PREE_COOLING, 
+                            (select other_desc from g_uni_codes where code = sd.FLOOR_CODE) FLOOR, 
+                            (select other_desc from g_uni_codes where code = sd.POCKET_CODE) POCKET, group_type  
+                    from sp_store_m sm 
+                    join sp_store_d sd on(sm.trans_id = sd.trans_id) 
+                    join g_inv_codes gi on (sd.item_code = gi.code and sd.org_id = gi.org_id) 
+                    join g_acc_codes ga on (sm.party_code = ga.code and sm.org_id = ga.org_id) 
+                    join BOOK_PAGE bp on(sm.page_no = bp.page_no) 
+                    join BOOK_INFO bi on (bp.book_id = bi.book_id) 
+                    join AGENT_BOOK_INFO ab on (bi.book_id = ab.book_id) 
+                    join AGENT_INFO ag on (ab.agent_id = ag.agent_id) 
+                    left join g_uni_codes gu on (gu.code = sd.group_type) 
+                    where sm.org_id = 9 
+                    and sm.trans_type = 'GI' 
+                    and sm.delete_status = 0 
+                    and sm.trans_date between p_from_date and p_to_date 
+                    and sm.party_code = nvl(p_party_code,sm.party_code) 
+                    and ag.agent_id = nvl(p_agent_id,ag.agent_id)  
+                    and (select b_code from g_inv_codes where code = sd.ITEM_CODE) =  
+                                                    nvl(p_item_code,(select b_code from g_inv_codes where code = sd.ITEM_CODE)) 
+                    and sd.group_type = nvl(p_item_type,sd.group_type) 
+                    order by to_number(substr(sd.sr_no,1,instr(sd.sr_no,'/')-1)) , sd.sr_no)
+ 
+		LOOP
+            v_sl := v_sl + 1; 
+            v_amt := nvl(i.tottal_qty, 0) * nvl(i.rate, 0); 
+            v_tot_qty := v_tot_qty + nvl(i.tottal_qty, 0);
+ 
+            IF i.item_type_bn = 'বীজ' THEN 
+            v_tot_qty_s := v_tot_qty_s + nvl(i.tottal_qty, 0);
+ 
+            else 
+            v_tot_qty_g := v_tot_qty_g + nvl(i.tottal_qty, 0); 
+            end if;
+ 
+            v_total_amt := v_total_amt + nvl(v_amt, 0); 
+            v_item_type := i.item_type_bn; 
+          
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">'|| HTF.escape_sc (TRANSLATE_BN.only_num(v_sl))|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (TRANSLATE_BN.bangla_date(i.TRANS_DATE))|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (TRANSLATE_BN.only_num(i.gate_entry_no))|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (TRANSLATE_BN.only_num(i.booking_no))|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (null)|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (i.sr_no)|| '</td> 
+                <td style="text-align: center">'||HTF.escape_sc (TRANSLATE_BN.only_num(i.party_code))||'</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (i.cust_name_bn)||'</td> 
+                <td style="text-align: center">'||HTF.escape_sc ( i.cust_address)||'</td> 
+                <td>'||HTF.escape_sc (i.AGENT_NAME_BN)||'</td> 
+                <td rowspan="1" style="text-align:center;">'||HTF.escape_sc (i.jat_bn)||'</td> 
+                <td rowspan="1" style="text-align: center">'||HTF.escape_sc (i.item_name)||'</td> 
+                <td rowspan="1" style="text-align: center"> '||case when i.group_type = 90002101 then HTF.escape_sc (TRANSLATE_BN.only_num(i.tottal_qty)) end ||' </td> 
+                <td style="text-align: center"> '||case when i.group_type = 90002102 then HTF.escape_sc (TRANSLATE_BN.only_num(i.tottal_qty)) end ||' </td> 
+                <td rowspan="1" style="text-align: center">'||HTF.escape_sc (i.PREE_COOLING)||'</td> 
+                <td rowspan="1" style="text-align: center">'||HTF.escape_sc (i.chamber)||'</td> 
+                <td rowspan="1" style="text-align: center">'||HTF.escape_sc (i.FLOOR)||'</td> 
+                <td rowspan="1" style="text-align: center">'||HTF.escape_sc (i.POCKET)||'</td> 
+                <td style="text-align: center">'||HTF.escape_sc (TRANSLATE_BN.only_num( i.tottal_qty))||'</td> 
+                <td style="text-align: center">'||HTF.escape_sc (TRANSLATE_BN.only_num( i.RATE))||'</td> 
+                <td style="text-align: right">'||HTF.escape_sc (TRANSLATE_BN.num_formate(v_amt, 'fm99G99G99G99G99G99G990d00'))||'</td> 
+                <tr>'); 
+		end loop; 
+ 
+            HTP.p ( 
+                  '<tr> 
+               <td colspan="12" style="text-align: right;"><b>মোটঃ</b></td> 
+               <td><b>'|| HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty_s))||'</b></td> 
+               <td><b>'|| HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty_g))||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td></td> 
+               <td></td> 
+               <td> <b>'|| HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty))||'</b> </td> 
+               <td></td> 
+               <td style="text-align: right;"> <b> '||HTF.escape_sc (TRANSLATE_BN.num_formate(v_total_amt, 'fm99G99G99G99G99G99G990d00'))||' </b> </td> 
+               </tr>'); 
+         
+		htp.p('</table>'); 
+ 
+            htp.p('</html>');
+ 
+         htp.p('<BR> <BR> <BR> 
+                 <div style= "float: left; width: 25%; text-align: left;padding-left:50px;"> <p style= "text-decoration-line: overline; "> প্রস্ততকারীর স্বাক্ষর </p> </div>  
+                 <div style= "float: left; width: 25%; text-align: center; padding-left:150px;"> <p style= "text-decoration-line: overline; ">  ষ্টোর কিপার</p> </div>  
+                 <div style= "float: right; width: 25%; text-align: center;"> <p style= "text-decoration-line: overline; "> ম্যানেজার  </p> </div>') ; 
+             
+        
+	END;
+ 
+--***************************
+ 
+procedure Gate_entry_report (p_company_id number, p_from_date date, p_to_date date ) 
+is  
+ 
+BEGIN 
+	report_utils.header_without_boarder(p_company_id, 'গেইট এন্ট্রি  রশিদ   '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">অফিস কপি</h4>'); 
+         
+        htp.p('<table style="width:90%; border: none;  margin-bottom: 10px;">
+			<tr style="border: none; font-size: 12px;"> 
+                        <td  style="width:1%; border: none;" >গেইট এন্ট্রি নং: </td> 
+                        <td  style="width:1%; border: none;" >ট্রাক নং: </td> 
+                        <td  style="width:1%; border: none;" >তারিখ: </td>  
+			</tr> 
+			</table>');  
+		 
+	    htp.p('<table style="width:100%">
+				<tr> 
+                                <th  style="width:1%" >বুকিং নং</th> 
+                    		<th  style="width:10%" >প্রেরকের নাম  </th> 
+                    		<th  style="width:3%"> গেইট এন্ট্রি নং</th>  
+                    		<th  style="width:10%">ঠিকানা</th> 
+                    		<th  style="width:3%">পণ্যের নাম</th> 
+                                <th  style="width:3%">জাত</th> 
+                                <th  style="width:5%">বস্তা/কার্টুন</th> 
+                                <th  style="width:2%">আন লোড গেট নং </th>     
+                    		</tr>');
+
+ 
+            HTP.p ( 
+                '<tr> 
+                <td colspan="15" style="text-align: right;">.</td>
+                <td colspan="3"><b> মোট  </b></td> 
+                </tr>');
+ 
+          htp.p('</table>'); 
+ 
+	END; 
+
+--**************************
+ 
+procedure rate_wise_summary_report (p_company_id number , p_from_date date, p_to_date date ,p_rate number, p_item_code number) 
+is  
+v_sl        number := 0; 
+v_amt       number := 0; 
+v_total_amt number := 0; 
+v_tot_qty   number := 0; 
+v_item      varchar2 (30);
+ 
+BEGIN 
+		report_utils.header_without_boarder(p_company_id, ' রেট ওয়াইজ সংক্ষিপ্ত রিপোর্ট '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">সময়কাল : <u>'||htf.escape_sc (TRANSLATE_BN.bangla_date(P_from_date))||'</u>&nbsp; হতে &nbsp;<u>' 
+                                                                            ||htf.escape_sc (TRANSLATE_BN.bangla_date(P_To_date))||'</u></h4>'); 
+        if p_item_code is not null then                                                   
+          select other_desc into v_item from g_inv_codes where code = nvl(p_item_code,code); 
+ 
+          htp.p('<h4 style="margin-top: 0px; text-align: center">'||htf.escape_sc(v_item)||'</h4>'); 
+		end if; 
+			htp.p('<table style="width:50%;margin:auto"><tr> 
+                                <th  style="width:3%" >ক্রমিক নং</th> 
+                                <th  style="width:5%">বস্তা সংখ্যা</th> 
+                    			<th  style="width:5%" >রেট (প্রতি বস্তা) </th> 
+                    			<th  style="width:5%"> মোট ভাড়া </th>  
+                    			 
+                                 
+        			</tr>'); 
+            v_tot_qty   := 0; 
+    		v_total_amt := 0;	 
+		FOR i in (select COLD_STORAGE_INV_REPORT.GET_QTY (sum(sd.order_qty)) total_qty,
+                    COLD_STORAGE_INV_REPORT.GET_AMT (sd.rate) rate,
+                    COLD_STORAGE_INV_REPORT.GET_AMT (sum(sd.total)) total_amt  
+                    from sp_store_m sm,sp_store_d sd 
+                    where sm.org_id = 9 
+                    and sd.org_id = 9 
+                    and sm.trans_type = 'GI' 
+                    and sm.delete_status = 0 
+                    and sd.rate = nvl(p_rate,sd.rate) 
+                    and (select b_code from g_inv_codes where code = sd.ITEM_CODE) = nvl(p_item_code,(select b_code from g_inv_codes where code = sd.ITEM_CODE)) 
+                    and sm.trans_date between p_from_date and p_to_date 
+                    group by sd.rate 
+                    ) 
+		LOOP 
+ 
+            v_sl := v_sl+1; 
+            v_amt := nvl(i.total_qty,0) * nvl(i.rate,0); 
+            v_tot_qty := v_tot_qty + nvl(i.total_qty,0); 
+            v_total_amt := v_total_amt + nvl(v_amt,0); 
+      
+                HTP.p ( '<tr> 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (TRANSLATE_BN.only_num(v_sl)) 
+                           || '</td> 
+                            <td style="text-align: right;padding-right:10px;">' 
+                           || HTF.escape_sc(TRANSLATE_BN.num_formate(i.total_qty,'fm99G99G99G99G99G99G99')) 
+                           || '</td> 
+                            <td style="text-align: right;padding-right:10px;">' 
+                           || HTF.escape_sc (TRANSLATE_BN.num_formate(i.rate,'fm99G99G99G99G99G99G990d00')) 
+                           || '</td> 
+                            <td style="text-align: right;padding-right:10px;">' 
+                           || HTF.escape_sc (TRANSLATE_BN.num_formate(v_amt,'fm99G99G99G99G99G99G990d00')) 
+                           || '</td> 
+                        </tr>'); 
+		end loop; 
+                        HTP.p ( '<tr style="margin-top:15px;"> 
+                                   <td colspan="" style="text-align:right;"><b>রিপোর্টে মোট=</b></td> 
+                                   <td style="text-align: right;padding-right:10px;"><b>' 
+                                   || HTF.escape_sc (TRANSLATE_BN.num_formate(v_tot_qty,'fm99G99G99G99G99G99G990')) 
+                                   ||'</b></td> 
+                                   <td style=""></td> 
+                                   <td style="text-align: right;padding-right:10px;"><b>' 
+                                   || HTF.escape_sc (TRANSLATE_BN.num_formate(v_total_amt,'fm99G99G99G99G99G99G990d00')) 
+                                   ||'</b></td> 
+                                </tr>'); 
+         
+			            htp.p('</table>'); 
+ 
+		--report_utils.footer; 
+	END;
+ 
+--******************************
+     
+ 
+procedure Booking_Reports (p_company_id number , p_from_date date, p_to_date date ,p_party_code number,p_invoice_no varchar2) 
+is  
+     v_qty number := 0; 
+     v_rate number := 0; 
+    v_adv number; 
+    v_total number; 
+    v_due number; 
+ 
+BEGIN 
+ 
+		report_utils.header_without_boarder(p_company_id, 'বুকিং রশিদ   '); 
+ 
+        for r in (select distinct sm.TRANS_DATE, 
+                            substr(sm.INVOICE_NO,5) booking_no, 
+                            sm.party_code, 
+                            ga.code_desc cust_name, 
+                            ga.CODE_DESC_OTHER cust_address, 
+                            ga.OTHER_DESC cust_name_bn, 
+                            ga.code_tech_desc cust_father_name, 
+                            ga.P_MOBILE, 
+                            sm.page_no, 
+                            ag.agent_id, 
+                            ag.AGENT_NAME_EN, 
+                            ag.MOBILE_NO agent_mobile, 
+                            ag.AGENT_NAME_BN, 
+                            ag.FATHER_NAME agent_father_name, 
+                            ag.ADDRESS_EN , 
+                            ag.ADDRESS_BN  
+                    from sp_store_m sm 
+                    join sp_store_d sd on(sm.trans_id = sd.trans_id) 
+                    join g_inv_codes gi on (sd.item_code = gi.code and sd.org_id = gi.org_id) 
+                    join g_acc_codes ga on (sm.party_code = ga.code and sm.org_id = ga.org_id) 
+                    join BOOK_PAGE bp on(sm.page_no = bp.page_no) 
+                    join BOOK_INFO bi on (bp.book_id = bi.book_id) 
+                    join AGENT_BOOK_INFO ab on (bi.book_id = ab.book_id) 
+                    join AGENT_INFO ag on (ab.agent_id = ag.agent_id) 
+                    where sm.org_id = 9 
+                    and sm.trans_type = 'BK' 
+                    and sm.delete_status = 0 
+                    --and sm.party_code = p_party_code 
+                    and sm.invoice_no = p_invoice_no) 
+            loop 
+ 
+ 
+           htp.p(' 
+                    <table style="border:none;width:90%;margin-left:50px;margin-top:50px;"> 
+                        <tr style="border:none;"> 
+                            <td style="border:none;text-align:left;">বুকিং নংঃ' 
+                               || HTF.escape_sc (TRANSLATE_BN.only_num(r.booking_no)) 
+                               || '</td> 
+                            <td style="border:none;"></td> 
+                            <td style="border:none;text-align:right;">তারিখঃ' 
+                               || HTF.escape_sc (TRANSLATE_BN.bangla_date(r.TRANS_DATE)) 
+                               || '</td> 
+                        </tr> 
+                        <tr style="border:none;"> 
+                            <td style="border:none;text-align:left;padding-top:10px;padding-left:0px;">আমানতকারীর নাম&emsp;&emsp;&nbsp;ঃ ' 
+                               || HTF.escape_sc (r.cust_name_bn) 
+                               || '</td> 
+                            <td style="border:none;text-align:left;padding-top:10px;">পিতার নামঃ' 
+                               || HTF.escape_sc (r.cust_father_name) 
+                               || '</td> 
+                            <td style="border:none;"></td> 
+                        </tr> 
+                        <tr style="border:none;"> 
+                            <td style="border:none;text-align:left;padding-top:10px;">আমানতকারীর ঠিকানা&nbsp;&nbsp;ঃ' 
+                               || HTF.escape_sc (r.cust_address) 
+                               || '</td> 
+                            <td style="border:none;"></td> 
+                            <td style="border:none;text-align:right;"></td> 
+                        </tr> 
+                        <tr style="border:none;"> 
+                            <td style="border:none;text-align:left;padding-top:10px;padding-left:0px;">পাটীর নাম&emsp;&emsp;&emsp;&emsp;&nbsp;&nbsp;&nbsp;&nbsp;ঃ' 
+                               || HTF.escape_sc (r.AGENT_NAME_BN) 
+                               || '</td> 
+                            <td style="border:none;text-align:left;padding-top:10px;">পাটীর কোডঃ' 
+                               || HTF.escape_sc (TRANSLATE_BN.only_num(r.agent_id)) 
+                               || '</td> 
+                            <td style="border:none;text-align:center;padding-top:10px;">পাটীর এরিয়াঃ' 
+                               || HTF.escape_sc (null) 
+                               || '</td> 
+                            <td style="border:none;"></td> 
+                            <td style="border:none;"></td> 
+                            <td style="border:none;"></td> 
+                        </tr> 
+                        <tr style="border:none;"> 
+                            <td style="border:none;text-align:left;padding-top:10px;padding-left:0px;">পাটীর ঠিকানা&emsp;&emsp;&emsp;&nbsp;&nbsp;&nbsp;ঃ' 
+                               || HTF.escape_sc (r.ADDRESS_BN) 
+                               || '</td> 
+                            <td style="border:none;text-align:center;"></td> 
+                            <td style="border:none;text-align:right;"></td> 
+                        </tr> 
+                    </tabel><br> 
+           '); 
+         end loop; 
+         
+		 
+	    htp.p('<table style="width:100%;margin-top:20px"><tr> 
+                                <th  style="width:6%" > পণ্যের নাম</th> 
+                    			<th  style="width:6%" >জাত </th> 
+                    			<th  style="width:5%"> বীজ/সাধারণ</th>  
+                    			<th  style="width:5%">বস্তা সংখ্যা</th> 
+                    			<th  style="width:3%"> রেট</th> 
+                                <th  style="width:3%"> মোট ভাড়া </th> 
+                                <th  style="width:5%">মন্তব্য</th> 
+                               
+                                         
+                    			</tr>'); 
+                                 v_qty := 0; 
+                                 v_rate := 0; 
+                                v_adv := 0; 
+                                v_total := 0; 
+                                v_due := 0; 
+			 
+                        		FOR i in (select sm.TRANS_DATE, 
+                                                sm.INVOICE_NO booking_no, 
+                                                sd.ITEM_CODE, 
+                                                pkg_inventory.get_inv_bu_bangla(gi.code) item_name, 
+                                                gi.code_desc jat, 
+                                                gi.other_desc jat_jat, 
+                                                gu.code_desc item_type, 
+                                                gu.other_desc item_type_bn, 
+                                                sd.ORDER_QTY, 
+                                                sd.RATE, 
+                                                sd.ORDER_QTY*sd.rate total_amt, 
+                                                sm.NET_AMOUNT, 
+                                                ga.code_desc cust_name, 
+                                                ga.CODE_DESC_OTHER cust_address, 
+                                                ga.OTHER_DESC cust_father_name, 
+                                                ga.P_MOBILE, 
+                                                sm.page_no, 
+                                                ag.AGENT_NAME_EN, 
+                                                ag.MOBILE_NO agent_mobile, 
+                                                ag.AGENT_NAME_BN, 
+                                                ag.FATHER_NAME agent_father_name, 
+                                                ag.ADDRESS_EN , 
+                                                ag.ADDRESS_BN  
+                                        from sp_store_m sm 
+                                        join sp_store_d sd      on(sm.trans_id = sd.trans_id) 
+                                        join g_inv_codes gi     on (sd.item_code = gi.code and sd.org_id = gi.org_id) 
+                                        join g_acc_codes ga     on (sm.party_code = ga.code and sm.org_id = ga.org_id) 
+                                        join BOOK_PAGE bp       on(sm.page_no = bp.page_no) 
+                                        join BOOK_INFO bi       on (bp.book_id = bi.book_id) 
+                                        join AGENT_BOOK_INFO ab on (bi.book_id = ab.book_id) 
+                                        join AGENT_INFO ag      on (ab.agent_id = ag.agent_id) 
+                                        left join g_uni_codes gu     on (gu.code = sd.GROUP_TYPE) 
+                                        where sm.org_id = 9 
+                                        and sm.trans_type = 'BK' 
+                                        and sm.delete_status = 0 
+                                        --and sm.party_code = p_party_code 
+                                        and sm.invoice_no = p_invoice_no 
+                                        ) 
+		                        LOOP 
+                                    v_qty := v_qty + nvl(i.ORDER_QTY,0); 
+                                    v_rate := v_rate + nvl(i.rate,0); 
+                                        v_total := v_total + nvl(i.total_amt,0); 
+                                    v_adv := v_adv + nvl(i.NET_AMOUNT,0); 
+                                    v_due := nvl(v_total,0) - nvl(v_adv,0); 
+ 
+                          
+                            HTP.p ( 
+                                  '<tr> 
+                                <td style="text-align: center">' 
+                               || HTF.escape_sc (i.jat_jat) 
+                               || '</td> 
+                                <td style="text-align: center">' 
+                               || HTF.escape_sc (null) 
+                               || '</td> 
+                                <td style="text-align: center">' 
+                               || HTF.escape_sc (i.item_type_bn) 
+                               || '</td> 
+                                <td style="text-align: center">' 
+                               || HTF.escape_sc (TRANSLATE_BN.only_num(i.ORDER_QTY)) 
+                               || '</td> 
+                                <td style="text-align: center">' 
+                               || HTF.escape_sc (TRANSLATE_BN.num_formate(i.RATE,'fm99G99G99G99G99G99G990d00')) 
+                               || '</td> 
+                               <td style="text-align: right">'||HTF.escape_sc (TRANSLATE_BN.num_formate(i.total_amt,'fm99G99G99G99G99G99G990d00')) 
+                                ||'</td> 
+                               <td style="text-align: left">'|| HTF.escape_sc (null) 
+                               ||'</td> 
+                                <tr>'); 
+	                        end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+               <td colspan="3" style="text-align:right"><b> মোটঃ  </b></td> 
+               <td style="text-align: center"><b>' 
+               || HTF.escape_sc (TRANSLATE_BN.only_num(v_qty)) 
+                ||'</b></td> 
+               <td style="text-align: center">' 
+               || HTF.escape_sc (null) 
+                ||'</td> 
+               <td style="text-align: right"><b>' 
+               || HTF.escape_sc (TRANSLATE_BN.num_formate(v_total,'fm99G99G99G99G99G99G990d00')) 
+                ||'</b></td> 
+               </tr>'); 
+            HTP.p ( 
+                  '<tr"> 
+               <td colspan="5" style="text-align:right;"><b> অগ্রীমঃ  </b></td> 
+               <td style="border:none;text-align: right"><b>' 
+               || HTF.escape_sc (TRANSLATE_BN.num_formate(v_adv,'fm99G99G99G99G99G99G990d00')) 
+                ||'</b></td> 
+               <td ></td> 
+               </tr>'); 
+               HTP.p ( 
+                  '<tr style="margin-top:15px;"> 
+               <td colspan="5" style="text-align:right;"><b> বকেয়াঃ  </b></td> 
+               <td style="text-align: right"><b>' 
+               || HTF.escape_sc (TRANSLATE_BN.num_formate(v_due,'fm99G99G99G99G99G99G990d00')) 
+               ||'</b></td> 
+               <td style=""></td> 
+               </tr>'); 
+			htp.p('</table>'); 
+            htp.p(' <tabel style="border-none;margin-left:20px;margin-top:50px;">               
+                <tr style="border:none;"> 
+                <td colspan="15" style="text-align: right;border:none;""></td><tr> 
+               <td colspan="3" style="border:none;"><b> বিঃ দ্রঃ আলু না রাখিলে বুকিং মূল্য ফেরত পাইবেন না ।  </b></td> 
+               </tr>   
+               </table>'); 
+ 
+		report_utils.footerbangla; 
+	END;
+ 
+--*****************************
+
+procedure Booking_out_Reports (p_company_id number , p_from_date date, p_to_date date ,p_org_id number,p_agent_id number) 
+is  
+    v_sl        NUMBER := 0; 
+    v_count     number := 0; 
+    v_detail_count number := 0; 
+    v_d_coount      number := 0; 
+BEGIN 
+		report_utils.header_without_boarder(p_company_id, 'বুকিং বহি এর গ্রহণ ও বিতরন রিপোর্ট'); 
+		 
+			htp.p('<table style="width:80%;font-size:;margin:auto;"><tr> 
+                                <th colspan="5" style="width:1%" >বুকিং বহি গ্রহন</th> 
+                    			<th colspan="3" style="width:10%" >বুকিং বহি বিতরন </th> 
+                    			     
+                    			</tr>'); 
+                                htp.p('<tr> 
+                                <th  style="width:1%"	>ক্রমিক নং</th> 
+                                <th  style="width:3%"	>তারিখ</th>  
+                                <th  style="width:2%"	>বহি নং</th> 
+                                <th  colspan="2" style="width:2%"	>সিরিয়াল নং</th> 
+                                <th  style="width:3%"	>তারিখ</th>  
+                                <th  style="width:5%"	>পাটীর নাম</th> 
+                                <th  style="width:5%"	>ঠিকানা</th>  
+                                 
+        			</tr>'); 
+			 v_sl := 0; 
+    		FOR i in (select AGENT_NAME_EN, 
+                            AGENT_NAME_BN, 
+                            ADDRESS_BN	, 
+                            BOOK_RECEIVE_DATE, 
+                            BOOK_DIST_DATE, 
+                            BOOK_NO	, 
+                            RECEIVE_DATE, 
+                            FROM_SERIAL, 
+                            TO_SERIAL, 
+                            bk.book_id, 
+                            ag.agent_id 
+                    from agent_info ag,AGENT_BOOK_INFO ab,BOOK_INFO BK 
+                    where ag.agent_id = ab.agent_id 
+                    AND AB.BOOK_ID = BK.BOOK_ID 
+                    and ag.agent_id = p_agent_id 
+                    and  Ag.org_id = p_org_id 
+                    order by bk.book_id ) 
+		    LOOP 
+                v_sl := v_sl+1; 
+                select count(*) into v_detail_count from book_info bk,AGENT_BOOK_INFO ag   
+                where bk.book_id = ag.book_id   
+                and ag.agent_id  = i.agent_id 
+                and ag.agent_id = p_agent_id; 
+             
+            if i.agent_id != v_d_coount then 
+              v_count   := 1; 
+            end if; 
+            if i.agent_id = v_d_coount then 
+              v_count := nvl(v_count,0)+1; 
+            end if; 
+            v_d_coount  := i.agent_id; 
+ 
+            if v_detail_count = 0 then v_detail_count:= 1;  end if; 
+ 
+                HTP.p ('<tr> 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (translate_bn.only_num(v_sl)) 
+                           || '</td> 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (translate_bn.bangla_date(i.BOOK_RECEIVE_DATE)) 
+                           || '</td> 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (translate_bn.only_num(i.BOOK_NO)) 
+                           || '</td> 
+                            <td rowspan="1" style="text-align: center">' 
+                           || HTF.escape_sc (translate_bn.only_num(i.FROM_SERIAL)) 
+                           || '</td> 
+                            <td rowspan="1" style="text-align: center">' 
+                           || HTF.escape_sc (translate_bn.only_num(i.TO_SERIAL)) 
+                           || '</td>'); 
+                         if v_count = 1 then 
+                           htp.p('<td rowspan="'||v_detail_count||'" style="text-align: center;vertical-align:top">' 
+                           || HTF.escape_sc (translate_bn.bangla_date(null)) 
+                           || '</td> 
+                            <td rowspan="'||v_detail_count||'" style="text-align: left;vertical-align:top">' 
+                           || HTF.escape_sc (i.AGENT_NAME_BN) 
+                           || '</td> 
+                            <td rowspan="'||v_detail_count||'" style="text-align: left;vertical-align:top">' 
+                           || HTF.escape_sc (i.ADDRESS_BN) 
+                           || '</td> 
+                        </tr>'); 
+                        end if; 
+			end loop; 
+         
+			htp.p('</table>'); 
+        
+	END; 
+ 
+--*****************************
+
+    procedure cash_sheet (p_from_date date,p_to_date date,p_org_id number) 
+    is 
+        v_opening number := 0; 
+        v_closing number := 0; 
+        v_receipt number := 0; 
+        v_payment number := 0; 
+        v_trans_code    number  := 0; 
+        v_count         number  := 0; 
+        V_TOT_DR        NUMBER; 
+        V_TOT_CR        NUMBER; 
+    BEGIN 
+		report_utils.header_without_boarder(null, 'ক্যাশ সিট'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">সময়কাল : '||htf.escape_sc (TRANSLATE_BN.bangla_date(P_from_date))||' হতে '||htf.escape_sc (TRANSLATE_BN.bangla_date(P_To_date))||'</h4>'); 
+		 
+			htp.p('<table style="width:100%;font-size:11"> 
+                            <tr> 
+                                <th style="width:50%" >জমা খাত সমূহ</th> 
+                    			<th style="width:50%" >খরচের খাত সমূহ</th> 
+                    		</tr></table>'); 
+                             
+                     htp.p('<table style="width:50%;font-size:11;float: left">'); 
+                     htp.p('<tr> 
+                                <th rowspan="1"  style="width:1%"	>কোড</th> 
+                                <th rowspan="1"  style="width:5%"	>হিসাবের নাম ও বিবরন</th>  
+                                <th rowspan="1" style="width:3%"	>টাকা</th> 
+        			        </tr>'); 
+        for r in (	select g.CODE_DESC account_name,g.other_desc account_name_bn, D.TD_DESC, d.camount cr, m.ttype, G.B_CODE, d.TRANS_CODE, d.tran_id 
+                    from tmp_tran_d D, TMP_TRAN_M M, g_acc_codes g 
+                    WHERE D.TRAN_ID = M.TRAN_ID 
+                    and g.code = d.TRANS_CODE 
+                    and d.org_id = 9 
+                    and m.ttype in ('CR','BR')   
+                    and b_code not in (9005)   
+                    --and d.tran_id = 77053    
+                    order by d.trans_code                                           
+                ) 
+        loop 
+              v_receipt := v_receipt+r.cr;  
+              V_TOT_CR  := NVL(V_TOT_CR,0)+NVL(r.cr,0);  
+              v_count   := 0; 
+              select count(*) into v_count from tmp_tran_d where tran_id = r.tran_id ; 
+              v_count := v_count -1; 
+              v_count := (v_count)+2; 
+              HTP.p ('<tr> 
+                <td rowspan="'||v_count||'" style="text-align:left;">'||(translate_bn.only_num(r.TRANS_CODE))||'</td> 
+                '); 
+            for d in (select g.CODE_DESC account_name,nvl(g.other_desc,g.CODE_DESC) account_name_bn, D.TD_DESC, d.camount cr, d.damount dr,m.ttype, G.B_CODE, d.TRANS_CODE, d.tran_id 
+                    from tmp_tran_d D, TMP_TRAN_M M, g_acc_codes g 
+                    WHERE D.TRAN_ID = M.TRAN_ID 
+                    and g.code = d.TRANS_CODE 
+                    and d.TRAN_ID = r.TRAN_ID  
+                    and g.b_code not in (9005) ) loop 
+                htp.p('<td colspan="2" style="text-align:left;"><b>'||d.account_name_bn||'</b></td>           
+                </tr>'); 
+                HTP.p ('<tr> 
+                <td style="text-align:left;">'||d.TD_DESC||'</td> 
+                <td style="text-align:right;">'||(translate_bn.num_formate(d.cr,'fm99G99G99G99G99G99G990d00'))||'</td> 
+                </tr> 
+                <td colspan="2" style="text-align:right;"><b>'||(translate_bn.num_formate(d.cr,'fm99G99G99G99G99G99G990d00'))||'</b></td>           
+                </tr>');    
+            end loop; 
+                --r.cr 
+                 
+	    end loop; 
+                    --  htp.p('</td><td>rifat</td></tr>'); 
+         
+			htp.p('</table>'); 
+                     htp.p('<table style="width:50%;font-size:11;float: left">'); 
+                     htp.p('<tr> 
+                                <th rowspan="1"  style="width:1%"	>কোড</th> 
+                                <th rowspan="1"  style="width:5%"	>হিসাবের নাম ও বিবরন</th>  
+                                <th rowspan="1" style="width:3%"	>টাকা</th> 
+        			        </tr>'); 
+        for r in (	select g.CODE_DESC account_name,g.other_desc account_name_bn, D.TD_DESC, d.Damount dr, m.ttype, G.B_CODE, d.TRANS_CODE, d.tran_id 
+                    from tmp_tran_d D, TMP_TRAN_M M, g_acc_codes g 
+                    WHERE D.TRAN_ID = M.TRAN_ID 
+                    and g.code = d.TRANS_CODE 
+                    and d.org_id = 9 
+                    and m.ttype in ('CP','BP')   
+                    and b_code NOT in (9005)   
+                    --and d.tran_id = 77053    
+                    order by d.trans_code                                           
+                ) 
+        loop  
+              V_TOT_DR  := NVL(V_TOT_DR,0)+NVL(R.dr,0);  
+              v_count   := 0; 
+              select count(*) into v_count from tmp_tran_d where tran_id = r.tran_id ; 
+              v_count := v_count -1; 
+              v_count := (v_count)+2; 
+              HTP.p ('<tr> 
+                <td rowspan="'||v_count||'" style="text-align:left;">'||(translate_bn.only_num(r.TRANS_CODE))||'</td> 
+                '); 
+            for d in (select g.CODE_DESC account_name,nvl(g.other_desc,g.CODE_DESC) account_name_bn, D.TD_DESC, d.camount cr, d.damount dr,m.ttype, G.B_CODE, d.TRANS_CODE, d.tran_id 
+                    from tmp_tran_d D, TMP_TRAN_M M, g_acc_codes g 
+                    WHERE D.TRAN_ID = M.TRAN_ID 
+                    and g.code = d.TRANS_CODE 
+                    and d.TRAN_ID = r.TRAN_ID  
+                    and g.b_code not in (9005) ) loop 
+                htp.p('<td colspan="2" style="text-align:left;"><b>'||d.account_name_bn||'</b></td>           
+                </tr>'); 
+                HTP.p ('<tr> 
+                <td style="text-align:left;">'||d.TD_DESC||'</td> 
+                <td style="text-align:right;">'||(translate_bn.num_formate(d.dr,'fm99G99G99G99G99G99G990d00'))||'</td> 
+                </tr> 
+                <td colspan="2" style="text-align:right;"><b>'||(translate_bn.num_formate(d.dr,'fm99G99G99G99G99G99G990d00'))||'</b></td>           
+                </tr>');    
+            end loop; 
+                --r.cr 
+                 
+	    end loop; 
+         
+			htp.p('</table>'); 
+			htp.p('<br><br> 
+                <table style="width:100%;font-size:11;"> 
+                    <tr><td style="width:25%; text-align: right; border: none;">মোট </td><td style="width:25%; text-align: right;">'||(translate_bn.num_formate(V_TOT_CR,'fm99G99G99G99G99G99G990d00'))||'</td> 
+                        <td style="width:25%; text-align: right; border: none;">মোট </td><td style="width:25%; text-align: right;">'||(translate_bn.num_formate(V_TOT_DR,'fm99G99G99G99G99G99G990d00'))||'</td> 
+                    </tr> 
+                    <tr style = "border: none;"><td style="width:25%; text-align: right; border: none;"> নগদ ক্যাশ </td><td style="width:25%; text-align: right;">'||(translate_bn.num_formate(V_TOT_CR-V_TOT_DR,'fm99G99G99G99G99G99G990d00'))||'</td> 
+                        <td style="width:25%; text-align: right; border: none;"></td><td style="width:25%; text-align: right; border: none;"></td> 
+                    </tr> 
+                </table>'); 
+        
+	END; 
+
+--*******************************
+ 
+	procedure  potato_qty (p_project_code number, p_from_date date,p_to_date date,p_item_code varchar2, P_ORG_ID    NUMBER,p_item_type number) 
+	is 
+    v_sl        number  := 0; 
+    V_TRANS_ID  NUMBER  := 0; 
+    v_qty       number  := 0; 
+    v_item_id   number := 0; 
+    v_cust_total    number  := 0; 
+    v_item_do  number  := 0; 
+    v_item_balance  number  := 0; 
+    v_total     number; 
+    v_total_amt number; 
+    v_store_qty number := 0; 
+    v_tot       number := 0; 
+    v_amt_tot   number := 0; 
+    v_amt_1     number := 0; 
+    v_amt_2     number := 0; 
+    v_amt_3     number := 0; 
+    v_amt_4     number := 0; 
+    v_amt_5     number := 0; 
+    v_amt_6     number := 0; 
+    v_amt_7     number := 0; 
+    v_amt_8     number := 0; 
+    v_amt_9     number := 0; 
+    v_amt_10    number := 0; 
+    v_amt_11    number := 0; 
+    v_amt_12    number := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_project_code,'আলুর পার্টিদের জাত ওয়াইজ সংরক্ষণ হিসাব'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">সময়কালঃ '||htf.escape_sc(translate_bn.bangla_date(P_from_date))||' হতে ' 
+                                                                                ||htf.escape_sc(translate_bn.bangla_date(P_To_date))||'</h4>');                                                                         
+ 
+			htp.p('<table style="width:100%; font-size: 12px;font-family:;"> 
+			<tr> 
+			<th style="width:1%">ক্রমিক নং</th> 
+			<th style="width:12%">কাস্টমার নাম</th> 
+            <th style="width:6%">সংরক্ষণ বস্তা</th> '); 
+
+        for i in (select rownum, CODE, CODE_DESC, OTHER_DESC from g_inv_codes where org_id = 9 and p_code = '961' order by rownum) 
+        loop 
+            htp.p(' 
+			<th>'||htf.escape_sc(nvl(i.OTHER_DESC,i.CODE_DESC))||'</th>'); 
+ 
+        end loop; 
+           htp.p('<th style="width: 5%">অবশিষ্ট</th>'); 
+         
+			htp.p('</tr>'); 
+            v_cust_total    := 0; 
+            v_item_balance  := 0; 
+            v_item_do       := 0; 
+            v_store_qty     := 0; 
+      for j in (select distinct rownum, CODE, CODE_DESC, OTHER_DESC  
+                from g_acc_codes ga--,sp_store_m m  
+                -- where ga.code = m.party_code  
+                where org_id = p_org_id and p_code = '90010'  
+                -- and m.trans_date between p_from_date and p_to_date  
+                 order by rownum) 
+       loop 
+        v_sl := v_sl+1; 
+         
+        select SUM(qty) INTO v_cust_total from sp_store_d d, sp_store_m m 
+        where d.trans_id = m.trans_id 
+        and m.delete_status = 0 
+        and m.org_id = p_org_id 
+        and trans_type = 'GI' 
+        AND PARTY_CODE = j.code 
+        and d.group_type = nvl(p_item_type,d.group_type) 
+        and m.trans_date between p_from_date and p_to_date; 
+ 
+        select SUM(QTY) INTO v_item_do from sp_store_d d, sp_store_m m 
+        where d.trans_id = m.trans_id 
+        and m.org_id = p_org_id 
+        and trans_type = 'DO' 
+        and m.delete_status = 0 
+        AND PARTY_CODE = j.code 
+        and m.trans_date between p_from_date and p_to_date; 
+ 
+        v_item_balance  := NVL(v_cust_total,0)-NVL(v_item_do,0); 
+        v_store_qty     := v_store_qty + nvl(v_cust_total,0); 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(translate_bn.only_num(v_sl))||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(nvl(j.OTHER_DESC,j.CODE_DESC))||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(translate_bn.only_num(v_cust_total))||'</td>'); 
+                v_total :=0; 
+                v_total_amt := 0; 
+                    for r in (select rownum, CODE, CODE_DESC, OTHER_DESC from g_inv_codes where org_id = 9 and p_code = '961' order by rownum) 
+                    loop 
+                            begin 
+                                  SELECT ITEM_CODE, 
+                                         NVL(SUM (qty),0)      QTY 
+                                         into v_item_id, v_qty 
+                                    FROM sp_store_d D, SP_STORE_M M 
+                                    WHERE D.TRANS_ID = M.TRANS_ID 
+                                   AND TRANS_TYPE = 'GI' 
+                                   AND M.DELETE_STATUS = 0 
+                                   and M.org_id=P_ORG_ID 
+                                and ITEM_CODE = R.CODE 
+                                AND PARTY_CODE = j.code 
+                                and d.group_type = nvl(p_item_type,d.group_type) 
+                                and m.trans_date between p_from_date and p_to_date 
+                                GROUP BY ITEM_CODE; 
+                            exception 
+                                when others then  
+                                v_qty := 0; 
+                                v_tot := 0; 
+                            end; 
+         
+                        htp.p('<td style="text-align: center;">'||htf.escape_sc(translate_bn.only_num(v_qty))||'</td>'); 
+                        v_total := nvl(v_total,0)+nvl(v_qty,0); 
+                        v_total_amt := nvl(v_total_amt,0)+nvl(v_tot,0); 
+                        -- v_qty   := 0; 
+                        if r.rownum = 1 then 
+                        v_amt_1  := nvl(v_amt_1,0)+nvl(v_qty,0); 
+                        elsif r.rownum = 2 then 
+                        v_amt_2  := nvl(v_amt_2,0)+nvl(v_qty,0); 
+                        elsif r.rownum = 3 then 
+                        v_amt_3  := nvl(v_amt_3,0)+nvl(v_qty,0); 
+                        elsif r.rownum = 4 then 
+                        v_amt_4  := nvl(v_amt_4,0)+nvl(v_qty,0); 
+                        elsif r.rownum = 5 then 
+                        v_amt_5  := nvl(v_amt_5,0)+nvl(v_qty,0); 
+                        elsif r.rownum = 6 then 
+                        v_amt_6  := nvl(v_amt_6,0)+nvl(v_qty,0); 
+                        elsif r.rownum = 7 then 
+                        v_amt_7  := nvl(v_amt_7,0)+nvl(v_qty,0); 
+                        elsif r.rownum = 8 then 
+                        v_amt_8  := nvl(v_amt_8,0)+nvl(v_qty,0); 
+                        elsif r.rownum = 9 then 
+                        v_amt_9  := nvl(v_amt_9,0)+nvl(v_qty,0); 
+                        elsif r.rownum = 10 then 
+                        v_amt_10  := nvl(v_amt_10,0)+nvl(v_qty,0); 
+                        elsif r.rownum = 11 then 
+                        v_amt_11  := nvl(v_amt_11,0)+nvl(v_qty,0); 
+                        elsif r.rownum = 12 then 
+                        v_amt_12  := nvl(v_amt_12,0)+nvl(v_qty,0); 
+                        end if; 
+                    end loop; 
+ 
+                     htp.p('<td style="text-align: center;background-color:#ccc;">'||htf.escape_sc(translate_bn.only_num(v_item_balance))||'</td>'); 
+                    --  htp.p('<td style="text-align: right">'||htf.escape_sc(to_char(v_total_amt,'99,99,99,990.00'))||'</td>'); 
+                        v_amt_tot := nvl(v_amt_tot,0)+nvl(v_item_balance,0); 
+                     
+      end loop; 
+			htp.p('</tr>'); 
+             HTP.p ( 
+                  '<tr> 
+                <td colspan="2" style="text-align: right;"><b>মোটঃ</b> </td> 
+                <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_store_qty))||'</b></td>'); 
+        for k in (select rownum, CODE, CODE_DESC, OTHER_DESC from g_inv_codes where org_id = 9 and p_code = '961' order by rownum) 
+        loop 
+              if k.rownum = 1 then 
+              htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_1))||'</b></td>'); 
+              elsif k.rownum = 2 then 
+              htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_2))||'</b></td>'); 
+              elsif k.rownum = 3 then 
+              htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_3))||'</b></td>'); 
+              elsif k.rownum = 4 then 
+              htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_4))||'</b></td>'); 
+              elsif k.rownum = 5 then 
+              htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_5))||'</b></td>'); 
+              elsif k.rownum = 6 then 
+              htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_6))||'</b></td>'); 
+              elsif k.rownum = 7 then 
+              htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_7))||'</b></td>'); 
+              elsif k.rownum = 8 then 
+              htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_8))||'</b></td>'); 
+              elsif k.rownum = 9 then 
+              htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_9))||'</b></td>'); 
+              elsif k.rownum = 10 then 
+              htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_10))||'</b></td>'); 
+              elsif k.rownum = 11 then 
+              htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_11))||'</b></td>'); 
+              elsif k.rownum = 12 then 
+              htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_12))||'</b></td>'); 
+              end if; 
+ 
+        end loop; 
+            htp.p(' 
+              <td style="text-align: center"><b>'||htf.escape_sc(translate_bn.only_num(v_amt_tot))||'</b></td>'); 
+                htp.p('</tr>'); 
+ 
+			htp.p('</table>'); 
+             
+		report_utils.footerbangla; 
+	end;
+ 
+--*******************************
+
+    procedure sr_print_party_wise(p_project_code number,p_from_date date,p_to_date date,p_party_code number) 
+    is 
+     v_tot_rate         number := 0; 
+     v_agent_name       varchar2(500) := 0; 
+     V_LOAD_AMOUNT      NUMBER  := 0; 
+     V_GANI_BAG         NUMBER  := 0; 
+     V_BOOKING_ADV      NUMBER  := 0; 
+     V_TOTAL            NUMBER  := 0; 
+     v_tot_qty          number  := 0; 
+     v_item_type        varchar2(50); 
+     V_DO   NUMBER := 0; 
+     V_DO_TOTAL   NUMBER := 0; 
+    BEGIN 
+		report_utils.header_without_boarder(p_project_code, 'সংরক্ষণ রশিদ'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">সময়কাল : <u>'||htf.escape_sc (TRANSLATE_BN.bangla_date(P_from_date))||'</u>&nbsp; হতে &nbsp;<u>' 
+                                                                            ||htf.escape_sc (TRANSLATE_BN.bangla_date(P_To_date))||'</u></h4>'); 
+ 
+               for j in(select other_desc cust_name, 
+                                code_desc_other address, 
+                                code_tech_desc father_name, 
+                                p_mobile, 
+                                membership_no nid_no 
+                                from g_acc_codes ga,sp_store_m sm 
+                                where ga.code = sm.party_code 
+                                and sm.trans_type = 'GI' 
+                                and sm.delete_status = 0 
+                                and sm.org_id = 9 
+                                -- and p_code = '90010' 
+                                and ga.code = sm.party_code 
+                                and sm.trans_date between p_from_date and p_to_date 
+                                and sm.party_code = p_party_code 
+                                fetch first 1 row only 
+                                )   
+                loop  
+                    htp.p(' 
+                            <table style="border:none;width:90%;margin-left:50px;margin-top:0px;margin-bottom:10px;"> 
+                                <tr style="border:none;"> 
+                                    <td style="border:none;text-align:left;padding-top:10px;">আমানতকারীর নামঃ'||' '||htf.escape_sc(j.cust_name)||'</td> 
+                                    <td style="border:none;text-align:left;padding-top:10px;">পিতার নামঃ'||' '||htf.escape_sc(j.father_name)||'</td> 
+                                    <td style="border:none;text-align:center;padding-top:10px;">মোবাইল নংঃ'||' '||htf.escape_sc(j.p_mobile)||'</td> 
+                                </tr> 
+                                <tr style="border:none;"> 
+                                    <td style="border:none;text-align:left;padding-top:10px;padding-left:75px;">ঠিকানাঃ'||' '||htf.escape_sc(j.address)||'</td> 
+                                    <td style="border:none;text-align:left;padding-top:10px;padding-left:px;">এন.আই.ডি. নংঃ'||' '||htf.escape_sc(j.nid_no)||'</td> 
+                                    <td style="border:none;text-align:right;"></td> 
+                                </tr> 
+                            </table> 
+                   '); 
+                end loop; 
+            htp.p('<h4 style="text-align:center;margin-top: 50px;padding-top: 10px; background-color:#c3c7c4; border: 1px solid black; border-radius: 50px;width: 200px;height: 40px;margin: auto;"> 
+                    <b>সংরক্ষিত পণ্যের বিবরণ</b></h4>'); 
+			htp.p('<table style="width:100%;margin-top: 10px"><tr> 
+                                <th rowspan="2" style="width:8%" >তারিখ</th> 
+                    			<th rowspan="2" style="width:1%" >   এস.আর নং</th> 
+                    			<th rowspan="2" style="width:1%" >বুকিং নং</th> 
+                                <th rowspan="2" style="width:5%">পণ্যের নাম</th> 
+                    			<th colspan="2" style="width:5%" >বস্তা সংখ্যা</th> 
+                    			<th rowspan="2" style="width:2%" >একক</th> 
+                    			<th rowspan="2" style="width:5%" >মোট সংখ্যা</th> 
+                    			<th rowspan="2" style="width:1%" >মন্তব্য</th> 
+                    			</tr>'); 
+                          htp.p('<tr> 
+                                <th rowspan="1"  style="width:2%">বীজ</th> 
+                                <th rowspan="1"  style="width:2%">সাধারণ</th> 
+        			        </tr>'); 
+                v_tot_qty := 0; 
+        		FOR i in (select sm.TRANS_DATE, 
+                                    sm.party_code, 
+                                    sm.invoice_no gate_entry_no, 
+                                   (select substr( INVOICE_NO,5) from sp_store_m where trans_id = sm.REF_TRANS )  booking_no, 
+                                    pkg_inventory.get_inv_bu_bangla(gi.code) item_name, 
+                                    sum(sd.order_qty) receive_qty, 
+                                    sd.rate, 
+                                    --sd.qty * sd.rate total_amt, 
+                                    (select net_amount from sp_store_m where trans_id = sm.REF_TRANS and trans_type = 'BK') adv_amount, 
+                                    ga.code_desc cust_name, 
+                                    ga.CODE_DESC_OTHER cust_address, 
+                                    ga.OTHER_DESC cust_name_bn, 
+                                    ag.agent_name_bn, 
+                                    ag.address_bn, 
+                                        sd.sr_no, 
+                                    (select other_desc from g_uni_codes where code = (select group_type from sp_store_d where trans_id = REF_TRANS)) item_type 
+                            from sp_store_m sm 
+                            join sp_store_d sd on(sm.trans_id = sd.trans_id) 
+                            join g_inv_codes gi on (sd.item_code = gi.code and sd.org_id = gi.org_id) 
+                            join g_acc_codes ga on (sm.party_code = ga.code and sm.org_id = ga.org_id) 
+                            join BOOK_PAGE bp on(sm.page_no = bp.page_no) 
+                            join BOOK_INFO bi on (bp.book_id = bi.book_id) 
+                            join AGENT_BOOK_INFO ab on (bi.book_id = ab.book_id) 
+                            join AGENT_INFO   ag on (ag.agent_id = ab.agent_id) 
+                            left join g_uni_codes gu on (sm.GATE_KEPPER_CODE	 = gu.code) 
+                            left join g_uni_codes gt on (sm.gate_code = gt.code) 
+                            where sm.org_id = 9 
+                            and sm.trans_type = 'GI' 
+                                and sm.delete_status = 0 
+                            -- and sd.sr_no is not null 
+                            and sm.party_code = p_party_code 
+                           -- and sd.sr_no = p_sr_no 
+                            --and sm.gate_code = p_gate_code 
+                            and sm.trans_date between p_from_date and p_to_date 
+                            group by sm.TRANS_DATE,sm.invoice_no, 
+                                    ga.code_desc ,gi.code,sm.trans_id,ag.agent_name_bn, 
+                                    ga.CODE_DESC_OTHER ,gt.code_desc,ag.address_bn,sm.party_code, 
+                                    ga.OTHER_DESC ,gi.other_desc,sd.rate,sm.REF_TRANS, 
+                                    gu.code_desc ,sm.trans_type,sd.sr_no) 
+        		LOOP 
+ 
+    
+            -- v_sl := v_sl+1; 
+            v_tot_rate := nvl(i.receive_qty,0) * nvl(i.rate,0); 
+            V_TOTAL := NVL(V_TOTAL,0)+NVL(v_tot_rate,0); 
+            v_tot_qty:= v_tot_qty + nvl(i.receive_qty,0); 
+            v_item_type := i.item_type; 
+ 
+            if i.agent_name_bn != v_agent_name then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="4" style="text-align:left;border:none;">পাটীর নামঃ'||' '||HTF.escape_sc (i.agent_name_bn) 
+               || '</td> 
+                <td colspan="4" style="text-align:left; border:none;">ঠিকানাঃ'||' '||HTF.escape_sc (i.address_bn) 
+               || '</td> 
+                </tr>'); 
+            end if; 
+            v_agent_name    := i.agent_name_bn; 
+          
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (TRANSLATE_BN.bangla_date(i.TRANS_DATE)) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.sr_no) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (TRANSLATE_BN.only_num(i.booking_no)) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.item_name) 
+               || '</td> 
+               <td rowspan="1" style="text-align: center">'||case when i.item_type = 'বীজ' then HTF.escape_sc (TRANSLATE_BN.only_num(i.receive_qty)) end 
+               ||'</td> 
+               <td rowspan="1" style="text-align: center">'||case when i.item_type = 'সাধারণ' then HTF.escape_sc (TRANSLATE_BN.only_num(i.receive_qty)) end 
+               ||'</td> 
+               <td>'||HTF.escape_sc (null) 
+               ||'</td> 
+               <td style="text-align: center">'||HTF.escape_sc (TRANSLATE_BN.only_num(i.receive_qty)) 
+               ||'</td> 
+               <td style="text-align: right">'||HTF.escape_sc ( null) 
+               ||'</td> 
+                </tr>'); 
+			end loop; 
+ 
+                    htp.p(' 
+                        <tr style="border:none;"> 
+                            <td colspan="4" style="border:none;text-align:right;">মোটঃ</td> 
+                            <td rowspan="1"style="border-left:3px solid;border-top:3px solid;border-bottom:3px solid;">'||case when v_item_type = 'বীজ' then HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty)) end 
+                            ||'</td> 
+                            <td rowspan="1"style="solid;border-top:3px solid;border-bottom:3px solid;">'||case when v_item_type = 'সাধারণ' then HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty)) end 
+                            ||'</td> 
+                            <td style="border-top:3px solid;border-bottom:3px solid;"></td> 
+                            <td style="border-top:3px solid;border-bottom:3px solid;border-right:3px solid;">'||HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty)) 
+                            ||'</td> 
+                        </tr> 
+                    '); 
+  
+         
+			htp.p('</table>'); 
+            htp.p('<h4 style="text-align:center;margin-top: 50px;padding-top: 10px; background-color:#c3c7c4; border: 1px solid black; border-radius: 50px;width: 200px;height: 40px;margin: auto;"> 
+                    <b>ডেলিভারী পণ্যের বিবরণ</b></h4>'); 
+			htp.p('<table style="width:100%;margin-top: 10px"><tr> 
+                                <th rowspan="2" style="width:8%" >তারিখ</th> 
+                    			<th rowspan="2" style="width:1%" >   এস.আর নং</th> 
+                    			<th rowspan="2" style="width:1%" >বুকিং নং</th> 
+                                <th rowspan="2" style="width:5%">পণ্যের নাম</th> 
+                    			<th colspan="2" style="width:5%" >বস্তা সংখ্যা</th> 
+                    			<th rowspan="2" style="width:2%" >একক</th> 
+                    			<th rowspan="2" style="width:5%" >ডেলিভারি সংখ্যা</th> 
+                    			<th rowspan="2" style="width:5%" >অবশিষ্ট সংখ্যা</th> 
+                    			<th rowspan="2" style="width:1%" >মন্তব্য</th> 
+                    			</tr>'); 
+                          htp.p('<tr> 
+                                <th rowspan="1"  style="width:2%">বীজ</th> 
+                                <th rowspan="1"  style="width:2%">সাধারণ</th> 
+        			        </tr>'); 
+                v_tot_qty := 0; 
+        		FOR i in (select sm.TRANS_DATE, 
+                                    sm.party_code, 
+                                    sm.invoice_no gate_entry_no, 
+                                   (select substr( INVOICE_NO,5) from sp_store_m where trans_id = sm.REF_TRANS )  booking_no, 
+                                    pkg_inventory.get_inv_bu_bangla(gi.code) item_name, 
+                                    sum(sd.order_qty) receive_qty, 
+                                    sd.rate, 
+                                    --sd.qty * sd.rate total_amt, 
+                                    (select net_amount from sp_store_m where trans_id = sm.REF_TRANS and trans_type = 'BK') adv_amount, 
+                                    ga.code_desc cust_name, 
+                                    ga.CODE_DESC_OTHER cust_address, 
+                                    ga.OTHER_DESC cust_name_bn, 
+                                    ag.agent_name_bn, 
+                                    ag.address_bn, 
+                                        sd.sr_no, SM.TRANS_ID, 
+                                    (select other_desc from g_uni_codes where code = (select group_type from sp_store_d where trans_id = REF_TRANS)) item_type 
+                            from sp_store_m sm 
+                            join sp_store_d sd on(sm.trans_id = sd.trans_id) 
+                            join g_inv_codes gi on (sd.item_code = gi.code and sd.org_id = gi.org_id) 
+                            join g_acc_codes ga on (sm.party_code = ga.code and sm.org_id = ga.org_id) 
+                            join BOOK_PAGE bp on(sm.page_no = bp.page_no) 
+                            join BOOK_INFO bi on (bp.book_id = bi.book_id) 
+                            join AGENT_BOOK_INFO ab on (bi.book_id = ab.book_id) 
+                            join AGENT_INFO   ag on (ag.agent_id = ab.agent_id) 
+                            left join g_uni_codes gu on (sm.GATE_KEPPER_CODE	 = gu.code) 
+                            left join g_uni_codes gt on (sm.gate_code = gt.code) 
+                            where sm.org_id = 9 
+                            and sm.trans_type = 'GI' 
+                                and sm.delete_status = 0 
+                            -- and sd.sr_no is not null 
+                            and sm.party_code = p_party_code 
+                           -- and sd.sr_no = p_sr_no 
+                            --and sm.gate_code = p_gate_code 
+                            and sm.trans_date between p_from_date and p_to_date 
+                            group by sm.TRANS_DATE,sm.invoice_no, 
+                                    ga.code_desc ,gi.code,sm.trans_id,ag.agent_name_bn, 
+                                    ga.CODE_DESC_OTHER ,gt.code_desc,ag.address_bn,sm.party_code, 
+                                    ga.OTHER_DESC ,gi.other_desc,sd.rate,sm.REF_TRANS, 
+                                    gu.code_desc ,sm.trans_type,sd.sr_no) 
+        		LOOP 
+BEGIN 
+        SELECT SUM(D.QTY) INTO V_DO FROM SP_STORE_D D, SP_STORE_M M WHERE D.TRANS_ID = M.TRANS_ID  
+        -- AND D.TRANS_ID = I.trans_id  
+        AND D.SR_NO = I.SR_NO AND M.TRANS_TYPE = 'DO'; 
+EXCEPTION WHEN OTHERS THEN V_DO := 0; 
+END; 
+
+            v_tot_qty:= v_tot_qty + nvl(i.receive_qty,0); 
+            v_item_type := i.item_type; 
+            V_DO_TOTAL  := NVL(V_DO_TOTAL,0)+NVL(V_DO,0); 
+ 
+            if i.agent_name_bn != v_agent_name then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="4" style="text-align:left;border:none;">পাটীর নামঃ'||' '||HTF.escape_sc (i.agent_name_bn) 
+               || '</td> 
+                <td colspan="4" style="text-align:left; border:none;">ঠিকানাঃ'||' '||HTF.escape_sc (i.address_bn) 
+               || '</td> 
+                </tr>'); 
+            end if; 
+            v_agent_name    := i.agent_name_bn; 
+          
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (TRANSLATE_BN.bangla_date(i.TRANS_DATE)) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.sr_no) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (TRANSLATE_BN.only_num(i.booking_no)) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.item_name) 
+               || '</td> 
+               <td rowspan="1" style="text-align: center">'||case when i.item_type = 'বীজ' then HTF.escape_sc (TRANSLATE_BN.only_num(i.receive_qty)) end 
+               ||'</td> 
+               <td rowspan="1" style="text-align: center">'||case when i.item_type = 'সাধারণ' then HTF.escape_sc (TRANSLATE_BN.only_num(i.receive_qty)) end 
+               ||'</td> 
+               <td>'||HTF.escape_sc (null) 
+               ||'</td> 
+               <td style="text-align: center">'||HTF.escape_sc (TRANSLATE_BN.only_num(V_DO)) 
+               ||'</td> 
+               <td style="text-align: center">'||HTF.escape_sc (TRANSLATE_BN.only_num(i.receive_qty-NVL(V_DO,0))) 
+               ||'</td> 
+               <td style="text-align: right">'||HTF.escape_sc ( null) 
+               ||'</td> 
+                </tr>'); 
+			end loop; 
+ 
+                    htp.p(' 
+                        <tr style="border:none;"> 
+                            <td colspan="4" style="border:none;text-align:right;">মোটঃ</td> 
+                            <td rowspan="1"style="border-left:3px solid;border-top:3px solid;border-bottom:3px solid;">'||case when v_item_type = 'বীজ' then HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty)) end 
+                            ||'</td> 
+                            <td rowspan="1"style="solid;border-top:3px solid;border-bottom:3px solid;">'||case when v_item_type = 'সাধারণ' then HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty)) end 
+                            ||'</td> 
+                            <td style="border-top:3px solid;border-bottom:3px solid;"></td> 
+                            <td style="border-top:3px solid;border-bottom:3px solid;border-right:3px solid;">'||HTF.escape_sc (TRANSLATE_BN.only_num(V_DO_TOTAL)) 
+                            ||'</td> 
+                            <td style="border-top:3px solid;border-bottom:3px solid;border-right:3px solid;">'||HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty-V_DO_TOTAL)) 
+                            ||'</td> 
+                        </tr> 
+                    '); 
+            htp.p('</table>'); 
+		--report_utils.footer; 
+    end; 
+
+--***************************
+
+    procedure potato_receive_delivery_report (p_company_id number , p_from_date date, p_to_date date ,p_org_id number) 
+    is 
+    v_sl number := 0; 
+    v_amt number := 0; 
+    v_tot_qty number :=0; 
+    v_tot_qty_g number :=0; 
+    v_tot_qty_s number :=0; 
+    v_total_amt number := 0; 
+    v_item_type varchar2(50); 
+    v_seeds_qty number := 0; 
+    v_general_qty number := 0; 
+    v_all_tot number := 0; 
+    v_general_qtyp number := 0; 
+    v_seeds_qtyp   number := 0; 
+    v_tot_qty_pp   number := 0; 
+    v_d_seeds_qtyp number := 0; 
+    v_d_general_qtyp number := 0; 
+    v_d_seeds_qty number := 0; 
+    v_d_general_qty number := 0; 
+    V_GRAND_TOTALG   NUMBER  := 0; 
+    V_GRAND_TOTALS   NUMBER  := 0; 
+    BEGIN 
+		report_utils.header_without_boarder(p_company_id, 'রিটার্ন রিপোর্ট'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">সময়কাল : <u>'||htf.escape_sc (TRANSLATE_BN.bangla_date(P_from_date))||'</u>&nbsp; হতে &nbsp;<u>' 
+                                                                            ||htf.escape_sc (TRANSLATE_BN.bangla_date(P_To_date))||'</u></h4>'); 
+		 
+			htp.p('<table style="width:100%;font-size:10px;"> 
+                            <tr> 
+                                <th colspan="3" style="width:6%" >প্রারম্ভিক রিসিভ</th> 
+                    			<th colspan="3" style="width:6%" >অদ্য রিসিভ</th> 
+                    			<th colspan="3" style="width:6%"> মোট রিসিভ</th>  
+                    			<th colspan="3" style="width:6%">প্রারম্ভিক ডেলিভারী</th> 
+                    			<th colspan="3" style="width:6%">অদ্য ডেলিভারী</th> 
+                                <th colspan="3" style="width:6%">মোট ডেলিভারী</th> 
+                                <th colspan="3" style="width:6%">বর্তমান মজুদ</th>         
+                    		</tr>'); 
+                            htp.p('<tr> 
+                                <th rowspan="1"  style="width:3%"	>খাবার আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>বীজ আলু<br>(বস্তা)</th>  
+                                <th rowspan="1" style="width:3%"	>মোট আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>খাবার আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>বীজ আলু<br>(বস্তা)</th>  
+                                <th rowspan="1" style="width:3%"	>মোট আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>খাবার আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>বীজ আলু<br>(বস্তা)</th>  
+                                <th rowspan="1" style="width:3%"	>মোট আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>খাবার আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>বীজ আলু<br>(বস্তা)</th>  
+                                <th rowspan="1" style="width:3%"	>মোট আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>খাবার আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>বীজ আলু<br>(বস্তা)</th>  
+                                <th rowspan="1" style="width:3%"	>মোট আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>খাবার আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>বীজ আলু<br>(বস্তা)</th>  
+                                <th rowspan="1" style="width:3%"	>মোট আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>খাবার আলু<br>(বস্তা)</th> 
+                                <th rowspan="1"  style="width:3%"	>বীজ আলু<br>(বস্তা)</th>  
+                                <th rowspan="1" style="width:3%"	>মোট আলু<br>(বস্তা)</th> 
+        			        </tr>'); 
+
+                                    	select nvl(sum(order_qty),0) into v_seeds_qtyp from sp_store_d sd,sp_store_m sm --প্রারম্ভিক রিসিভ 
+                                    where sd.trans_id = sm.trans_id 
+                                    and sm.trans_type = 'GI' 
+                                    and sm.org_id = 9 
+                                    and sd.group_type = 90002101 --seeds 
+                                    AND SM.DELETE_STATUS = 0 
+                                    and sm.trans_date < p_from_date ; 
+ 
+                                    select nvl(sum(order_qty),0) into v_general_qtyp from sp_store_d sd,sp_store_m sm --প্রারম্ভিক রিসিভ 
+                                    where sd.trans_id = sm.trans_id 
+                                    and sm.trans_type = 'GI' 
+                                    and sm.org_id = 9 
+                                    and sd.group_type = 90002102 --general 
+                                    AND SM.DELETE_STATUS = 0 
+                                    and sm.trans_date < p_from_date ; 
+                                     
+                                    select nvl(sum(order_qty),0) into v_seeds_qty from sp_store_d sd,sp_store_m sm --অদ্য রিসিভ 
+                                    where sd.trans_id = sm.trans_id 
+                                    and sm.trans_type = 'GI' 
+                                    and sm.org_id = 9 
+                                    and sd.group_type = 90002101 --seeds 
+                                    AND SM.DELETE_STATUS = 0 
+                                    and sm.trans_date between p_from_date and p_to_date; 
+ 
+                                    select nvl(sum(order_qty),0) into v_general_qty from sp_store_d sd,sp_store_m sm --অদ্য রিসিভ 
+                                    where sd.trans_id = sm.trans_id 
+                                    and sm.trans_type = 'GI' 
+                                    and sm.org_id = 9 
+                                    and sd.group_type = 90002102 --general 
+                                    AND SM.DELETE_STATUS = 0 
+                                    and sm.trans_date between p_from_date and p_to_date; 
+ 
+ 
+                                    select  nvl(sum(SD.qty),0) into v_d_general_qtyp  
+                                    from sp_store_d sd,sp_store_m sm, SP_STORE_M DM, SP_STORE_D DD --প্রারম্ভিক রিসিভ 
+                                    where sd.trans_id = sm.trans_id 
+                                    AND SM.REF_TRANS = DM.TRANS_ID 
+                                    AND DM.trans_id = DD.trans_id 
+                                    AND SD.SR_NO = DD.SR_NO 
+                                    and sm.trans_type = 'DO' 
+                                    and sm.org_id = 9 
+                                    and DD.group_type = 90002102 --general 
+                                    AND SM.DELETE_STATUS = 0 
+                                    and sm.trans_date < p_from_date ; 
+ 
+                                    select  nvl(sum(SD.qty),0) into v_d_seeds_qtyp  
+                                    from sp_store_d sd,sp_store_m sm, SP_STORE_M DM, SP_STORE_D DD --প্রারম্ভিক রিসিভ 
+                                    where sd.trans_id = sm.trans_id 
+                                    AND SM.REF_TRANS = DM.TRANS_ID 
+                                    AND DM.trans_id = DD.trans_id 
+                                    AND SD.SR_NO = DD.SR_NO 
+                                    and sm.trans_type = 'DO' 
+                                    and sm.org_id = 9 
+                                    and DD.group_type = 90002101 --seeds 
+                                    AND SM.DELETE_STATUS = 0 
+                                    and sm.trans_date < p_from_date ; 
+                                     
+                                    select  nvl(sum(SD.qty),0) into v_d_general_qty  
+                                    from sp_store_d sd,sp_store_m sm, SP_STORE_M DM, SP_STORE_D DD --অদ্য রিসিভ 
+                                    where sd.trans_id = sm.trans_id 
+                                    AND SM.REF_TRANS = DM.TRANS_ID 
+                                    AND DM.trans_id = DD.trans_id 
+                                    AND SD.SR_NO = DD.SR_NO 
+                                    and sm.trans_type = 'DO' 
+                                    and sm.org_id = 9 
+                                    and DD.group_type = 90002102 --general 
+                                    AND SM.DELETE_STATUS = 0 
+                                    and sm.trans_date between p_from_date and p_to_date; 
+ 
+                                    select  nvl(sum(SD.qty),0) into v_d_seeds_qty 
+                                    from sp_store_d sd,sp_store_m sm, SP_STORE_M DM, SP_STORE_D DD --অদ্য রিসিভ 
+                                    where sd.trans_id = sm.trans_id 
+                                    AND SM.REF_TRANS = DM.TRANS_ID 
+                                    AND DM.trans_id = DD.trans_id 
+                                    AND SD.SR_NO = DD.SR_NO 
+                                    and sm.trans_type = 'DO' 
+                                    and sm.org_id = 9 
+                                    and DD.group_type = 90002101 --seeds 
+                                    AND SM.DELETE_STATUS = 0 
+                                    and sm.trans_date between p_from_date and p_to_date; 
+		               
+                                    v_tot_qty_pp := nvl(v_seeds_qtyp,0) + nvl(v_general_qtyp,0); 
+                                    v_tot_qty := nvl(v_seeds_qty,0) + nvl(v_general_qty,0); 
+                                    v_tot_qty_g := nvl(v_general_qtyp,0) + nvl(v_general_qty,0); 
+                                    v_tot_qty_s := nvl(v_seeds_qtyp,0) + nvl(v_seeds_qty,0); 
+                                    v_all_tot   := nvl(v_tot_qty_g,0) + nvl(v_tot_qty_s,0); 
+                      
+                        V_GRAND_TOTALG  := v_tot_qty_g-(v_d_general_qty+v_d_general_qtyp); 
+                        V_GRAND_TOTALS  := v_tot_qty_s-(v_d_seeds_qty+v_d_seeds_qtyp); 
+                              
+                                HTP.p ( 
+                                      '<tr> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_general_qtyp)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_seeds_qtyp)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty_pp)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_general_qty)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_seeds_qty)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty_g)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_tot_qty_s)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_all_tot)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_d_general_qtyp)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_d_seeds_qtyp)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_d_general_qtyp+v_d_seeds_qtyp)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_d_general_qty)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_d_seeds_qty)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_d_general_qty+v_d_seeds_qty)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_d_general_qty+v_d_general_qtyp)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_d_seeds_qty+v_d_seeds_qtyp)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(v_d_general_qtyp+v_d_seeds_qtyp+v_d_general_qty+v_d_seeds_qty)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(V_GRAND_TOTALG)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(V_GRAND_TOTALS)) 
+                                   || '</td> 
+                                    <td style="text-align: center">' 
+                                   || HTF.escape_sc (TRANSLATE_BN.only_num(V_GRAND_TOTALG+V_GRAND_TOTALS)) 
+                                   || '</td> 
+                                    <tr>'); 
+
+         
+			htp.p('</table>'); 
+ 
+            htp.p('</html>'); 
+        
+	END; 
+ 
+end "COLDSTORAGE_REPORTS";
+/
+
+
+

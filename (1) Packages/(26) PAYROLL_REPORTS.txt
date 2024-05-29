@@ -1,0 +1,1541 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package        payroll_reports as 
+	procedure salary_sheet_general (p_project_id number 
+									,p_section_code number 
+									,p_shift_code number 
+									,p_period_id number
+                                    ,p_org_id number 
+			); 
+		 
+	procedure salary_sheet_softner (p_project_id number 
+									,p_section_code number 
+									,p_shift_code number 
+									,p_period_id number 
+			); 
+            	 
+			 
+	procedure salary_sheet_balpress (p_project_id number 
+									,p_section_code number 
+									,p_shift_code number 
+									,p_period_id number 
+			); 
+             
+			 
+	procedure salary_sheet_hand_sweing (p_project_id number 
+										,p_section_code number 
+										,p_shift_code number 
+										,p_period_id number 
+			); 
+            
+             
+			 
+	procedure salary_sheet_loom (p_project_id number 
+								,p_section_code number 
+								,p_shift_code number 
+								,p_period_id number
+                                ,p_org_id   number 
+			); 
+             
+			 
+	procedure salary_sheet_heracal(p_project_id number 
+								,p_section_code number 
+								,p_shift_code number 
+								,p_period_id number 
+			); 
+            
+			 
+	procedure summery_sheet (p_project_id number 
+							,p_section_code number 
+							,p_shift_code number 
+							,p_period_id number
+                            ,p_org_id number  
+			); 
+			 
+end payroll_reports;
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body        "PAYROLL_REPORTS" as 
+procedure salary_sheet_general (p_project_id number 
+							,p_section_code number 
+							,p_shift_code number 
+							,p_period_id number
+                            ,p_org_id number 
+) is 
+	v_sl            number  := 0; 
+	v_count         number  := 0; 
+	V_DAYS          NUMBER  := 0; 
+	V_OT_AMOUNT     NUMBER  := 0; 
+	V_FRIDAY_AMOUNT NUMBER  := 0; 
+	V_TOTAL_SAL     NUMBER  := 0; 
+	V_NET_SAL       NUMBER  := 0; 
+	V_PRE           NUMBER  := 0; 
+	V_SAL           NUMBER  := 0; 
+	V_TK            NUMBER  := 0;   
+	V_FH            NUMBER  := 0; 
+	V_FT            NUMBER  := 0; 
+	V_ADH           NUMBER  := 0; 
+	V_ADT           NUMBER  := 0; 
+	V_BONUS         NUMBER  := 0; 
+	V_TOTAL         NUMBER  := 0; 
+	V_ADVANCE       NUMBER  := 0; 
+	V_CANTAIN       NUMBER  := 0; 
+	V_SALARY        NUMBER  := 0; 
+    V_SHIFT         VARCHAR2(50):= 0;
+	V_from_date daTE := sysdate; 
+	V_TO_date daTE := sysdate; 
+BEGIN 
+	report_utils.header_without_boarder(p_project_id, 'Salary Sheet'); 
+    -- htp.p('p_project_id:'||p_project_id||' p_section_code:'||p_section_code||' p_shift_code:'||p_shift_code||' p_period_id:'||p_period_id); 
+   
+   begin 
+    	select from_date, TO_date 
+    	INTO V_from_date, V_TO_date 
+    	from ERP_SALARY_INFO 
+    	where pk_id = p_period_id; 
+	exception when no_data_found then null; 
+    end; 
+ 
+	htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(V_from_date)||' to '||htf.escape_sc(V_To_date)||'</h4>'); 
+		 
+	FOR r in (SELECT CODE, OTHER_DESC 
+				FROM G_UNI_CODES g 
+				WHERE  code = nvl(p_section_code,code) 
+				AND P_CODE =p_org_id||'0003'  
+				AND org_id = p_org_id  
+				ORDER BY CODE_DESC) 
+	LOOP 
+        FOR j in (SELECT CODE, OTHER_DESC 
+    				FROM G_UNI_CODES g 
+    				WHERE  code = nvl(p_shift_code,code) 
+    				AND P_CODE =p_org_id||'00012'  
+    				AND org_id = p_org_id  
+    				ORDER BY CODE_DESC) 
+    	LOOP 
+
+		select count(*)  
+		into v_count 
+		FROM EMP_INFO E  
+		LEFT OUTER JOIN ERP_PROCESSED_SALARY SAL ON E.CID_NO=SAL.CID_NO 
+		LEFT JOIN G_UNI_CODES DE ON E.DESIG_CODE = DE.CODE 
+		LEFT JOIN G_UNI_CODES SH ON E.SHIFT_CODE = SH.CODE 
+		WHERE e.sec_code = R.CODE 
+		AND E.SHIFT_CODE = p_shift_code
+		AND E.PROJECT_CODE = NVL(p_project_id,E.PROJECT_CODE) 
+		AND SAL.SALARY_INFO_ID  = p_period_id; 
+								 
+		IF v_count > 0  
+		THEN 
+			htp.p('<h3 style="float:left;"> সেকশন : '||htf.escape_sc(r.OTHER_DESC)||'</h3>'); 
+            htp.p('<h3 style="float:right;margin-right:50px;">'||htf.escape_sc(j.OTHER_DESC)||'</h3>'); 
+			htp.p('<table style="width:100%"><tr> 
+					<th rowspan="2" style="width:1%" >ক্রমিক নং</th> 
+					<th rowspan="2" style="width:10%"  >নাম</th> 
+					<th rowspan="2" style="width:3%">আইডি নং</th>  
+					<th rowspan="2" style="width:10%">পদবী</th> 
+					<th rowspan="2" style="width:3%">উপস্থিত  দিন</th> 
+					<th rowspan="2" style="width:3%">মুজুরি</th> 
+					<th rowspan="2" style="width:2%">টাকা</th> 
+					<th colspan="2" style="width:3%">শুক্রবারের কাজ</th> 
+					<th colspan="2" style="width:3%">অতিরিক্ত কাজ</th> 
+					<th rowspan="2" style="width:3%">বোনাস</th>  
+					<th rowspan="2" style="width:5%">সর্ব মোট টাকা</th> 
+					<th rowspan="2" style="width:5%">অগ্রিম</th> 
+					<th rowspan="2" style="width:5%">ক্যান্টিন বিল</th> 
+					<th rowspan="2" style="width:5%">প্রাপ্য মুজুরি</th> 
+					<th rowspan="2" style="width:5%">স্বাক্ষর</th>             
+					</tr>'); 
+			htp.p('<tr> 
+				<th rowspan="1"  style="width:3%"	>ঘণ্টা</th> 
+				<th rowspan="1"  style="width:5%"	>টাকা</th>  
+				<th rowspan="1" style="width:3%"	>ঘণ্টা</th> 
+				<th rowspan="1"  style="width:5%"	>টাকা</th>       
+				</tr>'); 
+			v_sl                := 0; 
+			V_DAYS              := 0; 
+			V_OT_AMOUNT         := 0; 
+			V_FRIDAY_AMOUNT     := 0; 
+			V_TOTAL_SAL         := 0; 
+			V_net_SAL           := 0; 
+			V_PRE               := 0; 
+			V_SAL               := 0; 
+			V_TK                := 0; 
+			V_FH                := 0; 
+			V_FT                := 0; 
+			V_ADH               := 0; 
+			V_ADT               := 0; 
+			V_BONUS             := 0; 
+			V_TOTAL             := 0; 
+			V_ADVANCE           := 0; 
+			V_CANTAIN           := 0; 
+			V_SALARY            := 0; 
+		end if; 
+ 
+		FOR i in ( SELECT E.EMP_NAME_B, 
+						E.sec_code, 
+						E.UID_NO, 
+						SAL.SALARY, 
+						E.PAY_TYPE, 
+						DE.OTHER_DESC, 
+						SAL.ADD_BONUS, 
+						SAL.FRIDAY_HOUR, 
+						SAL.CAINTIN_BILL, 
+						SAL.ADV_DEDUCTION, 
+						SAL.OT_HOUR,  
+						SAL.DAY,
+                        SAL.OT_SAL,
+                        SAL.FRIDAY_SAL,
+                        SAL.BASIC,
+                        SAL.GROSS_SALARY ,
+                        SAL.TOTAL_SALARY
+				FROM EMP_INFO E  
+				LEFT OUTER JOIN ERP_PROCESSED_SALARY SAL ON E.CID_NO=SAL.CID_NO 
+				LEFT JOIN G_UNI_CODES DE ON E.DESIG_CODE = DE.CODE 
+				LEFT JOIN G_UNI_CODES SH ON E.SHIFT_CODE = SH.CODE 
+				WHERE e.sec_code = R.CODE 
+				AND E.SHIFT_CODE = p_shift_code
+				AND E.PROJECT_CODE = NVL(p_project_id,E.PROJECT_CODE) 
+				AND SAL.SALARY_INFO_ID  = p_period_id 
+				AND sal.day > 0 
+                ORDER BY TO_NUMBER(UID_NO) 
+				) 
+		LOOP 
+			v_sl                := v_sl+1; 
+			V_DAYS              := NVL(I.DAY,0); 
+			-- V_OT_AMOUNT         := (i.SALARY/8)*NVL(I.OT_HOUR,0); 
+			-- V_FRIDAY_AMOUNT     := (i.SALARY/8)*NVL(I.FRIDAY_HOUR,0); 
+			-- V_TOTAL_SAL         := NVL(i.GROSS_SALARY,0); 
+			-- V_net_SAL           := V_TOTAL_SAL - (nvl(I.ADV_DEDUCTION,0)+nvl(I.CAINTIN_BILL,0)); 
+			V_PRE               := V_PRE + NVL(V_DAYS,0); 
+			V_SAL               :=V_SAL + NVL(i.SALARY,0); 
+			V_TK                := V_TK + NVL(I.basic,0); 
+			V_FH                :=V_FH +NVL(I.FRIDAY_HOUR,0); 
+			V_FT                :=V_FT  +NVL(i.FRIDAY_SAL,0); 
+			V_ADH               :=V_ADH +NVL( I.OT_HOUR,0); 
+			V_ADT               :=V_ADT +NVL(i.OT_SAL,0); 
+			V_BONUS             :=v_bonus + NVL(I.ADD_BONUS,0); 
+			V_TOTAL             :=V_TOTAL + NVL(i.GROSS_SALARY,0); 
+			V_ADVANCE           :=V_ADVANCE + NVL(I.ADV_DEDUCTION,0); 
+			V_CANTAIN           := V_CANTAIN +NVL(I.CAINTIN_BILL,0); 
+			V_SALARY            :=V_SALARY  +NVL(i.TOTAL_SALARY,0); 
+ 
+			htp.p('<tr> 
+				<td style="text-align: center">'||translate_bn.only_num(v_sl)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.EMP_NAME_B)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(((i.UID_NO)))||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.OTHER_DESC)||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(translate_bn.only_num(V_DAYS))||'</td> 
+				<td style="text-align: RIGHT">'||htf.escape_sc(translate_bn.only_num(i.SALARY))||'</td> 
+				<td style="text-align: right">'||htf.escape_sc(translate_bn.only_num(I.BASIC))||'</td> 
+				<td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.FRIDAY_HOUR))||'</td> 
+				<td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(i.FRIDAY_SAL))||'</td> 
+				<td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.OT_HOUR))||'</td> 
+				<td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(i.OT_SAL))||'</td> 
+				<td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.ADD_BONUS))||'</td> 
+				<td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(i.GROSS_SALARY))||'</td> 
+				<td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.ADV_DEDUCTION))||'</td> 
+				<td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.CAINTIN_BILL))||'</td> 
+				<td style="text-align: right;"'||case when i.TOTAL_SALARY < 0 then 'bgcolor= "yellow"' end ||'>
+                                                    '||htf.escape_sc(translate_bn.only_num(i.TOTAL_SALARY))||'</td> 
+				<td style="text-align: right;"></td>				 
+				</tr>');	 
+		END LOOP; 
+		 
+		IF v_count > 0 THEN 
+			htp.p('<tr> 
+			<td colspan="4" style="text-align: center"> <b>সর্ব মোট </td> 
+			<td style="text-align: CENTER;"><b>'||(translate_bn.only_num(V_PRE))   ||'</td> 
+			<td style="text-align: right"><b>'||(translate_bn.num_formate(V_SAL,'99,99,999')) ||'</td> 
+			<td style="text-align: RIGHT;"><b>'||(translate_bn.only_num(V_TK))  ||'</td> 
+			<td style="text-align: center"><b>'|| translate_bn.only_num(V_FH )||'</td> 
+			<td style="text-align: RIGHT"><b>'||(translate_bn.num_formate(V_FT,'99,99,999'))  ||'</td> 
+			<td style="text-align: CENTER"><b>'|| translate_bn.only_num(V_ADH)   ||'</td> 
+			<td style="text-align: right;"><b>'||(translate_bn.num_formate(V_ADT,'99,99,999')) ||'</td> 
+			<td style="text-align: right;"><b>'|| translate_bn.only_num(V_BONUS)  ||'</td> 
+			<td style="text-align: right;"><b>'||(translate_bn.num_formate(V_TOTAL,'99,99,999'))  ||'</td> 
+			<td style="text-align: right;"><b>'||(translate_bn.num_formate(V_ADVANCE,'99,99,999')) ||'</td> 
+			<td style="text-align: right;"><b>'||(translate_bn.num_formate(V_CANTAIN,'99,99,999')) ||'</td> 
+			<td style="text-align: right;"><b>'||(translate_bn.num_formate(V_SALARY,'99,99,999'))||'</td>			 
+			<td style="text-align: right;"></td>						    
+			</tr>'); 
+		END IF;		 
+		htp.p('</table>'); 
+	end loop;
+    end loop;	 
+	report_utils.footerbangla; 	 
+END; 
+
+--*****************************
+
+procedure salary_sheet_softner (p_project_id number 
+								,p_section_code number 
+								,p_shift_code number 
+								,p_period_id number 
+		) is 
+    v_sl number             := 0; 
+    v_tosa_total number     :=0; 
+    v_cutt_total number     :=0; 
+    V_cut_payable NUMBER    :=0; 
+    v_tosa_payable number   :=0; 
+    v_net_payable number    :=0; 
+    v_grand_total number    :=0; 
+    v_total_man number      :=0; 
+    v_net_total number      :=0; 
+    v_all_payable number    :=0; 
+    V_from_date   date    := sysdate; 
+    V_to_date     date    := sysdate; 
+BEGIN 
+	report_utils.header_without_boarder(p_project_id, 'Salary Sheet Softner'); 
+
+    begin 
+        select from_date, TO_date 
+    	INTO V_from_date, V_TO_date 
+    	from ERP_SALARY_INFO 
+    	where pk_id = p_period_id; 
+	exception when no_data_found then null; 
+    end; 
+    htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(V_from_date)||' to '||htf.escape_sc(V_TO_date)||'</h4>'); 	 
+		 
+	FOR r in (SELECT CODE, OTHER_DESC  
+                 FROM G_UNI_CODES  
+                 WHERE P_CODE =APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'0003' 
+                 AND code = nvl(p_section_code,code) 
+                 AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+                 ORDER BY CODE_DESC) 
+	LOOP 
+        FOR j in (SELECT CODE, OTHER_DESC  
+                     FROM G_UNI_CODES  
+                     WHERE P_CODE =APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'00012' 
+                     AND code = p_shift_code
+                     AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+                     ORDER BY CODE_DESC) 
+    	LOOP 
+    		htp.p('<h3 style="float:left;"> সেকশন : '||htf.escape_sc(r.OTHER_DESC)||'</h3>'); 
+            htp.p('<h3 style="float:right;margin-right:50px;">'||htf.escape_sc(j.OTHER_DESC)||'</h3>');
+    		htp.p('<table style="width:100%"><tr> 
+    		<th >ক্রমিক নং</th> 
+    		<th >নাম</th> 
+    		<th >লোকবল</th>  
+    		<th >বিবরণ</th> 
+    		<th >দর</th> 
+            <th >মোট পাট মণ</th> 
+            <th >বোনাস</th> 
+            <th >মোট টাকা</th> 
+    		<th >ক্যান্টিন </th> 
+    		<th >অগ্রিম</th>  
+    		<th >প্রাপ্য টাকা</th> 
+    		</tr>'); 
+    		v_sl            :=0; 
+    		v_total_man     :=0; 
+    		v_net_total     :=0; 
+    		v_all_payable   :=0; 
+
+            FOR i IN (SELECT   E.EMP_NAME_B 
+                               ,SAL.TOTAL_MAN 
+                               ,SAL.TOSA_DTL 
+                               ,SAL.TOSA_RATE 
+        					   ,SAL.TOSA_TOTAL
+                               ,SAL.TOTAL_AMOUNT 
+                               ,SAL.BONUS 
+                               ,SAL.ADD_BONUS
+                               ,SAL.CAINTIN_BILL 
+                               ,SAL.ADV_DEDUCTION 
+                               ,sal.CUTT_DTL 
+                               ,sal.CUTT_RATE 
+                               ,sal.CUTT_TOTAL_MON 
+                               ,sal.CUTT_TOTAL_COST
+                               ,sal.BASIC
+                               ,sal.GROSS_SALARY
+                               ,sal.TOTAL_SALARY 
+                FROM EMP_INFO E,ERP_PROCESSED_SALARY SAL 
+                WHERE E.CID_NO =SAL.CID_NO 
+                AND E.SEC_CODE=R.CODE 
+                AND E.SHIFT_CODE =p_shift_code
+                AND E.PROJECT_CODE=NVL(p_project_id,E.PROJECT_CODE) 
+                AND SAL.SALARY_INFO_ID  = p_period_id              
+                order by emp_name 
+            ) LOOP 
+        		v_sl := V_SL+1; 
+        		v_tosa_total :=0; 
+        		v_cutt_total :=0; 
+        		v_grand_total :=0; 
+        					 
+        		v_tosa_total := ROUND((nvl(i.TOSA_RATE,0)*nvl(i.TOSA_TOTAL,0))); 
+        		v_cutt_total := round((nvl(i.CUTT_RATE,0)*nvl(i.CUTT_TOTAL_MON,0))); 			             
+        		v_grand_total := round(NVL(v_tosa_total,0)+NVL(v_cutt_total,0)); 
+                v_net_payable := v_grand_total +NVL(i.ADD_BONUS,0) - (nvl(I.CAINTIN_BILL,0)+nvl(i.ADV_DEDUCTION,0));
+        		v_total_man := NVL(v_total_man,0)+nvl(i.TOTAL_MAN,0); 			 
+        		v_net_total := v_net_total+v_grand_total; 
+        		v_all_payable := v_all_payable+NVL(v_net_payable,0); 
+        		-- for tosa 
+        		htp.p('<tr> 
+        		<td rowspan="2" style="text-align: center;">'||translate_bn.only_num(v_sl)||'</td> 
+        		<td rowspan="2" style="text-align: left;">'||htf.escape_sc(i.emp_name_b)||'</td> 
+                <td rowspan="2" style="text-align: center;">'||htf.escape_sc(translate_bn.only_num(NVL(i.TOTAL_MAN,0)))||'</td> 
+        		<td style="text-align: CENTER;">'||htf.escape_sc(i.TOSA_DTL)||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(translate_bn.only_num(nvl(i.TOSA_RATE,0)))||'</td> 
+                <td style="text-align: RIGHT;">'||htf.escape_sc(translate_bn.only_num(nvl(i.TOSA_TOTAL,0)))||'</td> 
+        		<td rowspan="2" style="text-align: center;">'||htf.escape_sc(translate_bn.only_num(NVL(i.ADD_BONUS,0) ))||'</td> 
+                <td style="text-align: right;">'||translate_bn.only_num(v_tosa_total)||'</td> 
+                <td rowspan="2" style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(nvl(I.CAINTIN_BILL,0)))||'</td> 
+                <td rowspan="2" style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(nvl(i.ADV_DEDUCTION,0)))||'</td> 
+                <td rowspan="2" style="text-align: right;">'||htf.escape_sc(translate_bn.num_formate(I.TOTAL_SALARY,'99,99,999'))||'</td>              				 
+        		</tr>'); 
+        		-- for cutting 
+        		htp.p('<tr> 
+        		<td style="text-align: CENTER;">'||htf.escape_sc(i.CUTT_DTL)||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(translate_bn.only_num(i.CUTT_RATE))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.CUTT_TOTAL_MON))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(v_cutt_total))||'</td>			 
+        		</tr>'); 
+        		-- for emp wise total 
+        		htp.p('<tr> 
+        		<td colspan="6" style="text-align: right;"><B>মোট</B></td> 
+                <td style="text-align: center;"><B>'||translate_bn.only_num(NVL(i.ADD_BONUS,0))||'</B></td> 
+                <td style="text-align: right;"> <B>'||htf.escape_sc(translate_bn.num_formate(v_grand_total,'99,99,999'))||'</B></td> 
+        		<td style="text-align: center;"><B>'||translate_bn.only_num(NVL(i.CAINTIN_BILL,0))||'</B></td> 
+        		<td style="text-align: center;"><B>'||translate_bn.only_num(NVL(i.ADV_DEDUCTION,0))||'</B></td> 
+                <td style="text-align: right;"> <B>'||htf.escape_sc(translate_bn.num_formate(v_net_payable,'99,99,999'))||'</B></td>			 
+        		</tr>'); 
+    		END LOOP;              
+            htp.p('<tr><tr><td colspan="11">.</td></tr> 
+    		<td  colspan="4" style="text-align: center"><b> মোট লোকবল </td> 
+    		<td  colspan="4" style="text-align: center;"><b>মোট টাকা</td> 
+            <td  colspan="3" style="text-align: center"><b>প্রাপ্য টাকা</td>               			 
+    		</tr>'); 		 
+    		htp.p('<tr> 
+    		<td  colspan="4" style="text-align: center"><B>'||htf.escape_sc(translate_bn.only_num(v_total_man))||'</B></td> 
+    		<td  colspan="4" style="text-align: RIGHT;"> <B>'||htf.escape_sc(translate_bn.num_formate(v_net_total,'99,99,999'))||' </B></td> 
+            <td  colspan="3" style="text-align: RIGHT"> <B>'||htf.escape_sc(translate_bn.num_formate(v_all_payable,'99,99,999'))||'</B> </td>               			 
+    		</tr>'); 		 
+            htp.p('</table>'); 
+    	end loop; 
+    end loop;       
+	report_utils.footerbangla; 
+END; 
+
+--*****************************
+
+    procedure salary_sheet_balpress (p_project_id number 
+									,p_section_code number 
+									,p_shift_code number 
+									,p_period_id number 
+			) is 
+ 
+	v_sl        NUMBER := 0; 
+    v_count     NUMBER := 0; 
+    V_BELL300   NUMBER := 0; 
+    V_BELL400   NUMBER:=  0; 
+    V_BELL500   NUMBER := 0; 
+    V_TOTAL_SAL NUMBER := 0; 
+    V_net_SAL   NUMBER:=  0; 
+ 
+    V_1         NUMBER :=0; 
+    V_T         NUMBER :=0; 
+    V_2         NUMBER :=0; 
+    V2_T        NUMBER :=0; 
+    V_3         NUMBER :=0; 
+    V3_T       NUMBER :=0; 
+    V_4         NUMBER :=0; 
+    V4_T        NUMBER :=0; 
+    V_BONUS     NUMBER :=0; 
+    V_SAL       NUMBER :=0; 
+    V_ADVANCE  NUMBER :=0; 
+    V_CAITAIN   NUMBER :=0; 
+    V_GROSS     NUMBER :=0; 
+     V_from_date     date       := sysdate; 
+    V_to_date     date          := sysdate; 
+ 
+	BEGIN 
+		report_utils.header_without_boarder(p_project_id, 'Salary Sheet Bellpress'); 
+ 
+          begin 
+            select from_date, TO_date 
+            	INTO V_from_date, V_TO_date 
+            	from ERP_SALARY_INFO 
+            	where pk_id = p_period_id; 
+    	      exception when no_data_found then null; 
+        end; 
+ 
+ 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(V_from_date)||' to '||htf.escape_sc(V_to_date)||'</h4>'); 
+		 
+			 
+		FOR r in (SELECT CODE, OTHER_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'0003' 
+                    AND code = nvl(p_section_code,code) 
+                    AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+                    ORDER BY CODE_DESC) 
+		LOOP 
+         FOR j in (SELECT CODE, OTHER_DESC  
+                     FROM G_UNI_CODES  
+                     WHERE P_CODE =APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'00012' 
+                     AND code = p_shift_code
+                            AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+                     ORDER BY CODE_DESC) 
+ 		LOOP 
+        SELECT COUNT(*) INTO V_COUNT 
+ 
+                                FROM EMP_INFO E LEFT OUTER JOIN ERP_PROCESSED_SALARY SAL 
+                               ON E.CID_NO=SAL.CID_NO 
+                               WHERE E.SEC_CODE=R.CODE 
+                               AND E.SHIFT_CODE =p_shift_code 
+                               AND E.PROJECT_CODE=NVL(p_project_id,E.PROJECT_CODE) 
+                                AND SAL.SALARY_INFO_ID  = p_period_id; 
+        IF V_COUNT > 0 THEN 
+ 
+ 
+			htp.p('<h3 style="float:left;"> সেকশন : '||htf.escape_sc(r.OTHER_DESC)||'</h3>'); 
+            htp.p('<h3 style="float:right;margin-right:50px;">'||htf.escape_sc(j.OTHER_DESC)||'</h3>');
+			htp.p('<table style="width:100%"><tr> 
+			<th  colspan="3" ></th> 
+			<th  colspan="3" >৩০০ পিসের  বিল</th>  
+			<th  colspan="3" > ৪০০ পিসের  বিল</th> 
+			<th  colspan="3" >৫০০ পিসের  বিল</th> 
+            <th  colspan="3" >অন্যান্য পিসের  বিল</th> 
+            <th  colspan="7"></th> 
+ 
+             
+			</tr>'); 
+			 
+			htp.p('<tr> 
+			<th   style="width:1%">ক্রমিক নং</th> 
+			<th   style="width:10%"> নাম</th> 
+			<th   style="width:3%"> আইডি নং</th> 
+			<th   style="width:3%"> পিস</th>  
+			<th   style="width:2%"> দর</th> 
+			<th   style="width:5%">টাকা</th> 
+            <th   style="width:3%">পিস</th> 
+            <th   style="width:2%"> দর</th> 
+			<th   style="width:5%">টাকা</th> 
+			<th   style="width:3%">পিস</th>  
+			<th   style="width:2%">দর</th> 
+			<th   style="width:3%">টাকা</th> 
+            <th   style="width:3%">পিস</th> 
+            <th   style="width:2%"> দর </th> 
+			<th   style="width:5%"> টাকা </th> 
+			<th   style="width:5%">ঈদ বোনাস </th> 
+            <th   style="width:5%">বোনাস</th> 
+            <th   style="width:5%">মোট টাকা </th> 
+            <th   style="width:5%"> অগ্রিম</th> 
+			<th   style="width:5%"> ক্যান্টিন বিল</th> 
+			<th   style="width:5%">প্রাপ্য মুজুরি </th> 
+            <th   style="width:5%"> স্বাক্ষর</th>            
+             
+			</tr>'); 
+            	 
+			v_sl        := 0; 
+            V_TOTAL_SAL := 0; 
+            V_net_SAL   := 0; 
+            V_1         :=0; 
+            v_t         :=0; 
+            V_2         :=0; 
+            V2_T        :=0; 
+            V_3         :=0; 
+            V3_T        :=0; 
+            V_4         :=0; 
+            V4_T        :=0; 
+            V_BONUS     :=0; 
+             V_SAL      :=0; 
+            V_ADVANCE   :=0; 
+            V_CAITAIN   :=0; 
+            V_GROSS     :=0; 
+ 
+                END IF; 
+        	FOR i in ( Select  E.EMP_NAME_B, 
+                               E.UID_NO, 
+                               SAL.BELL300_PCS, 
+                               SAL.BELL300_RATE, 
+                               ROUND(NVL(SAL.BELL300_PCS,0) * NVL(SAL.BELL300_RATE,0)) B3_TOTAL, 
+                               SAL.BELL400_PCS, 
+                               SAL.BELL400_RATE, 
+                               ROUND(NVL(SAL.BELL400_PCS,0) * NVL(SAL.BELL400_RATE,0)) B4_TOTAL, 
+                               SAL.BELL500_PCS, 
+                               SAL.BELL500_RATE, 
+                               ROUND(NVL(SAL.BELL500_PCS,0) * NVL(SAL.BELL500_RATE,0)) B5_TOTAL, 
+                               SAL.OTHER_BELL_PCS, 
+                               SAL.OTHER_BELL_RATE, 
+                               ROUND(NVL(SAL.OTHER_BELL_PCS,0) * NVL(SAL.OTHER_BELL_RATE,0)) B0_TOTAL, 
+                               NULL Eid_Bonus, 
+                               SAL.BONUS,
+                               SAL.ADD_BONUS, 
+                               SAL.ADV_DEDUCTION, 
+                               SAL.CAINTIN_BILL,
+                               SAL.BASIC,
+                               SAL.GROSS_SALARY,
+                               SAL.TOTAL_SALARY 
+ 
+                               FROM EMP_INFO E LEFT OUTER JOIN ERP_PROCESSED_SALARY SAL 
+                               ON E.CID_NO=SAL.CID_NO 
+                               WHERE E.SEC_CODE=R.CODE 
+                               AND E.SHIFT_CODE = p_shift_code
+                               AND E.PROJECT_CODE=NVL(p_project_id,E.PROJECT_CODE) 
+                                AND SAL.SALARY_INFO_ID  = p_period_id 
+                                 ORDER BY TO_NUMBER(E.UID_NO) 
+                           
+                            --AND E.org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                               ) 
+			LOOP 
+			v_sl        := v_sl+1; 
+            -- V_TOTAL_SAL := NVL(I.B3_TOTAL,0)+NVL(I.B4_TOTAL,0)+NVL(I.B5_TOTAL,0)+NVL(I.B0_TOTAL,0)+NVL(I.BONUS,0)+nvl(i.add_bonus,0); 
+            -- V_net_SAL   := NVL(V_TOTAL_SAL,0) - (NVL(I.ADV_DEDUCTION,0)+NVL(I.CAINTIN_BILL,0)); 
+            V_1         :=V_1 +nvl(i.BELL300_PCS,0); 
+            v_t         :=v_t   +nvl(i.B3_TOTAL,0); 
+            V_2         :=V_2 +NVL(i.BELL400_PCS,0); 
+            V2_T        :=V2_T+NVL(i.B4_TOTAL,0); 
+            V_3         :=V_3 +NVL(I.BELL500_PCS,0); 
+            V3_T        :=V3_T+NVL(i.B5_TOTAL,0); 
+            V_4         :=V_4 +NVL( I.OTHER_BELL_PCS,0); 
+            V4_T        :=V4_T+NVL( I.B0_TOTAL,0); 
+            V_BONUS     :=V_BONUS+NVL(I.BONUS,0); 
+             V_SAL      := V_SAL+NVL(I.GROSS_SALARY,0); 
+            V_ADVANCE   :=V_ADVANCE+NVL(I.ADV_DEDUCTION,0); 
+            V_CAITAIN   :=V_CAITAIN+NVL(I.CAINTIN_BILL,0); 
+            V_GROSS     :=V_GROSS+NVL(I.TOTAL_SALARY,0); 
+ 
+				htp.p('<tr> 
+				<td style="text-align: center">'||translate_bn.only_num(v_sl)||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.emp_name_b)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(translate_bn.only_num(i.UID_NO))||'</td> 
+				<td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(i.BELL300_PCS))||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(translate_bn.only_num(i.BELL300_RATE))||'</td> 
+				<td style="text-align: center">'||htf.escape_sc(translate_bn.only_num(i.B3_TOTAL ))||'</td> 
+                <td style="text-align: CENTER">'||htf.escape_sc(translate_bn.only_num(i.BELL400_PCS))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.BELL400_RATE))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(i.B4_TOTAL))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.BELL500_PCS))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.BELL500_RATE))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(i.B5_TOTAL))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.OTHER_BELL_PCS))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.OTHER_BELL_RATE))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.B0_TOTAL))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.ADD_BONUS))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.BONUS))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.num_formate(i.GROSS_SALARY,'99,99,999'))||'</td>  
+                 <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.ADV_DEDUCTION))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.CAINTIN_BILL))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.num_formate(I.TOTAL_SALARY,'99,99,999'))||'</td> 
+                <td style="text-align: right;"></td>				 
+				</tr>'); 
+		 
+			END LOOP; 
+                 IF V_COUNT > 0 THEN 
+                htp.p('<tr> 
+				<td colspan="3",style="text-align: center"><b> মোট </td> 
+				<td style="text-align: CENTER;"> <b>         '||translate_bn.only_num(V_1)||'</td> 
+                <td style="text-align: center">	 <b>               </td> 
+				<td style="text-align: CENTER;"> <b>         '||translate_bn.only_num(v_t)||'</td> 
+                <td style="text-align: center">  <b>       '||translate_bn.only_num(v_2)||'</td> 
+				<td style="text-align: center">	 <b>                  </td> 
+                <td style="text-align: CENTER">  <b>        '||translate_bn.only_num(v2_T)||'</td> 
+                <td style="text-align: CENTER;"> <b>        '|| translate_bn.only_num(V_3)||'</td> 
+                <td style="text-align: right;">	 <b>                  </td> 
+                <td style="text-align: right;">  <b>       '||translate_bn.only_num( V3_T)||'</td> 
+                <td style="text-align: right;">  <b>       '|| translate_bn.only_num(V_4)||'</td> 
+                <td style="text-align: right;">	 <b>               </td> 
+                <td style="text-align: right;">  <b>       '||translate_bn.only_num( V4_T)||' </td> 
+                <td style="text-align: right;">	 <b>                   </td> 
+                <td style="text-align: right;">  <b>   '|| translate_bn.only_num(  V_BONUS) ||'</td> 
+                <td style="text-align: right;">  <b>   '||  translate_bn.num_formate( V_SAL,'99,99,999')||'	</td> 
+                <td style="text-align: right;">  <b>   '||  translate_bn.only_num(V_ADVANCE)||'</td> 
+                <td style="text-align: right;">  <b>   '|| translate_bn.only_num( V_CAITAIN)||'</td> 
+                <td style="text-align: right;">  <b>   '|| translate_bn.num_formate(V_GROSS,'99,99,999') ||'	</td> 
+                <td style="text-align: right;">  <b>                   </td>				 
+				</tr>'); 
+            END IF; 
+            htp.p('</table>'); 
+             
+		end loop; 
+        end loop;
+         
+		report_utils.footerbangla; 
+		 
+		 
+	END; 
+     
+     
+--*****************************
+ 
+     procedure salary_sheet_hand_sweing (p_project_id number 
+										,p_section_code number 
+										,p_shift_code number 
+										,p_period_id number 
+			) is 
+	v_sl        NUMBER := 0; 
+    v_count     NUMBER := 0; 
+    V_BELL300   NUMBER := 0; 
+    V_BELL400   NUMBER:=  0; 
+    V_BELL500   NUMBER := 0; 
+    V_TOTAL_SAL NUMBER := 0; 
+    V_net_SAL   NUMBER:=  0;   
+    V_1         NUMBER :=0; 
+    V_T         NUMBER :=0; 
+    V_2         NUMBER :=0; 
+    V2_T        NUMBER :=0; 
+    V_3         NUMBER :=0; 
+    V3_T       NUMBER :=0; 
+    V_4         NUMBER :=0; 
+    V4_T        NUMBER :=0; 
+    V_BONUS     NUMBER :=0; 
+    V_SAL       NUMBER :=0; 
+    V_ADVANCE  NUMBER :=0; 
+    V_CAITAIN   NUMBER :=0; 
+    V_GROSS     NUMBER :=0; 
+     V_from_date     date       := sysdate; 
+    V_to_date     date          := sysdate; 
+ 
+ 
+	BEGIN 
+		report_utils.header_without_boarder(p_project_id, 'Salary Sheet Hand Sweing '); 
+ 
+         begin 
+            select from_date, TO_date 
+            	INTO V_from_date, V_TO_date 
+            	from ERP_SALARY_INFO 
+            	where pk_id = p_period_id; 
+    	      exception when no_data_found then null; 
+        end; 
+ 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date  from : '||htf.escape_sc(V_from_date)||' to '||htf.escape_sc(V_TO_date)||'</h4>'); 
+		 
+			 
+		FOR r in (SELECT CODE, OTHER_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'0003'  
+                    AND code = nvl(p_section_code,code) 
+                    AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+                    ORDER BY CODE_DESC) 
+ 
+		LOOP 
+        
+         FOR j in (SELECT CODE, OTHER_DESC  
+                     FROM G_UNI_CODES  
+                     WHERE P_CODE =APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'00012' 
+                     AND code = nvl(p_shift_code,code) 
+                            AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+                     ORDER BY CODE_DESC) 
+ 		LOOP 
+ 
+         SELECT COUNT(*) INTO V_COUNT 
+ 
+               
+                FROM EMP_INFO E LEFT OUTER JOIN ERP_PROCESSED_SALARY ERP 
+                ON E.CID_NO=ERP.CID_NO 
+                WHERE E.SEC_CODE=R.CODE 
+                AND E.SHIFT_CODE =NVL(p_shift_code,E.SHIFT_CODE) 
+                AND E.PROJECT_CODE=NVL(p_project_id,E.PROJECT_CODE) 
+                 AND ERP.SALARY_INFO_ID  = p_period_id ; 
+ 
+          IF V_COUNT > 0  
+          THEN 
+             
+			htp.p('<h3 style="float:left;"> সেকশন : '||htf.escape_sc(r.OTHER_DESC)||'</h3>'); 
+            htp.p('<h3 style="float:right;margin-right:50px;">'||htf.escape_sc(j.OTHER_DESC)||'</h3>');
+	htp.p('<table style="width:100%"><tr> 
+			<th  style="width:1%"> ক্রমিক নং</th> 
+			<th  style="width:10%">  নাম</th> 
+			<th  style="width:3%"> আইডি নং </th>  
+			<th  style="width:3%"> বান্ডিল-১</th> 
+			<th  style="width:3%"> দর</th> 
+            <th  style="width:3%"> বান্ডিল-১ এর মোট টাকা </th> 
+            <th  style="width:3%"> বান্ডিল-২</th> 
+            <th  style="width:3%"> দর</th> 
+			<th  style="width:3%"> বান্ডিল-২ এর মোট টাকা</th> 
+			<th  style="width:3%"> বান্ডিল-৩</th>  
+			<th  style="width:3%"> দর </th> 
+            <th  style="width:3%"> বান্ডিল-৩ এর মোট টাকা</th> 
+			<th  style="width:3%"> বান্ডিল-৪</th> 
+            <th  style="width:3%"> দর </th> 
+            <th  style="width:3%">বান্ডিল-৪এর মোট টাকা  </th> 
+            <th  style="width:5%"> বোনাস </th> 
+            <th  style="width:5%"> মোট মুজুরি </th> 
+			<th  style="width:5%"> অগ্রিম </th>  
+			<th  style="width:5%"> ক্যান্টিন বিল</th> 
+			<th  style="width:5%"> প্রাপ্য মুজুরি</th> 
+            <th  style="width:5%">স্বাক্ষর</th> 
+			</tr>'); 
+             
+             
+           	v_sl            :=0; 
+            V_TOTAL_SAL     :=0; 
+            V_net_SAL       :=0; 
+            V_1             :=0; 
+            V_T             :=0; 
+            V_2             :=0; 
+            V2_T            :=0; 
+            V_3             :=0; 
+            V3_T            :=0; 
+            V_4             :=0; 
+            V4_T            :=0; 
+            V_BONUS         :=0; 
+            V_SAL           :=0; 
+            V_ADVANCE       :=0; 
+            V_CAITAIN       :=0; 
+            V_GROSS         :=0; 
+             
+            END IF; 
+ 
+			v_sl := 0; 
+ 
+            	FOR i in (  SELECT E.EMP_NAME_B, 
+                                   E.UID_NO, 
+                                   ERP.BNDEL1, 
+                                   ERP.PRICE1, 
+                                   ROUND(NVL(ERP.BNDEL1,0) * NVL(ERP.PRICE1,0)) B1_TOTAL, 
+                                   ERP.BNDEL2, 
+                                   ERP.PRICE2, 
+                                   ROUND(NVL(ERP.BNDEL2,0) * NVL(ERP.PRICE2,0)) B2_TOTAL, 
+                                   ERP.BNDEL3, 
+                                   ERP.PRICE3, 
+                                   ROUND(NVL(ERP.BNDEL3,0) * NVL(ERP.PRICE3,0)) B3_TOTAL, 
+                                   ERP.BNDEL14, 
+                                   ERP.PRICE14, 
+                                   ROUND(NVL(ERP.BNDEL14,0) * NVL(ERP.PRICE14,0)) B4_TOTAL, 
+                                   ERP.BONUS,
+                                   ERP.ADD_BONUS, 
+                                   NULL TOTAL, 
+                                   ERP.ADV_DEDUCTION, 
+                                   ERP.CAINTIN_BILL ,
+                                   ERP.BASIC,
+                                   ERP.GROSS_SALARY,
+                                   ERP.TOTAL_SALARY
+ 
+                FROM EMP_INFO E LEFT OUTER JOIN ERP_PROCESSED_SALARY ERP 
+                ON E.CID_NO=ERP.CID_NO 
+                WHERE E.SEC_CODE=R.CODE 
+                AND E.SHIFT_CODE =NVL(p_shift_code,E.SHIFT_CODE) 
+                AND E.PROJECT_CODE=NVL(p_project_id,E.PROJECT_CODE) 
+                AND ERP.SALARY_INFO_ID  = p_period_id
+                ORDER BY TO_NUMBER(E.UID_NO)  
+ 
+               ) 
+            LOOP 
+			v_sl            := v_sl+1; 
+            V_TOTAL_SAL     := nvl(I.B1_TOTAL,0)+nvl(I.B2_TOTAL,0)+nvl(I.B3_TOTAL,0)+nvl(I.B4_TOTAL,0)+NVL(I.ADD_BONUS,0); 
+            V_net_SAL       := V_TOTAL_SAL - (nvl(I.ADV_DEDUCTION,0)+nvl(I.CAINTIN_BILL,0)); 
+            V_1             := V_1+NVL(I.BNDEL1,0); 
+            V_T             :=V_T+NVL(i.B1_TOTAL,0);   
+            V_2             :=V_2+NVL(i.BNDEL2,0); 
+            V2_T            :=V2_T+NVL(i.B2_TOTAL,0); 
+            V_3             :=V_3 +NVL(I.BNDEL3,0); 
+            V3_T            :=V3_T +NVL(i.B3_TOTAL,0); 
+            V_4             :=V_4 +NVL(I.BNDEL14,0); 
+            V4_T            :=V4_T +NVL(I.B4_TOTAL,0); 
+            V_BONUS         :=V_BONUS+NVL(I.ADD_BONUS,0); 
+            V_SAL           :=V_SAL+NVL(V_TOTAL_SAL,0); 
+            V_ADVANCE       :=V_ADVANCE+NVL(I.ADV_DEDUCTION,0); 
+            V_CAITAIN       :=V_CAITAIN +NVL(I.CAINTIN_BILL,0); 
+            V_GROSS         :=V_GROSS +NVL(V_net_SAL,0); 
+				htp.p('<tr> 
+				<td style="text-align: center">'||(translate_bn.only_num(v_sl))||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.emp_name_b)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(translate_bn.only_num(i.UID_NO))||'</td> 
+				<td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(i.BNDEL1))||'</td> 
+                <td style="text-align: CENTER">'||htf.escape_sc(translate_bn.only_num(i.PRICE1))||'</td> 
+				<td style="text-align: RIGHT">'||htf.escape_sc(translate_bn.only_num(i.B1_TOTAL))||'</td> 
+                <td style="text-align: CENTER">'||htf.escape_sc(translate_bn.only_num(i.BNDEL2))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.PRICE2))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(i.B2_TOTAL))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.BNDEL3))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.PRICE3))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(i.B3_TOTAL))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.BNDEL14))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.PRICE14))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.B4_TOTAL))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.ADD_BONUS))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(V_TOTAL_SAL))||'</td>  
+                 <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.ADV_DEDUCTION))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.CAINTIN_BILL))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(V_net_SAL))||'</td> 
+                <td style="text-align: right;"></td>				 
+				</tr>'); 
+		 
+			END LOOP; 
+ 
+            if v_count >0  
+            then 
+ 
+            htp.p('<tr> 
+				<td colspan="3",style="text-align: center"><b> মোট </td> 
+				<td style="text-align: center;"><b>'||translate_bn.only_num(V_1)||'</td> 
+                <td style="text-align: center">         </td> 
+				<td style="text-align: right"><b>'|| translate_bn.only_num(V_T) ||'</td> 
+                <td style="text-align: center"><b>'|| translate_bn.only_num(V_2)||'</td> 
+                <td style="text-align: right;">         </td> 
+                <td style="text-align: right;"><b>'|| translate_bn.only_num(V2_T) ||'</td> 
+                <td style="text-align: center;"><b>'||translate_bn.only_num( V_3 )||'</td> 
+                <td style="text-align: right;">         </td> 
+                <td style="text-align: right;"><b>'||translate_bn.only_num(V3_T) ||' </td> 
+                <td style="text-align: center;"><b>'||translate_bn.only_num (V_4)  ||'</td> 
+                <td style="text-align: right;">         </td> 
+                <td style="text-align: right;"><b>'|| translate_bn.only_num(V4_T) ||'</td> 
+                <td style="text-align: right;"><b>'|| translate_bn.only_num(V_BONUS) ||' </td> 
+                <td style="text-align: right;"><b>'|| translate_bn.num_formate( V_SAL,'99,99,999') ||'</td>  
+                 <td style="text-align: right;"><b>'|| translate_bn.only_num(V_ADVANCE) ||'</td> 
+                <td style="text-align: right;"><b>'|| translate_bn.only_num(V_CAITAIN) ||'</td> 
+                <td style="text-align: right;"><b>'|| translate_bn.num_formate(V_GROSS,'99,99,999')  ||'</td> 
+                <td style="text-align: right;"></td>				 
+				</tr>'); 
+ 
+          end if; 
+ 
+            htp.p('</table>'); 
+			 
+           
+		end loop;
+        end loop; 
+ 
+                 
+		report_utils.footerbangla; 
+	END; 
+     
+--*****************************
+     
+	  procedure salary_sheet_loom (p_project_id number 
+								,p_section_code number 
+								,p_shift_code number 
+								,p_period_id number
+                                ,p_org_id   number  
+			) is 
+ 
+	v_sl number       			:= 0; 
+    v_count number      		:= 0; 
+   
+ 
+    V_G12T       NUMBER 		:= 0; 
+    V_G12R      NUMBER  		:= 0; 
+    V_G12P      NUMBER  		:= 0; 
+    V_G12TK     NUMBER  		:= 0; 
+		 
+    V_G134T      NUMBER 		:= 0; 
+    V_G134R     NUMBER  		:= 0; 
+    V_G134P     NUMBER  		:= 0; 
+    V_G134TK    NUMBER  		:= 0; 
+		 
+    V_G1060T     NUMBER 		:= 0; 
+    V_G1060R    NUMBER  		:= 0; 
+    V_G1060P    NUMBER  		:= 0; 
+    V_G1060TK   NUMBER  		:= 0; 
+		 
+    V_G85T     NUMBER 			:= 0; 
+    V_G85R    NUMBER  			:= 0; 
+    V_G85P    NUMBER  			:= 0; 
+    V_G85TK   NUMBER  			:= 0; 
+			 
+    V_T_PCS    NUMBER 			:= 0; 
+    V_BOUNUS   NUMBER 			:= 0; 
+    V_ADBONOUS  NUMBER			:=0; 
+    V_TOTAL_SAL_SUM NUMBER 		:=0; 
+    V_ADVANCE   NUMBER 			:= 0; 
+    V_CANTAIN   NUMBER 			:= 0; 
+    V_GROSS    NUMBER 			:= 0; 
+ 
+ 
+    V_TOTAL_SAL NUMBER  		:= 0; 
+    V_net_SAL   NUMBER  		:= 0;  
+    V_from_date daTE 			:= sysdate; 
+	V_TO_date daTE 				:= sysdate; 
+ 
+ 
+ 
+	BEGIN 
+		report_utils.header_without_boarder(p_project_id, 'Salary Sheet Loom'); 
+        -- htp.p('p_project_id:'||p_project_id||' p_section_code:'||p_section_code||' p_shift_code:'||p_shift_code||' p_period_id:'||p_period_id); 
+   begin 
+    	select from_date, TO_date 
+    	INTO V_from_date, V_TO_date 
+    	from ERP_SALARY_INFO 
+    	where pk_id = p_period_id; 
+	exception when no_data_found then null; 
+    end; 
+ 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date  from : '||htf.escape_sc(V_from_date)||' to '||htf.escape_sc(V_TO_date)||'</h4>'); 
+		 
+			 
+		FOR r in (SELECT CODE, OTHER_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE = p_org_id||'0003'  
+                    AND code = nvl(p_section_code,code) 
+                    AND org_id = p_org_id  
+                    ORDER BY OTHER_DESC) 
+		LOOP 
+            FOR j in (SELECT CODE, OTHER_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE = p_org_id||'00012'  
+                    AND code = nvl(p_shift_code,code) 
+                    AND org_id = p_org_id  
+                    ORDER BY OTHER_DESC) 
+		    LOOP 
+            select count(*) into v_count                       
+            FROM EMP_INFO E,ERP_PROCESSED_SALARY SAL 
+            WHERE E.CID_NO=SAL.CID_NO 
+            AND E.SEC_CODE=R.CODE 
+           	AND SAL.SALARY_INFO_ID  = p_period_id; 
+                 
+            IF V_COUNT > 0  
+            then             
+    			htp.p('<h3 style="float:left;"> সেকশন : '||htf.escape_sc(r.OTHER_DESC)||'</h3>'); 
+    			htp.p('<h3 style="float:right;margin-right:50px;"> '||htf.escape_sc(j.OTHER_DESC)||'</h3>'); 
+    			htp.p('<table style="width:100%"><tr> 
+						<th rowspan="2" style="width:20%">নাম</th> 
+            			<th rowspan="2" style="width:3%">আইডি নং</th>  
+            			<th colspan="4" style="width:2%">১২০০ গ্রাম ব্যাগ </th>  
+            			<th colspan="4" style="width:5%">১১৩৪ গ্রাম ব্যাগ</th> 
+            			<th colspan="4" style="width:2%">১১৬০ গ্রাম ব্যাগ</th> 
+            			<th colspan="4" style="width:2%">৮৫০/৯৩৬ গ্রাম ব্যাগ</th> 
+            			<th rowspan="2" style="width:5%">সর্বমোট পিস</th>  
+            			<th rowspan="2" style="width:5%">পিস বোনাস</th> 
+            			<th rowspan="2" style="width:2%">বোনাস</th> 
+            			<th rowspan="2" style="width:5%">মোট মুজুরি</th> 
+            			<th rowspan="2" style="width:2%">অগ্রিম</th>  
+            			<th rowspan="2" style="width:2%">ক্যান্টিন বিল</th> 
+            			<th rowspan="2" style="width:5%">প্রাপ্য মুজুরি</th>  
+            			<th rowspan="2" style="width:5%">স্বাক্ষর</th>             
+    			    </tr>'); 
+                  htp.p('<tr>
+                            <th rowspan="1">রোল সংখ্যা</th>
+                            <th rowspan="1">রেট</th> 
+                            <th rowspan="1">পিস</th>
+                            <th rowspan="1">মোট টাকা</th>
+                            <th rowspan="1">রোল সংখ্যা</th>
+                            <th rowspan="1">রেট</th> 
+                            <th rowspan="1">পিস</th>
+                            <th rowspan="1">মোট টাকা</th> 
+                            <th rowspan="1">রোল সংখ্যা</th>
+                            <th rowspan="1">রেট</th> 
+                            <th rowspan="1">পিস</th>
+                            <th rowspan="1">মোট টাকা</th> 
+                            <th rowspan="1">রোল সংখ্যা</th>
+                            <th rowspan="1">রেট</th> 
+                            <th rowspan="1">পিস</th>
+                            <th rowspan="1">মোট টাকা</th>     
+                         </tr>');
+                 
+    			V_TOTAL_SAL     := 0; 
+                V_net_SAL       := 0; 
+                V_G12T          := 0; 
+                V_G12R          := 0; 
+                V_G12P          := 0; 
+                V_G12TK         := 0; 
+                 
+                V_G134T         := 0; 
+                V_G134R         := 0; 
+                V_G134P         := 0; 
+                V_G134TK        := 0; 
+ 
+                V_G1060T         := 0; 
+                V_G1060R         := 0; 
+                V_G1060P         := 0; 
+                V_G1060TK        := 0; 
+ 
+                V_G85T          := 0; 
+                V_G85R          := 0; 
+                V_G85P          := 0; 
+                V_G85TK         := 0; 
+ 
+                V_T_PCS         := 0; 
+                V_BOUNUS        := 0; 
+                V_ADBONOUS      := 0; 
+                V_TOTAL_SAL_SUM := 0; 
+                V_ADVANCE       := 0; 
+                V_CANTAIN       := 0; 
+                V_GROSS         := 0; 
+ 
+            end IF; 
+ 
+            v_sl :=0; 
+ 
+            for i in (SELECT  
+                    		E.EMP_NAME_B, 
+                    		E.UID_NO, 
+                    	   SAL.GM1200_TOTALROLL, 
+                           SAL.GM1200_RATE, 
+                           SAL.GM1200_PCS, 
+                    	   ROUND(nvl(SAL.GM1200_RATE,0) * nvl(SAL.GM1200_PCS,0)) t1200, 
+                           SAL.GM1134_TOTALROLL, 
+                           SAL.GM1134_RATE, 
+                           SAL.GM1134_PCS, 
+                    	   ROUND(nvl(SAL.GM1134_RATE,0) * nvl(SAL.GM1134_PCS,0)) t1134, 
+                           SAL.GM1060_TOTALROLL, 
+                           SAL.GM1060_RATE, 
+                           SAL.GM1060_PCS, 
+                    	   ROUND(nvl(SAL.GM1060_RATE,0) * nvl(SAL.GM1060_PCS,0)) t1060, 
+                           SAL.GM850_TOTALROLL, 
+                           SAL.GM850_RATE, 
+                           SAL.GM850_PCS, 
+                    	   ROUND(nvl(SAL.GM850_RATE,0) * nvl(SAL.GM850_PCS,0)) t850, 
+                    	   (nvl(SAL.GM1200_PCS,0) + nvl(SAL.GM1134_PCS,0) + nvl(SAL.GM850_PCS,0)+nvl(SAL.GM1060_PCS,0))Total_Pcs,        
+                    	   SAL.BONUS, 
+                           SAL.ADD_BONUS, 
+                    	   SAL.ADV_DEDUCTION, 
+                           SAL.CAINTIN_BILL,
+                           SAL.BASIC,
+                           SAL.GROSS_SALARY,
+                           SAL.TOTAL_SALARY       
+                FROM EMP_INFO E,ERP_PROCESSED_SALARY SAL 
+                WHERE E.CID_NO=SAL.CID_NO 
+                AND E.SEC_CODE=R.CODE 
+                AND E.SHIFT_CODE =NVL(p_shift_code,E.SHIFT_CODE) 
+                AND E.PROJECT_CODE=NVL(p_project_id,E.PROJECT_CODE) 
+               	AND SAL.SALARY_INFO_ID  = p_period_id
+                -- AND SAL.GM1200_PCS IS NOT NULL
+                -- AND SAL.GM1134_PCS IS NOT NULL
+                -- AND SAL.GM1060_PCS IS NOT NULL
+                -- AND SAL.GM850_PCS IS NOT NULL
+                and sal.uid_no is not null
+                and sal.total_salary > 0
+                ORDER BY TO_NUMBER(UID_NO)
+             ) 
+ 
+            LOOP 
+            V_TOTAL_SAL     := nvl(round(i.t1200),0)+nvl(round(I.t1134),0)+nvl(round(I.t1060),0)+nvl(round(I.t850),0)+nvl(round(i.BONUS),0)+nvl(round(i.ADD_BONUS),0);--+nvl(V_T_PCS,0)+nvl(V_BOUNUS,0)+nvl(V_ADBONOUS ,0); 
+            V_net_SAL       := NVL(V_TOTAL_SAL,0) - (NVL(I.ADV_DEDUCTION,0)+NVL(I.CAINTIN_BILL,0)); 
+            V_G12T          := V_G12T + NVL(i.GM1200_TOTALROLL,0); 
+            V_G12R          :=V_G12R   + NVL(i.GM1200_RATE,0); 
+            V_G12P          :=V_G12P + NVL(i.GM1200_PCS,0); 
+            V_G12TK         :=V_G12TK +NVL(round(i.t1200),0); 
+             
+            V_G134T         :=V_G134T + NVL(i.GM1134_TOTALROLL,0); 
+            V_G134R         :=V_G134R + NVL(I.GM1134_RATE,0); 
+            V_G134P         :=V_G134P + NVL(i.GM1134_PCS,0); 
+            V_G134TK        :=V_G134TK + NVL(round(I.t1134),0); 
+ 
+            V_G1060T         :=V_G1060T + NVL(I.GM1060_TOTALROLL,0); 
+            V_G1060R         :=V_G1060R + NVL(i.GM1060_RATE,0); 
+            V_G1060P         :=V_G1060P + NVL(i.GM1060_PCS,0); 
+            V_G1060TK        :=V_G1060TK + NVL(round(I.t1060),0); 
+ 
+            V_G85T          := V_G85T + NVL(I.GM850_TOTALROLL,0); 
+            V_G85R          := V_G85R + NVL(I.GM850_RATE,0); 
+            V_G85P          := V_G85P + NVL(I.GM850_PCS,0); 
+            V_G85TK         := V_G85TK + NVL(round(I.t850),0); 
+ 
+            V_T_PCS         :=V_T_PCS +NVL(I.Total_Pcs,0); 
+            V_BOUNUS         :=V_BOUNUS + NVL(I.BONUS,0); 
+            V_ADBONOUS      :=V_ADBONOUS + NVL(I.ADD_BONUS,0); 
+            V_TOTAL_SAL_SUM :=V_TOTAL_SAL_SUM + NVL(V_TOTAL_SAL,0); 
+            V_ADVANCE       :=V_ADVANCE + NVL(I.ADV_DEDUCTION,0); 
+            V_CANTAIN       :=V_CANTAIN + NVL(I.CAINTIN_BILL,0); 
+            V_GROSS         := V_GROSS + NVL(V_net_SAL,0); 
+ 
+ 
+				htp.p('<tr> 
+				 
+				<td style="text-align: left;">'||htf.escape_sc(i.emp_name_b)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(translate_bn.only_num(i.UID_NO))||'</td> 
+				<td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(i.GM1200_TOTALROLL))||'</td> 
+                <td style="text-align: CENTER">'||htf.escape_sc(translate_bn.only_num(i.GM1200_RATE))||'</td> 
+                <td style="text-align: CENTER">'||htf.escape_sc(translate_bn.only_num(i.GM1200_PCS))||'</td> 
+				<td style="text-align: RIGHT">'||htf.escape_sc(translate_bn.num_formate(i.t1200,'99,99,999') )||'</td> 
+                <td style="text-align: CENTER">'||htf.escape_sc(translate_bn.only_num(i.GM1134_TOTALROLL))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.GM1134_RATE))||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(translate_bn.only_num(i.GM1134_PCS))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.num_formate(I.t1134,'99,99,999'))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.GM1060_TOTALROLL))||'</td> 
+                 <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.GM1060_RATE))||'</td> 
+                 <td style="text-align: center;">'||htf.escape_sc(translate_bn.only_num(i.GM1060_PCS))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.num_formate(I.t1060,'99,99,999'))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.GM850_TOTALROLL))||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(translate_bn.only_num(I.GM850_RATE))||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(translate_bn.only_num(I.GM850_PCS))||'</td> 
+				<td style="text-align: right;">'||htf.escape_sc(translate_bn.num_formate(I.t850,'99,99,999'))||'</td> 
+                <td style="text-align: center;">'||htf.escape_sc(translate_bn.only_num(I.Total_Pcs))||'</td> 
+				<td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.BONUS))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.ADD_BONUS))||'</td>		 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.num_formate(V_TOTAL_SAL,'99,99,999'))||'</td>  
+                 <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.ADV_DEDUCTION))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(I.CAINTIN_BILL))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.num_formate(i.TOTAL_SALARY,'99,99,999'))||'</td> 
+                <td style="text-align: right;"></td>				 
+				</tr>'); 
+		 
+			END LOOP; 
+            if v_count >0 then 
+ 
+            htp.p('<tr> 
+				<td colspan="2",style="text-align: center"><b> মোট </td> 
+				<td style="text-align: center;"><b>'||(translate_bn.only_num(V_G12T))||'</td> 
+				<td style="text-align: center"><b>'||(translate_bn.only_num( null)) ||'</td> 
+                <td style="text-align: center"><b>'|| (translate_bn.only_num(V_G12P))||'</td> 
+                <td style="text-align: right"><b>'||(translate_bn.num_formate( V_G12TK,'99,99,999'))||' </td> 
+                <td style="text-align: center;"> <b> '||(translate_bn.only_num( V_G134T))||'</td> 
+                <td style="text-align: center;"><b>'||(translate_bn.only_num( null)) ||'</td> 
+                <td style="text-align: center;"><b>'|| (translate_bn.only_num(V_G134P)) ||'</td> 
+                <td style="text-align: right;"><b>'||(translate_bn.num_formate(ROUND(V_G134TK),'99,99,999')) ||' </td> 
+                <td style="text-align: center;"> <b>'||(translate_bn.only_num( V_G1060T))  ||'</td> 
+                <td style="text-align: center;"><b>  '||(translate_bn.only_num (null )) ||'</td> 
+                <td style="text-align: center;"><b> '||(translate_bn.only_num( V_G1060P))  ||'</td> 
+                <td style="text-align: right;"> <b> '|| (translate_bn.num_formate(V_G1060TK,'99,99,999'))||'</td> 
+                <td style="text-align: center;"><b>  '||(translate_bn.only_num( V_G85T))||'</td> 
+                <td style="text-align: center;"><b>  '||(translate_bn.only_num( null))||'</td> 
+                <td style="text-align: center;"><b>  '|| (translate_bn.only_num(V_G85P))||'</td> 
+                <td style="text-align: right;"> <b> '||(translate_bn.num_formate( V_G85TK,'99,99,999'))||'</td> 
+                <td style="text-align: center;"><b>  '||(translate_bn.only_num(  V_T_PCS)) ||'</td> 
+                <td style="text-align: right;"> <b> '||  (translate_bn.only_num(V_BOUNUS)) ||'</td> 
+                <td style="text-align: right;"> <b> '|| (translate_bn.only_num( V_ADBONOUS)) ||'</td> 
+                <td style="text-align: right;"> <b> '|| (translate_bn.num_formate( ROUND(V_TOTAL_SAL_SUM),'99,99,999')) ||'</td>  
+                 <td style="text-align: right;"><b> '||(translate_bn.only_num( V_ADVANCE)) ||'</td> 
+                <td style="text-align: right;"><b>'|| (translate_bn.only_num(V_CANTAIN)) ||'</td> 
+                <td style="text-align: right;"><b>'|| (translate_bn.num_formate(ROUND(V_GROSS),'99,99,999'))  ||'</b></td> 
+                <td style="text-align: right;"></b></td> 
+               			 
+				</tr>'); 
+ 
+        end if; 
+ 
+            htp.p('</table>'); 
+		end loop; 
+         end loop;
+ 
+		report_utils.footerbangla; 
+	END; 
+     
+--*****************************
+      
+procedure salary_sheet_heracal(p_project_id number 
+								,p_section_code number 
+								,p_shift_code number 
+								,p_period_id number 
+			) is 
+	v_sl                    number := 0; 
+    v_count                 number:=0; 
+    v_1                     number :=0; 
+    V_TK                    NUMBER :=0; 
+    v_2                     number :=0; 
+    V_TK1                   NUMBER :=0; 
+    v_3                     number := 0; 
+    V_TK3                   NUMBER :=0; 
+     
+    V_T_PCS                 NUMBER := 0; 
+    V_BOUNUS                NUMBER := 0; 
+    V_ADBONOUS              NUMBER :=0; 
+    V_TOTAL_SAL_SUM         NUMBER  :=0; 
+    V_ADVANCE               NUMBER  := 0; 
+    V_CANTAIN               NUMBER := 0; 
+    V_GROSS                 NUMBER := 0; 
+ 
+ 
+    V_TOTAL_SAL             NUMBER  := 0; 
+    V_net_SAL               NUMBER  := 0; 
+      V_from_date daTE 			    := sysdate; 
+	V_TO_date daTE 				    := sysdate; 
+ 
+  
+ 
+     
+ 
+     
+	BEGIN 
+		report_utils.header_without_boarder(p_project_id, 'Salary Sheet General Heracal '); 
+ 
+         begin 
+            	select from_date, TO_date 
+            	INTO V_from_date, V_TO_date 
+            	from ERP_SALARY_INFO 
+            	where pk_id = p_period_id; 
+        	exception when no_data_found then null; 
+    end; 
+ 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(V_from_date)||' to '||htf.escape_sc(V_TO_date)||'</h4>'); 
+	  	 
+			 
+		FOR r in (SELECT CODE, OTHER_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'0003'  
+                    AND code = nvl(p_section_code,code) 
+                            AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+                    ORDER BY CODE_DESC) 
+		LOOP 
+         FOR j in (SELECT CODE, OTHER_DESC  
+                     FROM G_UNI_CODES  
+                     WHERE P_CODE =APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'00012' 
+                     AND code = nvl(p_shift_code,code) 
+                            AND org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+                     ORDER BY CODE_DESC) 
+ 		LOOP 
+ 
+ 
+        SELECT COUNT(*) INTO V_COUNT 
+        	 
+        		FROM EMP_INFO E LEFT OUTER JOIN ERP_PROCESSED_SALARY SAL 
+        		ON E.CID_NO=SAL.CID_NO 
+                WHERE E.SEC_CODE=R.CODE 
+               	AND SAL.SALARY_INFO_ID  = p_period_id; 
+ 
+        IF V_COUNT > 0 THEN 
+ 
+			 
+			htp.p('<h3 style="float:left;"> সেকশন : '||htf.escape_sc(r.OTHER_DESC)||'</h3>'); 
+            htp.p('<h3 style="float:right;margin-right:50px;">'||htf.escape_sc(j.OTHER_DESC)||'</h3>');
+			htp.p('<table style="width:100%"><tr> 
+			<th colspan="3" > </th> 
+			<th colspan="3" >হেমিং+হেরাকল</th> 
+			<th colspan="3" >হেমিং+হেরাকল+সেফটি</th> 
+			<th colspan="3" >হেমিং</th> 
+			<th colspan="6" > </th> 
+			 
+			</tr>'); 
+			 
+			htp.p('<tr> 
+        			<th >ক্রমিক নং</th> 
+        			<th >আইডি নং</th> 
+        			<th >নাম</th>           		  
+        			<th >বান্ডিল</th> 
+         			<th >দর </th> 
+        			<th >টাকা </th> 
+        			<th >বান্ডিল</th> 
+         			<th >দর </th> 
+        			<th >টাকা </th> 
+        			<th >বান্ডিল</th> 
+         			<th >দর </th> 
+        			<th >টাকা </th>		 
+        			<th >বোনাস</th>  
+        			<th >মোট টাকা</th> 
+        			<th >অগ্রিম</th> 
+                   	<th >ক্যান্টিন বিল</th> 
+                    <th >প্রাপ্য মুজুরি</th> 
+                    <th >স্বাক্ষর</th> 
+        				 
+			</tr>'); 
+           	v_sl               	:= 0; 
+            V_1                 := 0; 
+            V_TK                := 0; 
+            V_2                 := 0; 
+            V_TK1               := 0; 
+            V_3                 := 0; 
+            V_TK3               := 0; 
+            V_BOUNUS            := 0; 
+            V_T_PCS             := 0; 
+            V_ADVANCE           := 0; 
+            V_CANTAIN           := 0; 
+            V_TOTAL_SAL         := 0; 
+            V_net_SAL           := 0; 
+            V_GROSS             := 0; 
+ 
+            END IF; 
+			v_sl := 0; 
+            
+            For i in (	SELECT 	E.UID_NO, 
+                				E.EMP_NAME_B, 
+                				SAL.HMHR_BUNDEL, 
+                				SAL.HMHRBUNDEL_RATE, 
+                				ROUND(NVL(SAL.HMHR_BUNDEL,0)* NVL(SAL.HMHRBUNDEL_RATE,0))HMHR1, 
+                				SAL.HMHRSEFTY_BUNDEL, 
+                				SAL.HMHRSEFTY_RATE, 
+                				ROUND(NVL(SAL.HMHRSEFTY_BUNDEL,0)* NVL(SAL.HMHRSEFTY_RATE,0))HMHR2, 
+                				SAL.HM_BUNDEL, 
+                				SAL.HMBUNDEL_RATE, 
+                				ROUND(NVL(SAL.HM_BUNDEL,0)* NVL(SAL.HMBUNDEL_RATE,0))HMHR3, 
+                				SAL.ADD_BONUS, 
+                				SAL.ADV_DEDUCTION,	 
+                                SAL.CAINTIN_BILL,
+                                SAL.BASIC,
+                                SAL.GROSS_SALARY,
+                                SAL.TOTAL_SALARY 
+		FROM EMP_INFO E LEFT OUTER JOIN ERP_PROCESSED_SALARY SAL 
+		ON E.CID_NO=SAL.CID_NO 
+        WHERE E.SEC_CODE=R.CODE 
+        AND E.SHIFT_CODE =NVL(p_shift_code,E.SHIFT_CODE) 
+        AND E.PROJECT_CODE=NVL(p_project_id,E.PROJECT_CODE) 
+       	AND SAL.SALARY_INFO_ID  = p_period_id
+                ORDER BY TO_NUMBER(E.UID_NO) 
+        ) 
+ 
+        LOOP 
+ 
+            v_sl               := v_sl+1; 
+            V_1                 :=V_1 +NVL(i.HMHR_BUNDEL,0); 
+            V_TK                :=V_TK + NVL(i.HMHR1,0); 
+            V_2                 :=V_2 +NVL(i.HMHRSEFTY_BUNDEL,0); 
+            V_TK1               :=V_TK1 + NVL(I.HMHR2,0); 
+            V_3                 :=V_3 + NVL(i.HM_BUNDEL,0); 
+            V_TK3               :=V_TK3 + NVL(I.HMHR3,0); 
+            V_BOUNUS            := V_BOUNUS +NVL(i.ADD_BONUS,0); 
+            V_T_PCS             :=V_T_PCS + NVL(I.GROSS_SALARY,0); 
+            V_ADVANCE           := V_ADVANCE + NVL(I.ADV_DEDUCTION,0); 
+            V_CANTAIN           := V_CANTAIN +NVL(I.CAINTIN_BILL,0); 
+            -- V_TOTAL_SAL         := NVL(I.HMHR1,0)+NVL(I.HMHR2,0)+NVL(I.HMHR3,0)+NVL(I.ADD_BONUS,0); 
+            -- V_net_SAL           := V_TOTAL_SAL  - (NVL(I.ADV_DEDUCTION,0)+NVL(I.CAINTIN_BILL,0)); 
+            V_GROSS             :=V_GROSS + NVL(I.TOTAL_SALARY,0); 
+ 
+        	htp.p('<tr> 
+				<td style="text-align: center">'||translate_bn.only_num(v_sl)||'</td> 
+                <td style="text-align: center">'||htf.escape_sc(translate_bn.only_num(i.UID_NO))||'</td> 
+				<td style="text-align: left;">'||htf.escape_sc(i.emp_name_b)||'</td> 
+				<td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(i.HMHR_BUNDEL))||'</td> 
+                <td style="text-align: CENTER">'||htf.escape_sc(translate_bn.only_num(i.HMHRBUNDEL_RATE))||'</td> 
+                <td style="text-align: CENTER">'||htf.escape_sc(translate_bn.only_num(i.HMHR1))||'</td> 
+				<td style="text-align: CENTER">'||htf.escape_sc(translate_bn.only_num(i.HMHRSEFTY_BUNDEL ))||'</td> 
+                <td style="text-align: CENTER">'||htf.escape_sc(translate_bn.only_num(i.HMHRSEFTY_RATE))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.HMHR2))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(i.HM_BUNDEL))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.HMBUNDEL_RATE))||'</td> 
+                <td style="text-align: CENTER;">'||htf.escape_sc(translate_bn.only_num(I.HMHR3))||'</td> 
+                <td style="text-align: right;">'||htf.escape_sc(translate_bn.only_num(i.ADD_BONUS))||'</td> 
+                <td style="text-align: RIGHT;">'||htf.escape_sc(translate_bn.num_formate(I.GROSS_SALARY,'99,99,999'))||'</td> 
+                <td style="text-align: RIGHT;">'||htf.escape_sc(translate_bn.only_num(I.ADV_DEDUCTION))||'</td> 
+                 <td style="text-align: RIGHT;">'||htf.escape_sc(translate_bn.only_num(I.CAINTIN_BILL))||'</td> 
+                 <td style="text-align: RIGHT;">'||htf.escape_sc( translate_bn.num_formate(I.TOTAL_SALARY,'99,99,999'))||'</td> 
+                
+                <td style="text-align: right;"></td>				 
+				</tr>'); 
+		 
+			END LOOP; 
+            IF V_COUNT > 0 THEN 
+ 
+             htp.p('<tr> 
+				<td colspan="3",style="text-align: center"><b> মোট </td> 
+				<td style="text-align: center;"><b>'|| (translate_bn.only_num(V_1)) ||'</td> 
+				<td style="text-align: right"> </td> 
+                <td style="text-align: center"><b>'|| (translate_bn.only_num(V_TK))||'</td> 
+                <td style="text-align: center"><b>'||(translate_bn.only_num( V_2))||' </td> 
+                <td style="text-align: right;"><b>  </td> 
+                <td style="text-align: CENTER;"><b>'||(translate_bn.only_num( V_TK1)) ||'</td> 
+                <td style="text-align: center;"><b>'||(translate_bn.only_num( V_3 ))||'</td> 
+                <td style="text-align: right;"> <b>            </td> 
+                <td style="text-align: CENTER;"><b>'||(translate_bn.only_num(V_TK3)) ||' </td> 
+                <td style="text-align: right;"><b>'|| (translate_bn.only_num( V_BOUNUS)) ||'</td> 
+                <td style="text-align: right;"><b>'|| (translate_bn.num_formate( V_T_PCS,'99,99,999')) ||'</td> 
+                 <td style="text-align: right;"><b>'|| (translate_bn.only_num(V_ADVANCE)) ||'</td> 
+                <td style="text-align: right;"><b>'|| (translate_bn.only_num(V_CANTAIN)) ||'</td> 
+                <td style="text-align: right;"><b>'|| (translate_bn.num_formate(  V_GROSS,'99,99,999'))  ||'</td> 
+                 <td style="text-align: right;"></td>			 
+				</tr>'); 
+            END IF; 
+			 
+            htp.p('</table>'); 
+		end loop; 
+         end loop;
+		report_utils.footerbangla; 
+	END; 
+     
+    --*******************************************************-- 
+     procedure summery_sheet (p_project_id number 
+							,p_section_code number 
+							,p_shift_code number 
+							,p_period_id number
+                            ,p_org_id number
+			) is 
+        	v_sl    number          := 0; 
+            V_EMP   NUMBER          := 0; 
+            V_S_A   NUMBER          := 0; 
+            V_S_B   NUMBER          := 0; 
+            V_S_T   NUMBER          := 0; 
+            V_BONUS  NUMBER         := 0; 
+            V_CANTAIN  NUMBER       := 0; 
+            V_ADV      NUMBER       := 0; 
+            V_TOT      NUMBER       := 0; 
+            V_from_date date;
+            v_to_date date;
+ 
+            v_sec_name      varchar2(40); 
+ 
+ 
+        	BEGIN 
+        		report_utils.header_without_boarder(p_project_id, 'Summery Sheet'); 
+ 
+         begin 
+            select from_date, TO_date 
+            	INTO V_from_date, V_TO_date 
+            	from ERP_SALARY_INFO 
+            	where pk_id = p_period_id; 
+    	      exception when no_data_found then null; 
+        end; 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(V_from_date)||' to '||htf.escape_sc(V_TO_date)||'</h4>'); 
+        		 
+        			htp.p('<table style="width:100%;font-size:opx;"><tr> 
+                                <th style="width:1%;">ক্রমিক নং</th> 
+                    			<th style="width:10%" >বিভাগ</th> 
+                    			<th style="width:3%">লোকবল সংখ্যা</th>  
+                    			<th style="width:3%">এ-শিফট<hr style="border-top: 1px solid black;">টাকা</th> 
+                                <th style="width:3%">বি-শিফট<hr style="border-top: 1px solid black;">টাকা</th> 
+                                <th style="width:2%">অন্যান্য<hr style="border-top: 1px solid black;">টাকা</th> 
+                                <th style="width:3%">উৎসব বোনাস</th> 
+                    			<th style="width:3%">সর্বমোট<hr style="border-top: 1px solid black;">টাকা</th> 
+                                <th style="width:5%">ক্যান্টিন বিল</th> 
+								<th style="width:5%">অগ্রিম কর্তন</th> 
+                                <th style="width:5%">প্রাপ্য মজুরি</th> 
+                                           
+                    			</tr>'); 
+                    	v_sl        := 0; 
+                    for j  in (SELECT OTHER_DESC,code --into v_sec_name 
+                            FROM G_UNI_CODES g 
+                            WHERE  P_CODE = P_ORG_ID ||'0003'
+                            )
+                     loop
+                    FOR i in ( SELECT  SEC_CODE,
+                                 (SELECT OTHER_DESC FROM G_UNI_CODES WHERE CODE = SEC_CODE) SECTION, 
+                                    nvl(count(*),0) tot_emp, 
+                                    (select nvl(sum(basic),0) +nvl(sum(friday_sal),0)+nvl(sum(ot_sal),0) from ERP_PROCESSED_SALARY e where e.SHIFT_CODE = 40002012 and e.SEC_CODE = ERP_PROCESSED_SALARY.SEC_CODE AND SALARY_INFO_ID  = p_period_id) sal_a, 
+                                    (select nvl(sum(basic),0) +nvl(sum(friday_sal),0)+nvl(sum(ot_sal),0) from ERP_PROCESSED_SALARY e where e.SHIFT_CODE = 40002013 and e.SEC_CODE = ERP_PROCESSED_SALARY.SEC_CODE AND SALARY_INFO_ID  = p_period_id) sal_b,
+                                    nvl(sum(gross_salary),0) tot_sal,  
+                                    sum(nvl(ADD_BONUS,0)) eid_bonus,
+                                    sum(nvl(BONUS,0)) pc_bonus, 
+                                    sum(nvl(ADD_BONUS,0)+nvl(BONUS,0)) bonus,  
+                                    null ot_amt, 
+                                    nvl(sum(CAINTIN_BILL),0) cantin_bill, 
+                                    nvl(sum(ADV_DEDUCTION),0) adv_deu, 
+                                    nvl(sum(total_salary),0) total 
+                                FROM ERP_PROCESSED_SALARY 
+                                WHERE org_id = p_org_id 
+                                AND sec_code = j.code
+                                -- and day>0
+                                AND sec_code = nvl(p_section_code,sec_code)
+       	                        AND SALARY_INFO_ID  = p_period_id
+                                group by SEC_CODE) 
+        			LOOP 
+        			v_sl                := v_sl+1; 
+                    V_EMP               := V_EMP +NVL(i.tot_emp,0); 
+                    V_S_A               :=V_S_A  + NVL(i.sal_a,0); 
+                    V_S_B               :=V_S_B + NVL(i.sal_b,0); 
+                    V_BONUS             := V_BONUS  + NVL(i.eid_bonus,0); 
+                    V_S_T               :=V_S_T + (NVL(i.tot_sal,0)); 
+                    V_CANTAIN           :=V_CANTAIN + NVL(i.cantin_bill,0); 
+                    V_ADV               := V_ADV    + NVL(i.adv_deu,0); 
+                    V_TOT               :=V_TOT + NVL(i.total,0); 
+ 
+                    
+ 
+        				htp.p('<tr> 
+                				<td style="text-align: center">'||translate_bn.only_num(v_sl)||'</td> 
+                				<td style="text-align: left;">'||htf.escape_sc(j.OTHER_DESC)||'</td> 
+                                <td style="text-align: right">'||htf.escape_sc(translate_bn.only_num(to_number(i.tot_emp)))||'</td> 
+                                <td style="text-align: right">'||case when i.sec_code = 40002025 then htf.escape_sc(translate_bn.num_formate(i.tot_sal,'99,99,99,99,999')) else htf.escape_sc(translate_bn.num_formate(i.sal_a,'99,99,99,99,999')) end||'</td> 
+                				<td style="text-align: RIGHT">'||htf.escape_sc(translate_bn.num_formate(i.sal_b,'99,99,99,99,999'))||'</td> 
+                                <td style="text-align: right;">'||htf.escape_sc(translate_bn.num_formate(I.ot_amt,'99,99,99,99,999'))||'</td> 
+                                <td style="text-align: right">'||htf.escape_sc(translate_bn.num_formate(i.eid_bonus,'99,99,99,99,999'))||'</td> 
+                                <td style="text-align: right">'||htf.escape_sc(translate_bn.num_formate(I.tot_sal,'99,99,99,99,999')) ||'</td> 
+                                <td style="text-align: right;">'||htf.escape_sc(translate_bn.num_formate(i.cantin_bill,'99,99,99,99,999'))||'</td> 
+                                <td style="text-align: right;">'||htf.escape_sc(translate_bn.num_formate(I.adv_deu,'99,99,99,99,999'))||'</td> 
+                                <td style="text-align: right;">'||htf.escape_sc(translate_bn.num_formate(i.total,'99,99,99,99,999'))||'</td> 
+        				    </tr>'); 
+        		 
+        			END LOOP; 
+                    end loop;
+ 
+                        htp.p('<tr> 
+        				<td colspan="2" style="text-align: center"> <b>মোট</b></td> 
+        				<td style="text-align: right;"><b>'||translate_bn.only_num(V_EMP)   ||'</b></td> 
+                        <td style="text-align: right"><b>'||translate_bn.num_formate(V_S_A,'99,99,99,99,999')  ||'</b></td> 
+        				<td style="text-align: RIGHT;"><b>'||translate_bn.num_formate(V_S_B,'99,99,99,99,999')    ||'</b></td> 
+                        <td style="text-align: center"></td> 
+        				<td style="text-align: RIGHT"><b>'||translate_bn.num_formate(V_BONUS,'99,99,99,99,999')  ||'</b></td> 
+                        <td style="text-align: RIGHT"><b>'||translate_bn.num_formate(V_S_T,'99,99,99,99,999')  ||'</b></td> 
+                        <td style="text-align: right"><b>'||translate_bn.num_formate(V_CANTAIN,'99,99,99,99,999')   ||'</b></td> 
+                        <td style="text-align: right;"><b>'||translate_bn.num_formate(V_ADV,'99,99,99,99,999')  ||'</b></td> 
+                        <td style="text-align: right;"><b>'||translate_bn.num_formate(V_TOT,'99,99,99,99,999')  ||'</b></td> 
+        				</tr>'); 
+                    htp.p('</table>'); 
+        		report_utils.footerbangla;                
+END;
+
+--*****************************
+
+end "PAYROLL_REPORTS";
+/
+

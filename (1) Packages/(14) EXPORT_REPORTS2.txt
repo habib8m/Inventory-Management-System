@@ -1,0 +1,3006 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "EXPORT_REPORTS2" as 
+procedure all_export_buyer_wise (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure EXPORT_PAYMENT_REALISATION_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure EXPORT_PAYMENT_DUE_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure EXPORT_SUBSIDY_APPLY_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure EXPORT_SUBSIDY_NOT_APPLY_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure FACTORY_DELIVERY_DONE_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure SUBSIDY_AMOUNT_RECEIVE_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure SUBSIDY_AMOUNT_DUE_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure SUBSIDY_AMOUNT_DUE_ALL_EXPORT_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure DOCUMENT_SUBMIT_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure DOCUMENT_SUBMIT_NOT_DONE_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure ALL_EXPORT_BANK_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure EXPORT_PAYMENT_DUE_BANK_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure SUBSIDY_AMOUNT_DUE_BANK_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure AUDIT_CERTIFICATE_RECEIVED (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+procedure ALL_INCOMPLETE_EXPORT (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date); 
+ 
+end "EXPORT_REPORTS2"; 
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "EXPORT_REPORTS2" as 
+------------------------------------- 
+ procedure all_export_buyer_wise (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' ALL EXPORT STATEMENT '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+			<th style="width:7%">Factory Delivery Date</th> 
+			<th style="width:5%">Exp No</th>  
+			<th style="width:7%">Exp Issue Date</th> 
+			<th style="width:15%">Purchase Contact No</th> 
+            <th style="width:10%">Comercial Invoice No</th> 
+            <th style="width:10%">Bank Name</th> 
+            <th style="width:10%">Item Name</th> 
+			<th style="width:3%">Quantity(MT/Bale</th> 
+			<th style="width:3%">Export Value USD</th>  
+			<th style="width:7%">Document Submit Date</th> 
+			<th style="width:7%">Payment Realisation Date</th> 
+            <th style="width:3%">Amount Realise USD</th> 
+            <th style="width:3%">Amount Realise BDT</th> 
+            <th style="width:2%">Expo Done</th> 
+             
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.EXPDONE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.REALIZATIONAMOUNTUSD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.EXPDONE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+    ------------------------------------- 
+ procedure EXPORT_PAYMENT_REALISATION_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' EXPORT PAYMENT REALISATION DUEt '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+			<th style="width:7%">Factory Delivery Date</th> 
+			<th style="width:5%">Exp No</th>  
+			<th style="width:7%">Exp Issue Date</th> 
+			<th style="width:15%">Purchase Contact No</th> 
+            <th style="width:10%">Comercial Invoice No</th> 
+            <th style="width:10%">Bank Name</th> 
+            <th style="width:10%">Item Name</th> 
+			<th style="width:3%">Quantity(MT/Bale</th> 
+			<th style="width:3%">Export Value USD</th>  
+			<th style="width:7%">Document Submit Date</th> 
+			<th style="width:7%">Payment Realisation Date</th> 
+            <th style="width:3%">Amount Realise USD</th> 
+            <th style="width:3%">Amount Realise BDT</th> 
+            <th style="width:2%">Expo Done</th> 
+             
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.EXPDONE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.REALIZATIONAMOUNTUSD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.EXPDONE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+      ------------------------------------- 
+ procedure EXPORT_PAYMENT_DUE_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' EXPORT PAYMENT REALISATION DUE '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+			<th style="width:7%">Factory Delivery Date</th> 
+			<th style="width:5%">Exp No</th>  
+			<th style="width:7%">Exp Issue Date</th> 
+			<th style="width:15%">Purchase Contact No</th> 
+            <th style="width:10%">Comercial Invoice No</th> 
+            <th style="width:10%">Bank Name</th> 
+            <th style="width:10%">Item Name</th> 
+			<th style="width:3%">Quantity(MT/Bale</th> 
+			<th style="width:3%">Export Value USD</th>  
+			<th style="width:7%">Document Submit Date</th> 
+			<th style="width:7%">Payment Realisation Date</th> 
+            <th style="width:3%">Amount Realise USD</th> 
+            <th style="width:3%">Amount Realise BDT</th> 
+            <th style="width:2%">Expo Done</th> 
+             
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.EXPDONE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.REALIZATIONAMOUNTUSD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.EXPDONE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+       ------------------------------------- 
+ procedure EXPORT_SUBSIDY_APPLY_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' EXPORT STATEMENT SUBSIDY NOT YET APPLY '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+			<th style="width:7%">Factory Delivery Date</th> 
+			<th style="width:5%">Exp No</th>  
+			<th style="width:7%">Exp Issue Date</th> 
+			<th style="width:15%">Purchase Contact No</th> 
+            <th style="width:10%">Comercial Invoice No</th> 
+            <th style="width:10%">Bank Name</th> 
+            <th style="width:10%">Item Name</th> 
+			<th style="width:3%">Quantity(MT/Bale</th> 
+			<th style="width:3%">Export Value USD</th>  
+			<th style="width:7%">Document Submit Date</th> 
+			<th style="width:7%">Payment Realisation Date</th> 
+            <th style="width:3%">Amount Realise USD</th> 
+            <th style="width:3%">Amount Realise BDT</th> 
+            <th style="width:2%">Apply For PRC Date</th> 
+             
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.EXPDONE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.REALIZATIONAMOUNTUSD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.EXPDONE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+          ------------------------------------- 
+ procedure EXPORT_SUBSIDY_NOT_APPLY_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' EXPORT STATEMENT SUBSIDY NOT YET APPLY '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+			<th style="width:7%">Factory Delivery Date</th> 
+			<th style="width:5%">Exp No</th>  
+			<th style="width:7%">Exp Issue Date</th> 
+			<th style="width:15%">Purchase Contact No</th> 
+            <th style="width:10%">Comercial Invoice No</th> 
+            <th style="width:10%">Bank Name</th> 
+            <th style="width:10%">Item Name</th> 
+			<th style="width:3%">Quantity(MT/Bale</th> 
+			<th style="width:3%">Export Value USD</th>  
+			<th style="width:7%">Document Submit Date</th> 
+			<th style="width:7%">Payment Realisation Date</th> 
+            <th style="width:3%">Amount Realise USD</th> 
+            <th style="width:3%">Amount Realise BDT</th> 
+           <th style="width:2%">Apply For PRC Date</th> 
+             
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.EXPDONE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.REALIZATIONAMOUNTUSD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.EXPDONE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+             ------------------------------------- 
+         ------------------------------------- 
+ procedure FACTORY_DELIVERY_DONE_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' EXPORT STATEMENT FACTORY DELIVERY DONE - BUYER WISE '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+			<th style="width:7%">Factory Delivery Date</th> 
+			<th style="width:5%">Exp No</th>  
+			<th style="width:7%">Exp Issue Date</th> 
+			<th style="width:15%">Purchase Contact No</th> 
+            <th style="width:10%">Comercial Invoice No</th> 
+			<th style="width:10%">Comercial Invoice Date</th> 
+            <th style="width:10%">Bank Name</th> 
+			<th style="width:3%">Value USD</th>  
+            <th style="width:10%">Item</th> 
+			<th style="width:3%">Quantity(MT</th> 
+           
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.EXPDONE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.REALIZATIONAMOUNTUSD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.EXPDONE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+             ------------------------------------- 
+ procedure SUBSIDY_AMOUNT_RECEIVE_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' EXPORT STATEMENT SUBSIDY AMOUNT RECEIVE '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+			<th style="width:5%">Exp No</th> 
+            <th style="width:15%">Purchase Contact No</th> 
+            <th style="width:10%">Bank Name</th> 
+            <th style="width:10%">Item</th>	 
+			<th style="width:3%">Quantity(MT/BALE)</th> 
+			<th style="width:3%">EXPORT VALUE USD</th>  
+			<th style="width:3%">DOCUMENT SUBMIT DATE</th> 
+            <th style="width:7%">SUBSIDY APPLY DATE</th> 
+            <th style="width:7%">SUBSIDY PAYMENT REALISATION DATE</th> 
+            <th style="width:7%">SUBSIDY RECEIVED BDT</th>  
+            <th style="width:7%">SOURCE E TAX</th>			 
+			<th style="width:7%">VAT ON PRC CHARGE</th> 
+            <th style="width:7%">SUBSIDY FILE CRG.</th> 
+            <th style="width:7%">VAT ON FILE CRG</th>			 
+			<th style="width:7%">PRC CHARGE</th>			 
+			<th style="width:7%">NET SUBSIDY AMOUNT RECEIVED</th> 
+ 
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.EXPDONE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.REALIZATIONAMOUNTUSD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.EXPDONE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+             ------------------------------------- 
+ procedure SUBSIDY_AMOUNT_DUE_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' EXPORT STATEMENT SUBSIDY AMOUNT DUE - BUYER WISE '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+			<th style="width:5%">Exp No</th> 
+            <th style="width:15%">Purchase Contact No</th> 
+			<th style="width:5%">Exp Issue DATE</th> 
+			<th style="width:5%">Commercial Invoice No</th> 
+            <th style="width:10%">Bank Name</th> 
+            <th style="width:10%">ITEMS</th>	 
+			<th style="width:3%">QUANTITY(MT/BALE)</th>  
+			<th style="width:3%">DOCUMENT SUBMIT DATE</th> 
+            <th style="width:7%">EXPORT VALUE_USD</th> 
+            <th style="width:7%">SUBSIDY RECEIVED BDT</th>  
+            <th style="width:7%">PRC APPLY DATE</th>			 
+			<th style="width:7%">SUBSIDY APPLY DATE</th> 
+ 
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.EXPDONE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.REALIZATIONAMOUNTUSD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.EXPDONE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+             ------------------------------------- 
+ procedure SUBSIDY_AMOUNT_DUE_ALL_EXPORT_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number      := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' EXPORT STATEMENT SUBSIDY AMOUNT DUE (All Export) '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+            <th style="width:5%">EXP No</th> 
+            <th style="width:15%">PURCHASE CONTRACT NO</th> 
+            <th style="width:5%">EXP ISSUE DATE</th> 
+			<th style="width:15%">Commercial Invoice No</th> 
+			<th style="width:5%">BANK NAME</th> 
+            <th style="width:10%">ITEMS NAME</th> 
+            <th style="width: 5px;">Quantity<br>(MT/Bale)</th>  
+            <th style="width:3%">Document Submit Date</th> 
+            <th style="width:10%">Export Value USD</th> 
+            <th style="width:7%">Subsidy Received BDT</th> 
+            <th style="width:7%">PRC Apply Date</th> 
+            <th style="width:15%">Subsidy Apply date</th> 
+				 
+ 
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	 
+         for i in (select 	 
+                    		 m.EXPFORMNO 
+                            ,m.PURCHASECONTACTID 
+                    		,m.EXPFORMDATE 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                            ,d.VALUE_USD 
+                            ,m.PAYMENTRECEIVEDBDT 
+                            ,m.APPLYFORPRCDATE 
+                            ,m.APPLYFORSUBSIDYDATE 
+                    		 
+                                                		 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+            v_qty      := v_qty + nvl(i.VALUE_USD,0); 
+            v_qty_g    := v_qty_g  + nvl(i.VALUE_USD,0); 
+        	 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                 <td style="text-align: Left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                 <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.SHORT_NAME) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+                 <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDBDT) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.APPLYFORPRCDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.APPLYFORSUBSIDYDATE) 
+               ||'</td>'); 
+ 
+ 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="9" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="2"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="7" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+             ------------------------------------- 
+ procedure DOCUMENT_SUBMIT_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' Export Done '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+            <th style="width:15%">Purchase Contact No</th> 
+			<th style="width:5%">Commercial Invoice No</th> 
+			<th style="width:5%">Commercial Invoice Date</th> 
+			<th style="width:5%">Exp No</th> 
+			<th style="width:5%">EXP ISSUE DATE</th> 
+			<th style="width:5%">FACTORY DELIVERY DATE</th> 
+            <th style="width:10%">BANK NAME</th> 
+            <th style="width:10%">ITEMS</th>	 
+			<th style="width:3%">MT</th>  
+			<th style="width:3%">Doc Sub Date</th> 
+            <th style="width:7%">PAYMENT RECEIVED USD</th> 
+            <th style="width:7%">PAYMENT RECEIVED BDT</th>  
+            <th style="width:7%">PAYMENT REALIZ DATE</th>			 
+			<th style="width:7%">APPLY FOR PRC DATE</th> 
+ 
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.EXPDONE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.REALIZATIONAMOUNTUSD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.EXPDONE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+             ------------------------------------- 
+ procedure DOCUMENT_SUBMIT_NOT_DONE_BUYER_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' ALL INCOMPLETE EXPORT STATEMENT '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+            <th style="width:15%">PURCHASE CONTRACT NO</th> 
+            <th style="width:15%">Commercial Invoice No</th> 
+            <th style="width:15%">Commercial Invoice Date</th> 
+            <th style="width:5%">EXP No</th> 
+            <th style="width:5%">EXP ISSUE DATE</th> 
+             <th style="width:15%">Factory Delivery Date</th> 
+			<th style="width:5%">Bank Name</th> 
+            <th style="width:10%"> Value Usd</th> 
+            <th style="width:10%">Items Name</th> 
+            <th style="width: 5px;">MT</th>  
+			<th style="width:3%">Document Submit Date</th> 
+            <th style="width:7%">Payment Received USD</th> 
+            <th style="width:7%">Payment Received BDT</th> 
+            <th style="width:7%">Payment Realize Date</th> 
+            <th style="width:7%">Apply For PRC Date</th> 
+            <th style="width:15%">Amount Subsidy Bdt</th> 
+            <th style="width:7%">Audit Receive Date</th>				 
+ 
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+ 
+         for i in (select 	  
+                            m.PURCHASECONTACTID 
+                            ,m.COMMERCIALINVOICENO 
+                            ,m.COMMERCIALINVOICEDATE 
+                            ,m.EXPFORMNO 
+                            ,m.EXPFORMDATE 
+                            ,m.FACTORYDELIVERYDATE 
+                    		,b.SHORT_NAME 
+                            ,d.VALUE_USD 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                            ,M.PAYMENTRECEIVEDUSD 
+                            ,M.PAYMENTRECEIVEDBDT 
+                    		,m.PAYMENTRECEIVEDDATE 
+                            ,M.APPLYFORPRCDATE 
+ 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.PAYMENTRECEIVEDBDT,0); 
+            v_exp_g    := v_exp_g+nvl(i.PAYMENTRECEIVEDBDT,0); 
+        	v_usd      := v_usd+nvl(i.VALUE_USD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.VALUE_USD,0); 
+        	 v_bdt      := v_bdt+nvl(i.PAYMENTRECEIVEDUSD,0); 
+        	 v_bdt_g    := v_bdt_g+nvl(i.PAYMENTRECEIVEDUSD,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                 <td style="text-align: Left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+                 <td style="text-align: Left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICEDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.SHORT_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+                 <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDUSD) 
+               ||'</td> 
+                <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDBDT) 
+               ||'</td> 
+                <td>'|| HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.APPLYFORPRCDATE) 
+               ||'</td>'); 
+ 
+ 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="9" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="16" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="6" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+             ------------------------------------- 
+ procedure ALL_EXPORT_BANK_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' ALL EXPORT BANK STATEMENT '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+			<th style="width:5%">Factory Delivery Date</th> 
+            <th style="width:15%">Exp No</th> 
+			<th style="width:5%">Exp Issue Date</th> 
+			<th style="width:5%">Purchase Contract No</th> 
+			<th style="width:5%">Commercial Invoice No</th> 
+			<th style="width:5%">Bank Name</th> 
+            <th style="width:10%">Item Name</th> 
+			<th style="width:10%">Quantity(MT/Bale</th> 
+            <th style="width:10%">Export Value Usd</th>	 
+			<th style="width:3%">Document Submit Date</th>  
+			<th style="width:3%">Payment Realisation Date</th> 
+            <th style="width:7%">Amount Realise Usd</th> 
+            <th style="width:7%">Amount Realise BDT</th>  
+            <th style="width:7%">Expo Done</th>			 
+ 
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.EXPDONE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.REALIZATIONAMOUNTUSD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.EXPDONE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+             ------------------------------------- 
+ procedure EXPORT_PAYMENT_DUE_BANK_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' EXPORT PAYMENT REALISATION DUE BANK WISE '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+			<th style="width:5%">Factory Delivery Date</th> 
+            <th style="width:15%">Exp No</th> 
+			<th style="width:5%">Exp Issue Date</th> 
+			<th style="width:5%">Purchase Contract No</th> 
+			<th style="width:5%">Commercial Invoice No</th> 
+			<th style="width:5%">Bank Name</th> 
+            <th style="width:10%">Item Name</th> 
+			<th style="width:10%">Quantity(MT/Bale)</th> 
+            <th style="width:10%">Export Value Usd</th>	 
+			<th style="width:3%">Document Submit Date</th>  
+			<th style="width:3%">Payment Realisation Date</th> 
+            <th style="width:7%">Amount Realise Usd</th> 
+            <th style="width:7%">Amount Realise BDT</th>  
+            <th style="width:7%">Expo Done</th>			 
+ 
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.EXPDONE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.REALIZATIONAMOUNTUSD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.EXPDONE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+             ------------------------------------- 
+ procedure SUBSIDY_AMOUNT_DUE_BANK_WISE (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' EXPORT STATEMENT SUBSIDY AMOUNT DUE - BANK WISE '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+			<th style="width:15%">Exp No</th> 
+			<th style="width:5%">Purchase Contract No</th> 
+			<th style="width:5%">Exp Issue Date</th> 
+			<th style="width:5%">Commercial Invoice No</th> 
+			<th style="width:5%">Bank Name</th> 
+            <th style="width:10%">ITEMS</th> 
+			<th style="width:10%">QUANTITY(MT/Bale</th> 
+            <th style="width:10%">DOCUMENT SUBMIT DATE</th>	 
+			<th style="width:3%">EXPORT VALUE USD</th>  
+			<th style="width:3%">SUBSIDY RECEIVED BDT</th> 
+            <th style="width:7%">PRC Apply Date</th> 
+            <th style="width:7%">Subsidy Apply Date</th> 		 
+ 
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="13"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.APPLYFORSUBSIDYDATE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+               <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.APPLYFORSUBSIDYDATE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="7" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="13" style="text-align: right;">.</td><tr> 
+               <td colspan="2"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+             ------------------------------------- 
+ procedure AUDIT_CERTIFICATE_RECEIVED (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' AUDIT CERTIFICATE RECIEVED DATE '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+			<th style="width:15%">Factory Delivery Date</th> 
+			<th style="width:15%">Exp No</th> 
+			<th style="width:5%">Exp Issue Date</th> 
+			<th style="width:5%">Purchase Contract No</th> 
+			<th style="width:5%">Commercial Invoice No</th> 
+			<th style="width:5%">Bank Name</th> 
+            <th style="width:10%">Item Name</th> 
+			<th style="width:10%">Quantity(MT/Bale)</th> 
+			<th style="width:3%">Export Value Usd</th>  
+			<th style="width:3%">Document Submit Date</th> 
+            <th style="width:7%">Payment Realisation Date</th> 
+            <th style="width:7%">Amount Realise Usd</th> 
+            <th style="width:10%">Amount Subsidy Bdt</th> 
+            <th style="width:10%">Audit Receive Date</th>				 
+ 
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+         for i in (select 	 m.FACTORYDELIVERYDATE 
+                    		,m.EXPFORMNO 
+                    		,m.EXPFORMDATE 
+                    		,m.PURCHASECONTACTID 
+                    		,m.COMMERCIALINVOICENO 
+                    		,b.SHORT_NAME 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,d.VALUE_USD 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                    		,m.PAYMENTRECEIVEDDATE 
+                    		,m.REALIZATIONAMOUNTUSD 
+                    		,m.REALIZATIONAMOUNTBDT 
+                    		,m.AUDITCERTIFICATERECEIVEDDATE 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.VALUE_USD,0); 
+        	v_exp_g    := v_exp_g+nvl(i.VALUE_USD,0); 
+        	v_usd      := v_usd+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.REALIZATIONAMOUNTUSD,0); 
+        	v_bdt      := v_bdt+nvl(i.REALIZATIONAMOUNTBDT,0); 
+        	v_bdt_g    := v_bdt_g+nvl(i.REALIZATIONAMOUNTBDT,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+                <td style="text-align: Left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+               <td style="text-align: left">'||HTF.escape_sc (i.SHORT_NAME) 
+                ||'</td> 
+               <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.REALIZATIONAMOUNTUSD) 
+               ||'</td> 
+               <td>'|| HTF.escape_sc (i.REALIZATIONAMOUNTBDT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.AUDITCERTIFICATERECEIVEDDATE) 
+               ||'</td> 
+                <tr>'); 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_exp,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="15" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="5" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+             ------------------------------------- 
+ procedure ALL_INCOMPLETE_EXPORT (p_company_name varchar2,p_buyer_name varchar2,p_item_name varchar2,p_bank_name number,p_from_date date,p_to_date date) 
+is 
+	v_sl number         := 0; 
+	v_tot_sl number     := 0; 
+	v_qty    number     := 0; 
+	v_qty_g  number     := 0; 
+	v_exp    number     := 0; 
+	v_exp_g  number     := 0; 
+	v_usd    number     := 0; 
+	v_usd_g  number     := 0; 
+	v_bdt    number     := 0; 
+	v_bdt_g  number     := 0; 
+    v_count number  := 0; 
+	BEGIN 
+		report_utils.header_without_boarder(p_company_name, ' ALL INCOMPLETE EXPORT STATEMENT '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+		 
+			htp.p('<table style="width:100%"><tr> 
+			<th style="width:1%" >SL.</th> 
+            <th style="width:15%">PURCHASE CONTRACT NO</th> 
+            <th style="width:15%">Commercial Invoice No</th> 
+            <th style="width:15%">Commercial Invoice Date</th> 
+            <th style="width:5%">EXP No</th> 
+            <th style="width:5%">EXP ISSUE DATE</th> 
+             <th style="width:15%">Factory Delivery Date</th> 
+			<th style="width:5%">Bank Name</th> 
+            <th style="width:10%"> Value Usd</th> 
+            <th style="width:10%">Items Name</th> 
+            <th style="width: 5px;">MT</th>  
+			<th style="width:3%">Document Submit Date</th> 
+            <th style="width:7%">Payment Received USD</th> 
+            <th style="width:7%">Payment Received BDT</th> 
+            <th style="width:7%">Payment Realize Date</th> 
+            <th style="width:7%">Apply For PRC Date</th> 
+            <th style="width:15%">Amount Subsidy Bdt</th> 
+            <th style="width:7%">Audit Receive Date</th>				 
+ 
+			</tr>'); 
+			 
+		FOR r in (SELECT CODE, CODE_DESC  
+                    FROM G_UNI_CODES  
+                    WHERE P_CODE =1 
+                    and CODE = nvl(p_company_name,code) 
+                    ORDER BY CODE) 
+		LOOP 
+ 
+        select count(*) into v_count 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(EXPFORMDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code; 
+if v_count > 0 then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="12"  style="text-align: left"><b>' 
+               || HTF.escape_sc (r.CODE_DESC) 
+               || '</b></td> 
+                <tr>'); 
+end if;                 
+            v_sl       := 0; 
+        	v_qty      := 0; 
+        	v_exp      := 0; 
+        	v_usd      := 0; 
+        	v_bdt      := 0; 
+ 
+         for i in (select 	  
+                            m.PURCHASECONTACTID 
+                            ,m.COMMERCIALINVOICENO 
+                            ,m.COMMERCIALINVOICEDATE 
+                            ,m.EXPFORMNO 
+                            ,m.EXPFORMDATE 
+                            ,m.FACTORYDELIVERYDATE 
+                    		,b.SHORT_NAME 
+                            ,d.VALUE_USD 
+                    		,d.ITEM_NAME 
+                    		,d.QTY 
+                    		,m.DOCUMENTSUBMISSIONTOBANKDATE 
+                            ,M.PAYMENTRECEIVEDUSD 
+                            ,M.PAYMENTRECEIVEDBDT 
+                    		,m.PAYMENTRECEIVEDDATE 
+                            ,M.APPLYFORPRCDATE 
+ 
+                    FROM ERP_PROFORMA_INVOICE m, ERP_PURCHASE_CONTRACT d, ERP_BANK_INFO b 
+                    where m.PURCHASECONTACTID = d.PC_CONTRACT_NO (+)  
+                    and m.BANK = b.BANK_ID (+)  
+                    and d.ITEM_NAME = nvl(p_item_name,d.ITEM_NAME) 
+                    and d.BUYER_ID = nvl(p_buyer_name,BUYER_ID) 
+                    and nvl(m.BANK,0) = nvl(p_bank_name,nvl(m.BANK,0)) 
+                    and nvl(FACTORYDELIVERYDATE,p_to_date) between p_from_date and p_to_date 
+                    and m.COMPANYID = r.code) 
+                    loop 
+            v_sl := v_sl+1; 
+         	v_tot_sl   := v_tot_sl+1; 
+        	v_qty      := v_qty+nvl(i.QTY,0); 
+        	v_qty_g    := v_qty_g+nvl(i.QTY,0); 
+        	v_exp      := v_exp+nvl(i.PAYMENTRECEIVEDBDT,0); 
+            v_exp_g    := v_exp_g+nvl(i.PAYMENTRECEIVEDBDT,0); 
+        	v_usd      := v_usd+nvl(i.VALUE_USD,0); 
+        	v_usd_g    := v_usd_g+nvl(i.VALUE_USD,0); 
+        	 v_bdt      := v_bdt+nvl(i.PAYMENTRECEIVEDUSD,0); 
+        	 v_bdt_g    := v_bdt_g+nvl(i.PAYMENTRECEIVEDUSD,0); 
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.PURCHASECONTACTID) 
+               || '</td> 
+                 <td style="text-align: Left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICENO) 
+               || '</td> 
+                 <td style="text-align: Left">' 
+               || HTF.escape_sc (i.COMMERCIALINVOICEDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMNO) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.EXPFORMDATE) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.FACTORYDELIVERYDATE) 
+               || '</td> 
+               <td style="text-align: left">' 
+               || HTF.escape_sc (i.SHORT_NAME) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.VALUE_USD) 
+               ||'</td> 
+                 <td>'||HTF.escape_sc (i.QTY) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.DOCUMENTSUBMISSIONTOBANKDATE) 
+               ||'</td> 
+               
+               <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDUSD) 
+               ||'</td> 
+                <td>'||HTF.escape_sc (i.PAYMENTRECEIVEDBDT) 
+               ||'</td> 
+                <td>'|| HTF.escape_sc (i.PAYMENTRECEIVEDDATE) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.APPLYFORPRCDATE) 
+               ||'</td>'); 
+ 
+ 
+			end loop; 
+ 
+if v_count > 0 then             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="9" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>'|| HTF.escape_sc (to_char(v_usd,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_qty,'99,99,999.99')) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (to_char(v_bdt,'99,99,999.99')) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp) 
+               ||'</b></td> 
+               <td></td> 
+                <tr>'); 
+end if; 
+	 
+		end loop; 
+         
+ 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="16" style="text-align: right;">.</td><tr> 
+               <td colspan="3"><b>Total Retult : '||HTF.escape_sc (v_tot_sl) 
+               ||'</b></td> 
+                <td colspan="6" style="text-align: right;"><b>Grand Total :</b></td> 
+               <td><b>'|| HTF.escape_sc (v_usd_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_qty_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td><b>'||HTF.escape_sc (v_bdt_g) 
+               ||'</b></td> 
+               <td><b>'||HTF.escape_sc (v_exp_g) 
+               ||'</b></td> 
+               <td></td> 
+               <td></td> 
+                <tr>'); 
+         
+			htp.p('</table>'); 
+ 
+		report_utils.footer; 
+         htp.p('<BR> <BR> <BR> 
+                 <b style= "word-spacing: 650px; "> PreparedBy                  Accountant                          Manager                   </b>') ; 
+	END; 
+    --****************************************** 
+ 
+end "EXPORT_REPORTS2"; 
+/
+

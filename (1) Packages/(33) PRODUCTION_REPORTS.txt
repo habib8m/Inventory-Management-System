@@ -1,0 +1,1280 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "PRODUCTION_REPORTS" as 
+procedure Finish_Goods_Receive_List(p_company_id number,p_item_code number,p_from_date date,p_to_date date ); -- page : 243 
+procedure Daily_Production_List(p_company_id number,p_from_date date,p_to_date date,P_body_mil number);  --page:244 
+procedure Use_To_Production_Report(p_company_id number,p_from_date date,p_to_date date ,p_org_id number); --page : 246 
+procedure Use_To_Production_Details_Report(p_company_id number ,p_from_date date,p_to_date date,p_item_code number , 
+                                            p_category_code number ); --page :245 
+procedure Finished_goods_received(p_company_id number,p_from_date date,p_to_date date); --page : 251 
+procedure Use_To_Production_Summery_Report(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_category number); --page :249 
+procedure Finished_goods_Details_Report(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_category number ); --page :252 
+procedure Finish_Good_Summery_Report(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_category number ); 
+procedure Use_To_Production_Report_11(p_company_id number,p_from_date date,p_to_date date,p_org_id number,p_app_user_id number ); 
+procedure Use_To_Production_Summery_Report_11(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_depot_id number,p_org_id number,p_app_user_id number);
+procedure Finish_Goods_Receive_List_11( p_company_id number,p_item_code number,p_from_date date,p_to_date date,p_org_id number,p_app_user_id number );
+procedure Finished_goods_Details_Report_11(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_depot_id number,p_org_id number,p_app_user_id number  ) ;
+procedure Finish_Good_Summery_Report_11(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_depot_id number,p_org_id number,p_app_user_id number );
+end "PRODUCTION_REPORTS";
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "PRODUCTION_REPORTS" as 
+    procedure Finish_Goods_Receive_List( p_company_id number,p_item_code number,p_from_date date,p_to_date date ) 
+    IS  
+        v_BAG_TOTAL number := 0; 
+        v_55_t number := 0; 
+        v_50_t number := 0; 
+        v_37_t number := 0; 
+        v_sl    number := 0; 
+    BEGIN 
+    		report_utils.header_without_boarder(p_company_id, ' Finish Goods Receive List '); 
+            htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date) 
+                                                                   ||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+            for r in(select distinct body  
+                    from v_all_inv 
+                    where org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                    and body is not null 
+                    and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate) 
+                    and item_code=nvl(p_item_code,item_code) 
+                    ) 
+            loop 
+    			htp.p('<table style="width:100%"><tr> 
+    			<th  STYLE="width:1%" >SL/No</th> 
+    			<th style="width:10%">'||htf.escape_sc(r.body)||'</th> 
+    			<th STYLE="width:10%">74 kg</th>  
+    			<th STYLE="width:6%">55 kg</th> 
+    			<th STYLE="width:15%">50 kg</th> 
+                <th STYLE="width:10%">37 kg</th> 
+                <th STYLE="width:5%">Bag </th> 
+                <th style="width:4%">Comment </th> 
+                </tr>'); 
+            		FOR i in (SELECT BODY,ITEM_NAME, SUM(QTY) QTY, PACKING 
+                                from V_ALL_INV 
+                                 where org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                                 AND TRANS_TYPE='FR' 
+                                 AND BODY = R.BODY 
+                                 and item_code=nvl(p_item_code,item_code) 
+                                 and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate) 
+                                 GROUP BY ITEM_NAME,BODY,PACKING 
+                                ) 
+            		LOOP 
+                        v_sl := v_sl+1; 
+                        v_BAG_TOTAL :=NVL(v_BAG_TOTAL,0)+NVL(I.QTY,0); 
+                      
+                        HTP.p ( 
+                              '<tr> 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (v_sl) 
+                           || '</td> 
+                            <td style="text-align: LEFT">' 
+                           || HTF.escape_sc (I.ITEM_NAME) 
+                           || '</td>'); 
+                        IF I.PACKING = 74 THEN 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (I.QTY) 
+                           || '</td>'); 
+                        ELSE 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">0</td>'); 
+                        END IF; 
+                        IF I.PACKING = 55 THEN 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (I.QTY) 
+                           || '</td>'); 
+                        ELSE 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">0</td>'); 
+                        END IF; 
+                        IF I.PACKING = 50 THEN 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (I.QTY) 
+                           || '</td>'); 
+                        ELSE 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">0</td>'); 
+                        END IF; 
+                        IF I.PACKING = 37 THEN 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (I.QTY) 
+                           || '</td>'); 
+                        ELSE 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">0</td>'); 
+                        END IF; 
+ 
+                        HTP.p (' 
+                            <td style="text-align: center">'|| HTF.escape_sc (v_BAG_TOTAL) 
+                           ||'</td> 
+                            <td style="text-align: center">'|| HTF.escape_sc (NULL) 
+                           ||'</td><tr>'); 
+        	            v_BAG_TOTAL := 0; 
+            			end loop; 
+    	            HTP.p ('<tr> 
+                        <td colspan="2" style="text-align: right;"><b>Total</b> :</td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                        <tr>'); 
+    		end loop; 
+ 
+    			htp.p('</table>'); 
+                htp.p('<h4 style="margin-top: 0px; text-align: left"><b>Total Production Summary</b></h4>'); 
+ 
+                htp.p('<table style="width:100%"><tr> 
+    			<th  STYLE="width:1%" >SL/No</th> 
+    			<th style="width:12%"></th> 
+    			<th STYLE="width:5%">74 kg</th>  
+    			<th STYLE="width:5%">55 kg</th> 
+    			<th STYLE="width:5%">50 kg</th> 
+                <th STYLE="width:5%">37 kg</th> 
+                <th STYLE="width:5%">Bag </th> 
+                <th style="width:5%">Comment </th> 
+                </tr>'); 
+                    v_sl    := 0; 
+            		FOR i in (SELECT BODY,ITEM_NAME, SUM(QTY) QTY, PACKING 
+                                from V_ALL_INV 
+                                 where org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                                 AND TRANS_TYPE='FR' 
+                                 and item_code=nvl(p_item_code,item_code) 
+                                 and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate) 
+                                 GROUP BY ITEM_NAME,BODY,PACKING 
+                                ) 
+            		LOOP 
+                        v_sl := v_sl+1; 
+                        v_BAG_TOTAL :=NVL(v_BAG_TOTAL,0)+NVL(I.QTY,0); 
+                      
+                        HTP.p ( 
+                              '<tr> 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (v_sl) 
+                           || '</td> 
+                            <td style="text-align: LEFT">' 
+                           || HTF.escape_sc (I.ITEM_NAME) 
+                           || '</td>'); 
+                        IF I.PACKING = 74 THEN 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (I.QTY) 
+                           || '</td>'); 
+                        ELSE 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">0</td>'); 
+                        END IF; 
+                        IF I.PACKING = 55 THEN 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (I.QTY) 
+                           || '</td>'); 
+                        ELSE 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">0</td>'); 
+                        END IF; 
+                        IF I.PACKING = 50 THEN 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (I.QTY) 
+                           || '</td>'); 
+                        ELSE 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">0</td>'); 
+                        END IF; 
+                        IF I.PACKING = 37 THEN 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (I.QTY) 
+                           || '</td>'); 
+                        ELSE 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">0</td>'); 
+                        END IF; 
+ 
+                        HTP.p (' 
+                            <td style="text-align: center">'|| HTF.escape_sc (v_BAG_TOTAL) 
+                           ||'</td> 
+                            <td style="text-align: center">'|| HTF.escape_sc (NULL) 
+                           ||'</td><tr>'); 
+                        v_BAG_TOTAL := 0; 
+                end loop; 
+                HTP.p ('<tr> 
+                        <td colspan="2" style="text-align: right;"><b>Total</b> :</td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                        <tr>'); 
+    			htp.p('</table>'); 
+    		--report_utils.footer; 
+    END; 
+
+--*****************************
+
+procedure Daily_Production_List(p_company_id number,p_from_date date,p_to_date date,P_body_mil number) 
+IS  
+v_t_bag number      := 0; 
+v_per_bag number    := 0; 
+v_width_per number  := 0; 
+v_rate number       := 0; 
+BEGIN 
+		report_utils.header_without_boarder(p_company_id, 'Daily Production List '); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th  STYLE="width:1%" >SL/No</th> 
+			<th style="width:6%">Description</th> 
+			<th STYLE="width:10%">Bag</th>  
+			<th STYLE="width:6%">Width per Bag</th> 
+			<th STYLE="width:15%">Width (kg)</th> 
+            <th STYLE="width:10%">Production Rate</th> 
+            <th style="width:4%">Comment </th> 
+ 
+			</tr>'); 
+	 
+
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="2" style="text-align: right;"><b>Total</b> :</td> 
+                
+               <td></td> 
+               <td></td> 
+               <td  style="text-align: right;" ><b> </b></td> 
+               <td><b> </b></td> 
+               <td> </td> 
+                <tr>'); 
+ 
+		htp.p('</table>'); 
+ 
+	END; 
+
+--*****************************
+
+     procedure Use_To_Production_Report (p_company_id number,p_from_date date,p_to_date date,p_org_id number ) 
+    IS  
+        v_total_bag number      := 0; 
+        v_total_weight number    := 0; 
+        v_weight_tot number  := 0; 
+        v_sl number       := 0; 
+        BEGIN 
+    		report_utils.header_without_boarder(p_company_id, 'Issue To Production Report'); 
+            htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+    			htp.p('<table style="width:100%"><tr> 
+    			<th  STYLE="width:5%" >SL</th> 
+    			<th style="width:6%">Date</th> 
+    			<th STYLE="width:6%">PO NO</th>  
+    			<th STYLE="width:12%">Item</th> 
+                <th STYLE="width:5%">QTY</th> 
+                <th style="width:6%">Total Weight</th> 
+                </tr>'); 
+    	        v_total_weight:=0; 
+    		FOR i in (select trans_date, 
+                            substr(invoice_no,5) invoice_no, 
+                                packing, 
+                                item_name||' '||unit as item_name , 
+                                sum(qty) qty 
+                        from v_all_inv 
+                        where org_id=p_org_id
+                        and trans_type='PI' 
+                        and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate) 
+                        group by trans_date,invoice_no,item_name,unit,packing 
+                        order by invoice_no 
+                      ) 
+    		LOOP 
+                v_sl := v_sl+1; 
+                v_total_bag :=nvl(v_total_bag,0)+nvl(i.qty,0); 
+                 v_total_weight:=nvl(i.packing,0)*nvl(i.qty,0); 
+                 v_weight_tot:=nvl(v_weight_tot,0)+v_total_weight; 
+              
+                HTP.p ( 
+                      '<tr> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (v_sl) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (to_char(i.trans_date,'dd-mm-yy')) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.invoice_no) 
+                   || '</td> 
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (i.item_name) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.qty) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (v_total_weight) 
+                   || '</td> 
+                   <tr>'); 
+    			end loop; 
+                 
+                HTP.p ( 
+                      '<tr> 
+                    <td colspan="4" style="text-align: right;"><b>Total</b> :</td> 
+                    
+                   <td><b>'||HTF.escape_sc(v_total_bag)||'</b></td> 
+                   <td><b>'||HTF.escape_sc(v_weight_tot)||'</b></td> 
+                   
+                    <tr>'); 
+                htp.p('</table>'); 
+ 
+    	END; 
+ 
+--*****************************
+
+    procedure Use_To_Production_Details_Report(p_company_id number ,p_from_date date,p_to_date date,p_item_code number , 
+                                                p_category_code number ) 
+    IS  
+    v_t_bag         number := 0; 
+    v_total_weight  number := 0; 
+    v_total_qty     number := 0; 
+    v_sl            number := 0; 
+    v_wight_tot     number := 0; 
+    v_ton           number := 0; 
+    v_total_ton     number := 0; 
+    BEGIN 
+    		report_utils.header_without_boarder(p_company_id, ' Issue To Production Details Report'); 
+            htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+    			htp.p('<table style="width:100%"><tr> 
+    			<th  STYLE="width:5%" >SL/NO</th> 
+    			<th style="width:8%">Date</th> 
+    			<th STYLE="width:8%">PO NO</th> 
+                <th STYLE="width:12%">Item </th> 
+                <th STYLE="width:5%">Bag </th> 
+                <th STYLE="width:5%">Unit </th> 
+                <th STYLE="width:5%">QTY</th> 
+                <th style="width:6%">Total Weight</th> 
+                <th STYLE="width:5%">Ton </th> 
+ 
+    			</tr>'); 
+    	    v_total_weight:=0; 
+    		FOR i in (select trans_date, 
+                            substr(invoice_no,5) invoice_no, 
+                                item_name,packing,unit  , 
+                                sum(qty) qty 
+                        from v_all_inv 
+                        where org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                        and trans_type='PI' 
+                        and item_code=nvl(p_item_code,item_code) 
+                        --and item_code=nvl(p_category_code,item_code) 
+                        and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate) 
+                        group by trans_date,invoice_no, 
+                                item_name,unit,packing 
+                        order by invoice_no ) 
+    		LOOp 
+             
+                v_sl := v_sl+1; 
+                v_total_weight:=nvl(i.packing,0)*nvl(i.qty,0); 
+                v_total_qty:=nvl(v_total_qty,0)+nvl(i.qty,0); 
+                v_wight_tot:=v_wight_tot+v_total_weight; 
+                v_ton:=v_total_weight/1000; 
+                v_total_ton:=v_total_ton+v_ton; 
+              
+                HTP.p ( 
+                      '<tr> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (v_sl) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (to_char(i.trans_date,'dd-mm-yy')) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.invoice_no) 
+                   || '</td> 
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (i.item_name) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.packing) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.unit) 
+                   || '</td> 
+                   <td style="text-align: center">' 
+                   ||HTF.escape_sc (i.qty) 
+                    ||'</td> 
+                   <td>'|| HTF.escape_sc (v_total_weight) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (v_ton) 
+                   ||'</td> 
+                  
+                    <tr>'); 
+    			end loop; 
+                HTP.p ( 
+                      '<tr> 
+                    <td colspan="6" style="text-align: right;"><b>Total</b> :</td> 
+                   <td><b>'||HTF.escape_sc(v_total_qty)||'</b></td> 
+                   <td><b>'||HTF.escape_sc(v_wight_tot)||'</b></td> 
+                    <td><b>'||HTF.escape_sc(v_total_ton)||'</b></td> 
+                    <tr>'); 
+
+    			htp.p('</table>'); 
+    	END; 
+ 
+--*****************************
+
+ procedure Finished_goods_received(p_company_id number,p_from_date date,p_to_date date) 
+IS  
+v_t_bag number      := 0; 
+v_per_bag number    := 0; 
+v_width_per number  := 0; 
+v_rate number       := 0; 
+BEGIN 
+		report_utils.header_without_boarder(p_company_id, 'Finished goods received'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th  STYLE="width:1%" >SL/NO</th> 
+			<th style="width:6%">Date</th> 
+			<th STYLE="width:10%">PO NO</th>  
+			<th STYLE="width:15%">Shift </th> 
+            <th STYLE="width:15%">Body </th> 
+            <th STYLE="width:15%">Item Name  </th> 
+            <th STYLE="width:15%">Quantity (Bag) </th> 
+            <th style="width:4%"> Weight (kg)</th> 
+            </tr>'); 
+
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="3" style="text-align: right;"><b>Total</b> :</td> 
+                
+               <td></td> 
+               <td></td> 
+                <td></td> 
+               <td></td> 
+               
+                <tr>'); 
+ 
+			htp.p('</table>'); 
+	END; 
+
+--***************************** 
+ 
+   procedure Use_To_Production_Summery_Report(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_category number) 
+IS  
+V_SL   NUMBER               := 0; 
+v_total_weight number       := 0; 
+v_total_qty number          := 0; 
+v_wight_tot number          := 0; 
+v_ton number                := 0; 
+v_total_ton NUMBER          := 0; 
+v_bag    number             := 0; 
+v_qty   number              := 0; 
+BEGIN 
+		report_utils.header_without_boarder(p_company_id, 'Issue To Production Summery Report'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th  STYLE="width:1%" >SL/NO</th> 
+			<th style="width:20%">Item Name</th> 
+			<th STYLE="width:10%">Bag</th> 
+			<th STYLE="width:10%">QTY </th> 
+            <th STYLE="width:10%">Unit</th>  
+            <th style="width:10%">total Weight</th> 
+            <th STYLE="width:10%">Ton</th> 
+ 
+			</tr>'); 
+ 
+                for i in ( SELECT ITEM_NAME  
+                                ,UNIT 
+                                ,SUM (QTY) QTY 
+                                ,SUM(PACKING) PK 
+                                ,PACKING 
+                                FROM V_ALL_INV 
+                                WHERE TRANS_TYPE='PI' 
+                                and org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                                and item_code=nvl(p_item_code,item_code) 
+                                and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate) 
+                                GROUP BY ITEM_NAME,UNIT,PACKING  
+                                ) 
+                                 
+ 
+                    loop 
+                 v_sl               := v_sl+1; 
+                 v_total_weight     :=nvl(i.PACKING,0)*nvl(i.qty,0); 
+                v_total_qty         :=nvl(v_total_qty,0)+nvl(i.qty,0); 
+                v_wight_tot         :=v_wight_tot+v_total_weight; 
+                v_ton               := v_total_weight/1000; 
+                v_total_ton         :=v_total_ton+v_ton; 
+               v_bag                :=v_bag +nvl(i.PK,0); 
+               v_qty                := v_qty + nvl(i.QTY,0); 
+          
+             HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">'|| HTF.escape_sc (v_sl)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) || '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (i.PK)|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (i.QTY)|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (i.UNIT)|| '</td> 
+                <td style="text-align: right">'|| HTF.escape_sc (v_total_weight)|| '</td> 
+                <td style="text-align: center">' || HTF.escape_sc (v_ton)  || '</td> 
+                
+                
+               
+                <tr>'); 
+ 			end loop; 
+             
+-- if v_count > 0  then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="2" style="text-align: right;"><b>Total</b> :</td> 
+               <td><b>' || HTF.escape_sc (v_bag)  || '</b></td> 
+               <td><b>' || HTF.escape_sc (v_qty)  || '</b></td> 
+               <td>  </td> 
+               <td style="text-align: right"><b>' || HTF.escape_sc (v_wight_tot)  || '</b></td> 
+               <td><b>' || HTF.escape_sc (v_total_ton)  || '</b></td> 
+               
+                <tr>'); 
+
+		htp.p('</table>'); 
+ 
+	END; 
+ 
+--*****************************
+
+    procedure Finished_goods_Details_Report(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_category number ) 
+ 
+IS  
+V_SL   NUMBER       := 0; 
+v_t_bag number      := 0; 
+v_per_bag number    := 0; 
+v_width_per number  := 0; 
+v_rate number       := 0; 
+BEGIN 
+		report_utils.header_without_boarder(p_company_id, 'Finished Goods Details Report'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th  STYLE="width:1%" >SL/NO</th> 
+			<th style="width:10%">Date</th> 
+			<th STYLE="width:10%">PO NO</th>  
+			<th STYLE="width:5%">Shift </th> 
+            <th STYLE="width:10%">Body </th> 
+            <th STYLE="width:15%">Item Name  </th> 
+             <th STYLE="width:10%">Packing  </th> 
+            <th STYLE="width:5%">Qty</th> 
+            <th STYLE="width:5%">Unit</th> 
+            <th style="width:5%"> Weight (kg)</th> 
+            
+ 
+			</tr>'); 
+	 
+		FOR i in (     select TRANS_DATE 
+                            ,substr(invoice_no,5) invoice_no 
+                            ,SHIFT 
+                            ,Body 
+                            ,ITEM_NAME 
+                            ,QTY 
+                            ,UNIT 
+                            ,PACKING 
+                            , nvl(QTY,0)* nvl(PACKING,0) Weight  
+                        from v_all_inv 
+                        where  org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                        and trans_type='FR' 
+                        and item_code=nvl(p_item_code,item_code) 
+                        and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate) 
+                        order by Body 
+                         
+                        ) 
+		LOOP 
+ 
+            v_sl := v_sl+1; 
+            v_width_per :=v_width_per +NVL(i.Weight,0); 
+            v_t_bag := v_t_bag + NVL(i.PACKING,0); 
+          
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.TRANS_DATE) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.INVOICE_NO) 
+               || '</td> 
+                <td style="text-align: CENTER">' 
+               || HTF.escape_sc (I.SHIFT) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.Body) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.ITEM_NAME) 
+               || '</td> 
+               <td style="text-align: center">'||HTF.escape_sc (i.QTY) 
+                ||'</td> 
+               <td >'||HTF.escape_sc (i.PACKING) 
+               ||'</td> 
+                <td>'|| HTF.escape_sc (i.UNIT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.Weight) 
+               ||'</td> 
+              
+                <tr>'); 
+			end loop; 
+             
+-- if v_count > 0  then 
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="7" style="text-align: right;"><b>Total</b> :</td> 
+                 
+                 <td>'||HTF.escape_sc (v_t_bag) 
+               ||'</td> 
+                <td></td> 
+               <td> '||HTF.escape_sc (v_width_per) 
+               ||'</td> 
+               
+                
+                
+               
+                <tr>'); 
+ 
+			htp.p('</table>'); 
+ 
+	END; 
+
+ --*****************************
+     
+    procedure Finish_Good_Summery_Report(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_category number) 
+    IS  
+    V_SL   NUMBER               := 0; 
+    v_total_weight number       := 0; 
+    v_total_qty number          := 0; 
+    v_wight_tot number          := 0; 
+    v_ton number                := 0; 
+    v_total_ton NUMBER          := 0; 
+    v_bag    number             := 0; 
+    v_qty   number              := 0; 
+    BEGIN 
+    		report_utils.header_without_boarder(p_company_id, 'Finish Good Summery Report'); 
+            htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+    			htp.p('<table style="width:100%"><tr> 
+    			<th  STYLE="width:1%" >SL/NO</th> 
+    			<th style="width:20%">Item Name</th> 
+    			<th STYLE="width:10%">Unit</th>  
+    			<th STYLE="width:10%">Bag</th> 
+    			<th STYLE="width:10%">QTY </th> 
+                <th style="width:10%">Total Weight</th> 
+                <th STYLE="width:10%">Ton</th> 
+ 
+    			</tr>'); 
+ 
+                    for i in ( SELECT ITEM_NAME  
+                                    ,UNIT 
+                                    ,SUM (QTY) QTY 
+                                    ,SUM(PACKING) PK 
+                                    ,PACKING 
+                                    FROM V_ALL_INV 
+                                    WHERE TRANS_TYPE='FR' 
+                                    and org_id=APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                                    and item_code=nvl(p_item_code,item_code) 
+                                    and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate) 
+                                    GROUP BY ITEM_NAME,UNIT,PACKING  
+                                    ) 
+                                     
+ 
+                        loop 
+                     v_sl               := v_sl+1; 
+                     v_total_weight     :=nvl(i.PACKING,0)*nvl(i.qty,0); 
+                    v_total_qty         :=nvl(v_total_qty,0)+nvl(i.qty,0); 
+                    v_wight_tot         :=v_wight_tot+v_total_weight; 
+                    v_ton               := v_total_weight/1000; 
+                    v_total_ton         :=v_total_ton+v_ton; 
+                    v_bag                :=v_bag +nvl(i.PK,0); 
+                    v_qty                := v_qty + nvl(i.QTY,0); 
+              
+                 HTP.p ( 
+                      '<tr> 
+                    <td style="text-align: center">'|| HTF.escape_sc (v_sl)|| '</td> 
+                    <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) || '</td> 
+                    <td style="text-align: center">'|| HTF.escape_sc (i.UNIT)|| '</td> 
+                    <td style="text-align: center">'|| HTF.escape_sc (i.PK)|| '</td> 
+                    <td style="text-align: center">'|| HTF.escape_sc (i.QTY)|| '</td> 
+                    <td style="text-align: center">'|| HTF.escape_sc (v_total_weight)|| '</td> 
+                    <td style="text-align: center">' || HTF.escape_sc (v_ton)  || '</td> 
+                    <tr>'); 
+     		end loop; 
+                 
+                HTP.p ( 
+                      '<tr> 
+                    <td colspan="3" style="text-align: right;"><b>Total</b> :</td> 
+                   <td><b>' || HTF.escape_sc (v_bag)  || '</b></td> 
+                   <td><b>' || HTF.escape_sc (v_qty)  || '</b></td> 
+                   <td style="text-align: center"><b>' || HTF.escape_sc (v_wight_tot)  || '</b></td> 
+                   <td><b>' || HTF.escape_sc (v_total_ton)  || '</b></td> 
+                 
+                   
+                    <tr>'); 
+
+ 
+    		htp.p('</table>'); 
+    	END; 
+
+--*****************************
+
+   procedure production_report(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_org_id number ) 
+   is  
+       V_SL   NUMBER               := 0; 
+    v_total_weight number       := 0; 
+    v_total_qty number          := 0; 
+    v_wight_tot number          := 0; 
+    v_ton number                := 0; 
+    v_total_ton NUMBER          := 0; 
+    v_bag    number             := 0; 
+    v_qty   number              := 0; 
+    BEGIN 
+    		report_utils.header_without_boarder(p_company_id, 'Production Report(%)'); 
+            htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+    			htp.p('<table style="width:100%"> 
+                            <tr> 
+                    			<th  STYLE="width:5%" >????? ???</th> 
+                    			<th style="width:5%">??????????<br>??(????)</th> 
+                    			<th STYLE="width:5%">???????<br>???? ????<br>(??? + ????)</th>  
+                    			<th STYLE="width:5%">??? ???????<br>???? ????<br>(??? + ????)</th>  
+                    			<th STYLE="width:5%">????<br>(????)</th> 
+                    			<th STYLE="width:5%">???? ????<br>(????)</th> 
+                                <th style="width:5%">???? ????<br>(????)</th> 
+                                <th STYLE="width:5%">??? ??????? ????<br>(???,????,????,????)</th> 
+                                <th style="width:5%">??? <br>???????<br>????</th> 
+                    			<th STYLE="width:5%">????<br>(%)</th> 
+                    			<th STYLE="width:5%">????<br>(%)</th> 
+                    			<th STYLE="width:5%">????<br>(%)</th> 
+                    			<th STYLE="width:5%">???? ????<br>(%)</th> 
+                                <th style="width:5%">???? ????<br>(%)</th> 
+                                <th style="width:5%">??? <br>???????<br>??????<br>(%)</th> 
+                                <th style="width:5%">??????? <br>???????<br>??????<br>(%)</th> 
+                                <th style="width:5%">??????? <br>?????<br>?????????<br>(%)</th> 
+                                <th style="width:5%">??? ?? ?????? ???? ??????? ?????</th> 
+                                <th style="width:5%">?????????</th> 
+    			            </tr>'); 
+ 
+
+                HTP.p ('<tr> 
+                           <td colspan="0" style="text-align: right;"><b>???????</b> :</td> 
+                           <td><b>' || HTF.escape_sc (null)  || '</b></td> 
+                           <td><b>' || HTF.escape_sc (null)  || '</b></td> 
+                           <td style="text-align: center"><b>'|| HTF.escape_sc (null)  || '</b></td> 
+                           <td><b>' || HTF.escape_sc (null)  || '</b></td> 
+                           <td><b>' || HTF.escape_sc (null)  || '</b></td> 
+                           <td><b>' || HTF.escape_sc (null)  || '</b></td> 
+                           <td><b>' || HTF.escape_sc (null)  || '</b></td> 
+                           <td><b>' || HTF.escape_sc (null)  || '</b></td> 
+                         <tr>'); 
+ 
+    			htp.p('</table>'); 
+
+    	END; 
+
+--*****************************
+
+     procedure Use_To_Production_Report_11(p_company_id number,p_from_date date,p_to_date date,p_org_id number ,p_app_user_id number) 
+     IS  
+        v_total_bag number      := 0; 
+        v_total_weight number    := 0; 
+        v_weight_tot number  := 0; 
+        v_sl number       := 0; 
+    BEGIN 
+    		report_utils.header_without_boarder(p_company_id, 'Issue To Production Report'); 
+            htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+    			htp.p('<table style="width:100%"><tr> 
+    			<th  STYLE="width:2%" >SL</th> 
+    			<th style="width:6%">Date</th> 
+    			<th STYLE="width:6%">PO NO</th>  
+    			<th STYLE="width:12%">Item</th> 
+                <th STYLE="width:5%">QTY</th>  
+                <th STYLE="width:5%">Warehouse</th> 
+                </tr>'); 
+    	        v_total_weight:=0; 
+    		FOR i in (select TRANS_DATE,
+                        TRANS_TYPE,
+                        substr(sm.INVOICE_NO,5) invoice_no,
+                        (select code_desc from g_inv_codes where code = sd.item_code) item_name,
+                        (select code_desc from g_uni_codes where code=depot_id) warehouse_name,
+                        
+                        (select NVL(SUM(QTY),0) from SP_STORE_D WHERE SP_STORE_D.TRANS_ID = sm.TRANS_ID) QTY
+                      from SP_STORE_M sm,sp_store_d sd
+                      where sm.trans_id = sd.trans_id
+                      AND TRANS_TYPE = 'PI'
+                      and sm.delete_status != 1
+                      and sm.org_id = p_org_id
+                      and sd.org_id = p_org_id
+                      and trans_date between p_from_date and p_to_date
+                            and case when to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) = to_number(p_org_id||'000101') then 1 
+                            else to_number(PROJECT_CODE) end = case when to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) = to_number(p_org_id||'000101') then 1 
+                            else to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) end 
+                        order by invoice_no 
+                      ) 
+    		LOOP 
+                v_sl := v_sl+1; 
+                v_total_bag :=nvl(v_total_bag,0)+nvl(i.qty,0); 
+                 v_weight_tot:=nvl(v_weight_tot,0)+v_total_weight; 
+              
+                HTP.p ( 
+                      '<tr> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (v_sl) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (to_char(i.trans_date,'dd-mm-yy')) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.invoice_no) 
+                   || '</td> 
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (i.item_name) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.qty) 
+                   || '</td>  
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.warehouse_name) 
+                   || '</td> 
+                   <tr>'); 
+    			end loop; 
+                 
+                HTP.p ( 
+                      '<tr> 
+                    <td colspan="4" style="text-align: right;"><b>Total</b> :</td> 
+                    
+                   <td><b>'||HTF.escape_sc(v_total_bag)||'</b></td> 
+                   
+                    <tr>'); 
+                htp.p('</table>'); 
+    	END;
+
+--*****************************
+
+    procedure Use_To_Production_Summery_Report_11(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_depot_id number,p_org_id number,p_app_user_id number) 
+    IS  
+    V_SL   NUMBER               := 0; 
+    v_total_weight number       := 0; 
+    v_total_qty number          := 0; 
+    v_wight_tot number          := 0; 
+    v_ton number                := 0; 
+    v_total_ton NUMBER          := 0; 
+    v_bag    number             := 0; 
+    v_qty   number              := 0; 
+    BEGIN 
+		report_utils.header_without_boarder(p_company_id, 'Issue To Production Summery Report'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th  STYLE="width:1%" >SL/NO</th> 
+			<th style="width:20%">Item Name</th> 
+            <th STYLE="width:10%">Unit</th>  
+            <th style="width:10%">Total Weight</th>
+            <th style="width:10%">Warehouse</th> 
+ 
+			</tr>'); 
+ 
+                for i in ( SELECT code_desc ITEM_NAME , 
+                                 pkg_inventory.get_inv_unit(code) UNIT, 
+                                sd.QTY QTY ,
+                                (select code_desc from g_uni_codes where code = sm.depot_id) warehouse
+                                FROM g_inv_codes gi,sp_store_d sd,sp_store_m sm
+                                where gi.code = sd.item_code
+                                and sm.trans_id = sd.trans_id 
+                                and TRANS_TYPE='PI'
+                                and sm.delete_status != 1 
+                                and sm.org_id= p_org_id 
+                                and item_code=nvl(p_item_code,item_code) 
+                                and depot_id = nvl(p_depot_id,depot_Id)
+                                and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate)
+                            and case when to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) = to_number(p_org_id||'000101') then 1 
+                            else to_number(PROJECT_CODE) end = case when to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) = to_number(p_org_id||'000101') then 1 
+                            else to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) end 
+                                ) 
+                                 
+ 
+                    loop 
+                 v_sl               := v_sl+1; 
+               v_qty                := v_qty + nvl(i.QTY,0); 
+          
+             HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">'|| HTF.escape_sc (v_sl)|| '</td> 
+                <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) || '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (i.UNIT)|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (i.QTY)|| '</td> 
+                <td style="text-align: center">'|| HTF.escape_sc (i.warehouse)|| '</td>
+                <tr>'); 
+ 			end loop; 
+             
+            HTP.p ( '<tr> 
+                        <td colspan="3" style="text-align: right;"><b>Total</b> :</td> 
+                       <td><b>' || HTF.escape_sc (v_qty)  || '</b></td> 
+                    <tr>');
+ 
+			htp.p('</table>'); 
+ 
+	END; 
+
+--*****************************
+
+    procedure Finish_Goods_Receive_List_11( p_company_id number,p_item_code number,p_from_date date,p_to_date date,p_org_id number,p_app_user_id number) 
+    IS  
+        v_BAG_TOTAL number := 0; 
+        v_55_t number := 0; 
+        v_50_t number := 0; 
+        v_37_t number := 0; 
+        v_sl    number := 0; 
+    BEGIN 
+    		report_utils.header_without_boarder(p_company_id, ' Finish Goods Receive List '); 
+            htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date) 
+                                                                   ||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+                htp.p('<h4 style="margin-top: 0px; text-align: left"><b>Total Production Summary</b></h4>'); 
+ 
+                htp.p('<table style="width:100%"><tr> 
+    			<th  STYLE="width:1%" >SL/No</th> 
+    			<th style="width:12%"></th> 
+    			<th STYLE="width:5%">74 kg</th>  
+    			<th STYLE="width:5%">55 kg</th> 
+    			<th STYLE="width:5%">50 kg</th> 
+                <th STYLE="width:5%">37 kg</th> 
+                <th STYLE="width:5%">Bag(Qty) </th> 
+                <th style="width:5%">Comment </th> 
+                </tr>'); 
+                    v_sl    := 0; 
+            		FOR i in (SELECT BODY,ITEM_NAME, SUM(QTY) QTY, PACKING 
+                                from V_ALL_INV 
+                                 where org_id = p_org_id
+                                 AND TRANS_TYPE='FR'
+                                 and delete_status <> 1
+                                 and item_code=nvl(p_item_code,item_code) 
+                                 and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate)
+                            and case when to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) = to_number(p_org_id||'000101') then 1 
+                            else to_number(PROJECT_CODE) end = case when to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) = to_number(p_org_id||'000101') then 1 
+                            else to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) end 
+                                 GROUP BY ITEM_NAME,BODY,PACKING 
+                                ) 
+            		LOOP 
+                        v_sl := v_sl+1; 
+                        v_BAG_TOTAL :=NVL(v_BAG_TOTAL,0)+NVL(I.QTY,0); 
+                      
+                        HTP.p ( 
+                              '<tr> 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (v_sl) 
+                           || '</td> 
+                            <td style="text-align: LEFT">' 
+                           || HTF.escape_sc (I.ITEM_NAME) 
+                           || '</td>'); 
+                        IF I.PACKING = 74 THEN 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (I.QTY) 
+                           || '</td>'); 
+                        ELSE 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">0</td>'); 
+                        END IF; 
+                        IF I.PACKING = 55 THEN 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (I.QTY) 
+                           || '</td>'); 
+                        ELSE 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">0</td>'); 
+                        END IF; 
+                        IF I.PACKING = 50 THEN 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (I.QTY) 
+                           || '</td>'); 
+                        ELSE 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">0</td>'); 
+                        END IF; 
+                        IF I.PACKING = 37 THEN 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">' 
+                           || HTF.escape_sc (I.QTY) 
+                           || '</td>'); 
+                        ELSE 
+                           HTP.p ( 
+                              ' 
+                            <td style="text-align: center">0</td>'); 
+                        END IF; 
+ 
+                        HTP.p (' 
+                            <td style="text-align: center">'|| HTF.escape_sc (v_BAG_TOTAL) 
+                           ||'</td> 
+                            <td style="text-align: center">'|| HTF.escape_sc (NULL) 
+                           ||'</td><tr>'); 
+                        v_BAG_TOTAL := 0; 
+                end loop; 
+                HTP.p ('<tr> 
+                        <td colspan="2" style="text-align: right;"><b>Total</b> :</td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                       <td><b>'|| HTF.escape_sc (null) 
+                       ||'</b></td> 
+                        <tr>'); 
+    			htp.p('</table>'); 
+    END; 
+
+--*****************************
+
+    procedure Finished_goods_Details_Report_11(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_depot_id number,p_org_id number,p_app_user_id number  ) 
+ 
+    IS  
+    V_SL   NUMBER       := 0; 
+    v_t_bag number      := 0; 
+    v_per_bag number    := 0; 
+    v_width_per number  := 0; 
+    v_rate number       := 0; 
+    BEGIN 
+		report_utils.header_without_boarder(p_company_id, 'Finished Goods Details Report'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%"><tr> 
+			<th  STYLE="width:1%" >SL/NO</th> 
+			<th style="width:10%">Date</th> 
+			<th STYLE="width:10%">PO NO</th>  
+			<th STYLE="width:5%">Shift </th> 
+            <th STYLE="width:10%">Body </th> 
+            <th STYLE="width:15%">Item Name  </th> 
+             <th STYLE="width:10%">Packing  </th> 
+            <th STYLE="width:5%">Qty</th> 
+            <th STYLE="width:5%">Unit</th> 
+            <th style="width:5%"> Weight (kg)</th> 
+            
+ 
+			</tr>'); 
+	 
+		FOR i in (     select TRANS_DATE 
+                            ,substr(invoice_no,5) invoice_no 
+                            ,SHIFT 
+                            ,Body 
+                            ,ITEM_NAME 
+                            ,QTY 
+                            ,UNIT 
+                            ,PACKING 
+                            , nvl(QTY,0)* nvl(PACKING,0) Weight  
+                        from v_all_inv 
+                        where  org_id= p_org_id
+                        and trans_type='FR' 
+                        and delete_status <> 1
+                        and item_code=nvl(p_item_code,item_code) 
+                        and depot_id = nvl(p_depot_id,depot_id)
+                        and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate)
+                            and case when to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) = to_number(p_org_id||'000101') then 1 
+                            else to_number(PROJECT_CODE) end = case when to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) = to_number(p_org_id||'000101') then 1 
+                            else to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) end  
+                        order by Body 
+                         
+                        ) 
+		LOOP 
+ 
+            v_sl := v_sl+1; 
+            v_width_per :=v_width_per +NVL(i.Weight,0); 
+            v_t_bag := v_t_bag + NVL(i.qty,0); 
+          
+            HTP.p ( 
+                  '<tr> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (v_sl) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.TRANS_DATE) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.INVOICE_NO) 
+               || '</td> 
+                <td style="text-align: CENTER">' 
+               || HTF.escape_sc (I.SHIFT) 
+               || '</td> 
+                <td style="text-align: center">' 
+               || HTF.escape_sc (i.Body) 
+               || '</td> 
+                <td style="text-align: left">' 
+               || HTF.escape_sc (i.ITEM_NAME) 
+               || '</td> 
+               <td style="text-align: center">'||HTF.escape_sc (i.PACKING) 
+                ||'</td> 
+               <td >'||HTF.escape_sc (i.qty) 
+               ||'</td> 
+                <td>'|| HTF.escape_sc (i.UNIT) 
+               ||'</td> 
+               <td>'||HTF.escape_sc (i.Weight) 
+               ||'</td> 
+              
+                <tr>'); 
+			end loop; 
+             
+            HTP.p ( 
+                  '<tr> 
+                <td colspan="7" style="text-align: right;"><b>Total</b> :</td> 
+                 
+                 <td>'||HTF.escape_sc (v_t_bag) 
+               ||'</td> 
+                <td></td> 
+               <td> '||HTF.escape_sc (v_width_per) 
+               ||'</td> 
+               
+                <tr>');
+ 
+		htp.p('</table>'); 
+ 
+	END; 
+
+--*****************************
+
+    procedure Finish_Good_Summery_Report_11(p_company_id number ,p_from_date date,p_to_date date,p_item_code number ,p_depot_id number,p_org_id number,p_app_user_id number) 
+    IS  
+    V_SL   NUMBER               := 0; 
+    v_total_weight number       := 0; 
+    v_total_qty number          := 0; 
+    v_wight_tot number          := 0; 
+    v_ton number                := 0; 
+    v_total_ton NUMBER          := 0; 
+    v_bag    number             := 0; 
+    v_qty   number              := 0; 
+    BEGIN 
+    		report_utils.header_without_boarder(p_company_id, 'Finish Good Summery Report'); 
+            htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>'); 
+ 
+ 
+    			htp.p('<table style="width:100%"><tr> 
+    			<th  STYLE="width:1%" >SL/NO</th> 
+    			<th style="width:20%">Item Name</th> 
+    			<th STYLE="width:10%">Unit</th>  
+    			<th STYLE="width:10%">Bag</th> 
+    			<th STYLE="width:10%">QTY </th> 
+                <th style="width:10%">Total Weight</th> 
+                <th STYLE="width:10%">Ton</th> 
+ 
+    			</tr>'); 
+ 
+                    for i in ( SELECT ITEM_NAME  
+                                    ,UNIT 
+                                    ,SUM (QTY) QTY 
+                                    ,SUM(PACKING) PK 
+                                    ,PACKING 
+                                    FROM V_ALL_INV 
+                                    WHERE TRANS_TYPE='FR' 
+                                    and delete_status <> 1
+                                    and org_id=p_org_id 
+                                    and item_code=nvl(p_item_code,item_code) 
+                                    and depot_id = nvl(p_depot_id,depot_id)
+                                    and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate)
+                            and case when to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) = to_number(p_org_id||'000101') then 1 
+                            else to_number(PROJECT_CODE) end = case when to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) = to_number(p_org_id||'000101') then 1 
+                            else to_number((select nvl(PROJECT_CODE,p_org_id||'000101') from SM_USER_LIST where USER_ID = p_app_user_id)) end 
+                                    GROUP BY ITEM_NAME,UNIT,PACKING  
+                                    ) 
+                                     
+ 
+                        loop 
+                     v_sl               := v_sl+1; 
+                     v_total_weight     :=nvl(i.PACKING,0)*nvl(i.qty,0); 
+                    v_total_qty         :=nvl(v_total_qty,0)+nvl(i.qty,0); 
+                    v_wight_tot         :=v_wight_tot+v_total_weight; 
+                    v_ton               := v_total_weight/1000; 
+                    v_total_ton         :=v_total_ton+v_ton; 
+                    v_bag                :=v_bag +nvl(i.PK,0); 
+                    v_qty                := v_qty + nvl(i.QTY,0); 
+              
+                 HTP.p ( 
+                      '<tr> 
+                    <td style="text-align: center">'|| HTF.escape_sc (v_sl)|| '</td> 
+                    <td style="text-align: left">'|| HTF.escape_sc (i.ITEM_NAME) || '</td> 
+                    <td style="text-align: center">'|| HTF.escape_sc (i.UNIT)|| '</td> 
+                    <td style="text-align: center">'|| HTF.escape_sc (i.PK)|| '</td> 
+                    <td style="text-align: center">'|| HTF.escape_sc (i.QTY)|| '</td> 
+                    <td style="text-align: center">'|| HTF.escape_sc (v_total_weight)|| '</td> 
+                    <td style="text-align: center">' || HTF.escape_sc (v_ton)  || '</td> 
+                    <tr>'); 
+     		end loop; 
+                 
+                HTP.p ( 
+                      '<tr> 
+                    <td colspan="4" style="text-align: right;"><b>Total</b> :</td> 
+                   <td><b>' || HTF.escape_sc (v_qty)  || '</b></td> 
+                   <td style="text-align: center"><b>' || HTF.escape_sc (v_wight_tot)  || '</b></td> 
+                   <td><b>' || HTF.escape_sc (v_total_ton)  || '</b></td> 
+                    <tr>'); 
+ 
+    		htp.p('</table>'); 
+
+    	END;
+
+--*****************************
+
+end "PRODUCTION_REPORTS";
+/
+

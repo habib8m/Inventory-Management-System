@@ -1,0 +1,107 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "TEST_PD" as 
+procedure Finished_goods_Details_Report(p_company_id number, p_from_date date, p_to_date date, p_item_code number, p_category number ); 
+end "TEST_PD";
+/
+
+                                                  ===============================BODY=============================
+
+create or replace package body "TEST_PD" as 
+procedure Finished_goods_Details_Report(p_company_id number, p_from_date date, p_to_date date, p_item_code number, p_category number ) 
+ 
+IS
+  
+V_SL   		NUMBER := 0; 
+v_t_bag 	number := 0; 
+v_per_bag 	number := 0; 
+v_width_per 	number := 0; 
+v_rate 		number := 0; 
+
+BEGIN 
+	report_utils.header_without_boarder(p_company_id, 'Finished Goods Details Report'); 
+        htp.p('<h4 style = "margin-top: 0px; text-align: center"> Date from : ' ||htf.escape_sc(P_from_date)|| ' to ' ||htf.escape_sc(P_To_date)|| '</h4>'); 
+ 
+ 
+			htp.p('<table style="width:100%">
+			<tr> 
+			<th STYLE="width:1%"> SL/NO </th> 
+			<th STYLE="width:10%"> Date </th> 
+			<th STYLE="width:10%"> PO NO </th>  
+			<th STYLE="width:5%"> Shift </th> 
+            		<th STYLE="width:10%"> Body </th> 
+            		<th STYLE="width:15%"> Item Name </th> 
+             		<th STYLE="width:10%"> Packing </th> 
+            		<th STYLE="width:5%"> Qty </th> 
+            		<th STYLE="width:5%"> Unit </th> 
+            		<th style="width:5%"> Weight (kg) </th>
+			</tr>'); 
+	 
+		FOR i in (select TRANS_DATE 
+                            ,substr(invoice_no, 5) invoice_no 
+                            ,SHIFT 
+                            ,Body 
+                            ,ITEM_NAME 
+                            ,QTY 
+                            ,UNIT 
+                            ,PACKING 
+                            , nvl(QTY,0)* nvl(PACKING, 0) Weight  
+                        from v_all_inv 
+                        where  org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                        and trans_type = 'FR' 
+                        and item_code = nvl(p_item_code, item_code) 
+                        and trans_date between nvl(p_from_date, trans_date) and nvl(p_to_date, sysdate) 
+                        order by Body)
+ 
+		LOOP 
+            v_sl := v_sl+1; 
+            v_width_per :=v_width_per + NVL(i.Weight, 0); 
+            v_t_bag := v_t_bag + NVL(i.PACKING, 0); 
+          
+            HTP.p ( 
+                '<tr> 
+                <td style="text-align: center"> '|| HTF.escape_sc (v_sl)||' </td> 
+                <td style="text-align: center"> '|| HTF.escape_sc (i.TRANS_DATE)||' </td> 
+                <td style="text-align: center"> '|| HTF.escape_sc (i.INVOICE_NO)||' </td> 
+                <td style="text-align: CENTER"> '|| HTF.escape_sc (I.SHIFT)||' </td> 
+                <td style="text-align: center"> '|| HTF.escape_sc (i.Body)||' </td> 
+                </tr>'); 
+                
+ 
+            end loop; 
+ 
+            for j in (select ITEM_NAME 
+                            ,sum(QTY) qty 
+                            ,UNIT 
+                            ,sum(PACKING) packing 
+                            --, nvl(QTY,0)* nvl(PACKING,0) Weight  
+                        from v_all_inv 
+                        where  org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID') 
+                        and trans_type='FR' 
+                        and BODY=i.body 
+                        and item_code=nvl(p_item_code,item_code) 
+                        and trans_date between nvl(p_from_date,trans_date) and nvl(p_to_date,sysdate) 
+                        group by ITEM_NAME,UNIT)
+ 
+                    loop 
+                    null;
+ 
+               htp.p('<tr> 
+                      <td style="text-align: left"> '||HTF.escape_sc (j.ITEM_NAME)||' </td> 
+                      <td style="text-align: center"> '||HTF.escape_sc (j.QTY)||' </td> 
+                      <td> '||HTF.escape_sc (j.PACKING)||' </td> 
+                      <td> '||HTF.escape_sc (j.UNIT)||' </td> 
+                      <td> '||HTF.escape_sc (null)||' </td>
+		      <tr>');
+		end loop; 
+ 
+		htp.p('</table>'); 
+	END; 
+end "TEST_PD";
+/
+
+
+
+
+

@@ -1,0 +1,44 @@
+
+create or replace FUNCTION "F_DIGITVAL_SIGN" 
+(	   p_string     varchar2, 
+	   p_init	varchar2,  -- '/'   
+	   p_sign	number  --1: left, -1: right  
+) 
+ 
+RETURN NUMBER  
+IS 
+  V_DIGIT	  VARCHAR2 (200):= NULL; 
+  V_N		  NUMBER:= 1; 
+  V_END 	  NUMBER:= LENGTH(TRIM(P_STRING)); 
+  	    
+BEGIN  
+   IF P_SIGN = -1 THEN 
+   	  V_N := -1 * (LENGTH(TRIM(P_STRING)) - INSTR(TRIM(P_STRING), '/', -1)); 
+	  V_END := -1; 
+   ELSE 
+   	  V_END := INSTR(TRIM(P_STRING), '/', 1); 
+   END IF;  
+    
+   WHILE V_N <= V_END 
+   LOOP 
+   		 IF ASCII(SUBSTR(TRIM(P_STRING),V_N,1)) BETWEEN 48 AND 57 THEN 
+   	  	 V_DIGIT:= V_DIGIT || SUBSTR(TRIM(P_STRING), V_N, 1); 
+		 END IF; 
+		 	 
+		 V_N := V_N + 1; 
+   END LOOP;	 
+      
+   RETURN TO_NUMBER(NVL(V_DIGIT, 0)); 
+    
+   EXCEPTION 
+     WHEN NO_DATA_FOUND THEN 
+       NULL;
+ 
+     WHEN OTHERS THEN 
+              RAISE;
+ 
+END f_digitval_sign; 
+/
+
+
+

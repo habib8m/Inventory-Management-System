@@ -1,0 +1,85 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace PACKAGE   INS_ACC_CODE 
+AS 
+ 
+TYPE cbs_data_row IS RECORD 
+   ( 
+      CID                      varchar2(100), 
+      user_id                  varchar2(100) 
+   ); 
+ 
+    TYPE t_cbs_data_tab IS TABLE OF cbs_data_row; 
+     
+    TYPE t_cbs_tab IS TABLE OF cbs_data_row index by binary_integer; 
+ 
+   FUNCTION under_user (p_cid_no   IN NUMBER) 
+      RETURN t_cbs_data_tab 
+      PIPELINED; 
+ 
+END; 
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body  INS_ACC_CODE is 
+ 
+    Function under_user (p_cid_no in number)  
+        RETURN t_cbs_data_tab PIPELINED is 
+         
+        v_cbs_data t_cbs_tab; 
+         
+        v_data_row    cbs_data_row; 
+        v_user_id   number; 
+        v_inx      number := 0; 
+        k           number := 0; 
+    BEGIN 
+ 
+        FOR I IN (select CID_NO, MANAGER_ID from emp_info where org_id =7 and manager_id = p_cid_no) 
+        LOOP 
+            begin 
+            select USER_ID into v_user_id from SM_USER_LIST where cid_no = i.cid_no; 
+            exception 
+                when others then null; 
+            end; 
+            v_inx := v_inx + 1; 
+            v_cbs_data(v_inx).cid := i.cid_no; 
+            v_cbs_data(v_inx).user_id := v_user_id;   
+            for j in (select * from user_setup.under_user(i.cid_no)) 
+            loop 
+            begin 
+            select USER_ID into v_user_id from SM_USER_LIST where cid_no = j.cid; 
+            exception 
+                when others then null; 
+            end; 
+            v_inx := v_inx + 1; 
+            v_cbs_data(v_inx).cid := j.cid; 
+            v_cbs_data(v_inx).user_id := v_user_id; 
+            end loop; 
+        END LOOP; 
+        k := v_cbs_data.first; 
+         
+        while (k is not null) 
+        Loop 
+ 
+            Begin 
+                v_data_row.cid := v_cbs_data(k).cid; 
+                v_data_row.user_id := v_cbs_data(k).user_id; 
+                 
+                PIPE ROW(v_data_row); 
+            Exception 
+                when others then 
+                dbms_output.put_line ('k-'||k); 
+            End; 
+             
+            k := v_cbs_data.next(k); 
+         
+        End Loop; 
+        Return; 
+    END; 
+ 
+End; 
+/
+

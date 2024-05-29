@@ -1,0 +1,1144 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace PACKAGE COM 
+AS  
+   FUNCTION GET_INV_P_CODE(IN_CODE NUMBER) RETURN NUMBER; 
+ 
+   FUNCTION GET_INV_ITEM_GROUP_LIST(IN_CODE NUMBER) RETURN VARCHAR2; 
+    
+   FUNCTION GET_INV_CODE_DESC (P_CODE NUMBER) RETURN VARCHAR2; 
+	 
+   FUNCTION IN_WORD (VALUE_IN NUMBER) RETURN VARCHAR2;    
+   FUNCTION IN_WORD_bn (VALUE_IN NUMBER) RETURN VARCHAR2;
+    
+   FUNCTION GET_AC_CODE (P_ITEM_CODE NUMBER ,P_TYPE VARCHAR2) RETURN NUMBER; 
+    
+   FUNCTION CLOSING RETURN DATE; 
+    
+   FUNCTION F99 (VAL NUMBER) RETURN VARCHAR2; 
+   FUNCTION F99bn (VAL NUMBER) RETURN VARCHAR2; 
+	  
+
+    PROCEDURE DATA_FILTER (P_USER_ID IN NUMBER); 
+    FUNCTION F_INTIME (P_DATE_TIME IN DATE, P_CARD_NO IN VARCHAR2) 
+       RETURN NUMBER; 
+    PROCEDURE DAILY_ATTENDANCE ( 
+       P_USER_ID   IN   NUMBER, 
+       P_FDATE     IN   DATE, 
+       P_TDATE     IN   DATE ,
+       p_org_id   in number
+    ); 
+    FUNCTION F_WEEKEND (P_CID IN NUMBER,P_TRANS_DATE IN DATE) 
+       RETURN VARCHAR2; 
+    FUNCTION F_OFFICE_TIME_SL (P_CID IN NUMBER,P_TRANS_DATE IN DATE) 
+       RETURN NUMBER; 
+
+END COM;
+/
+
+
+
+
+                                                  ===============================BODY=============================
+
+create or replace PACKAGE BODY COM 
+AS 
+ 
+FUNCTION GET_INV_P_CODE(IN_CODE NUMBER) RETURN NUMBER 
+IS 
+  V NUMBER(10); 
+BEGIN 
+     SELECT P_CODE INTO V 
+     FROM G_INV_CODES 
+     WHERE CODE=IN_CODE; 
+ 
+     RETURN V; 
+       
+ EXCEPTION WHEN NO_DATA_FOUND THEN 
+                    RETURN 0; 
+           WHEN OTHERS THEN 
+                   RETURN 0;        
+END; 
+ 
+--************************
+ 
+FUNCTION GET_INV_ITEM_GROUP_LIST (IN_CODE IN NUMBER) 
+   RETURN VARCHAR2 
+IS 
+   l_list     VARCHAR (3000) := ''; 
+   l_b_code   NUMBER (10); 
+   l_p_code   NUMBER (10) := in_code; 
+   l_code     NUMBER (10); 
+   l_parent   VARCHAR2 (50); 
+BEGIN 
+--htp.p('p_code'||IN_CODE); 
+   LOOP 
+      BEGIN 
+         SELECT   b_code, p_code, com.get_inv_code_desc (p_code) 
+           INTO   l_b_code, l_code, l_parent 
+           FROM   g_inv_codes 
+          WHERE   code = l_p_code; 
+      EXCEPTION 
+         WHEN NO_DATA_FOUND 
+         THEN 
+            RETURN 'Record not found for code=' || l_p_code; 
+         WHEN OTHERS 
+         THEN 
+            RETURN 'Exception others occurs for code=' || l_p_code; 
+      END; 
+      l_p_code := l_code; 
+      l_list := l_list || ' || ' || l_parent; 
+      EXIT WHEN l_p_code = l_b_code; 
+   END LOOP; 
+ 
+   l_list := SUBSTR (l_list,4); 
+   RETURN l_list; 
+END; 
+ 
+   
+ FUNCTION GET_INV_CODE_DESC (P_CODE NUMBER) RETURN VARCHAR2 
+     IS 
+  V VARCHAR2(300); 
+  PARA_CODE NUMBER; 
+BEGIN 
+    PARA_CODE:=P_CODE; 
+SELECT CODE_DESC INTO V 
+FROM G_INV_CODES G 
+WHERE G.CODE=PARA_CODE; 
+  RETURN V; 
+  EXCEPTION WHEN OTHERS THEN RETURN '';                            
+  END;   
+
+--*********************** 
+     
+   FUNCTION GET_AC_CODE (P_ITEM_CODE NUMBER,P_TYPE VARCHAR2) RETURN NUMBER 
+   IS   
+   V   NUMBER; 
+   V_INV_CODE NUMBER; 
+   BEGIN 
+       SELECT  TO_NUMBER (SUBSTR (G.G_CODE, 6, 5))  INTO V_INV_CODE   
+    FROM G_ACC_CODES G 
+  WHERE G.CODE=P_ITEM_CODE;            
+ 
+SELECT G.CODE 
+  INTO V 
+  FROM G_ACC_CODES G 
+ WHERE G.INV_CODE = V_INV_CODE 
+ AND   G.B_CODE=DECODE(P_TYPE,'SV',9,'PV',8) 
+ AND ROWNUM=1; 
+  
+  
+      RETURN V; 
+   EXCEPTION WHEN OTHERS THEN  RETURN 0 ; 
+    
+   END; 
+    
+--**************************
+ 
+   FUNCTION CLOSING 
+      RETURN DATE 
+   IS 
+      V_DATE   DATE; 
+   BEGIN 
+      V_DATE := sysdate-100; 
+      RETURN V_DATE; 
+   EXCEPTION WHEN OTHERS THEN RETURN sysdate-100; 
+   END; 
+
+--************************
+
+   FUNCTION IN_WORD (VALUE_IN NUMBER) 
+      RETURN VARCHAR2 
+   IS 
+      WORD      VARCHAR2 (500); 
+      X         NUMBER (25); 
+      TEMP      NUMBER (25); 
+      VAL       NUMBER (25); 
+      EXTA      VARCHAR2 (20); 
+      EXTAPOI   VARCHAR2 (200); 
+   BEGIN 
+      TEMP := VALUE_IN * 100; 
+      VAL := NVL (TEMP, 0); 
+      WORD := ''; 
+      EXTA := ''; 
+      EXTAPOI := ''; 
+ 
+      IF VAL < 0 
+      THEN 
+         EXTA := ' Minus ' || EXTA; 
+         VAL := VAL * (-1); 
+      END IF; 
+ 
+      VAL := FLOOR (VAL); 
+ 
+      ----------------- FOR POISA --------------- 
+      IF VAL > 0 
+      THEN 
+         X := MOD (VAL, 100); 
+         VAL := FLOOR (VAL / 100); 
+ 
+         IF (X > 0) 
+         THEN 
+            EXTAPOI := ' And ' || F99 (X) || ' Poisa '; 
+         END IF; 
+      END IF; 
+ 
+      IF VAL > 0 
+      THEN 
+         X := MOD (VAL, 100); 
+         VAL := FLOOR (VAL / 100); 
+ 
+         IF (X > 0) 
+         THEN 
+            WORD := F99 (X) || WORD; 
+         END IF; 
+      END IF; 
+ 
+      WHILE (VAL > 0) 
+      LOOP 
+         IF (NVL (VAL, 0) > 0) 
+         THEN 
+            X := MOD (VAL, 10); 
+            VAL := FLOOR (VAL / 10); 
+ 
+            IF (X > 0) 
+            THEN 
+               WORD := F99 (X) || ' Hundred ' || WORD; 
+            END IF; 
+         END IF; 
+ 
+         IF (NVL (VAL, 0) > 0) 
+         THEN 
+            X := MOD (VAL, 100); 
+            VAL := FLOOR (VAL / 100); 
+ 
+            IF (X > 0) 
+            THEN 
+               WORD := F99 (X) || ' Thousand ' || WORD; 
+            END IF; 
+         END IF; 
+ 
+         IF (NVL (VAL, 0) > 0) 
+         THEN 
+            X := MOD (VAL, 100); 
+            VAL := FLOOR (VAL / 100); 
+ 
+            IF (X > 0) 
+            THEN 
+               WORD := F99 (X) || ' Lac ' || WORD; 
+            END IF; 
+         END IF; 
+ 
+         IF (NVL (VAL, 0) > 0) 
+         THEN 
+            X := MOD (VAL, 100); 
+            VAL := FLOOR (VAL / 100); 
+ 
+            IF (X > 0) 
+            THEN 
+               WORD := F99 (X) || ' Core ' || WORD; 
+            ELSIF (VAL > 0 AND X = 0) 
+            THEN 
+               WORD := ' Core ' || WORD; 
+            END IF; 
+         END IF; 
+      END LOOP; 
+ 
+      IF (EXTAPOI IS NOT NULL AND WORD IS NOT NULL) 
+      THEN 
+         WORD := 'Taka ' || WORD || EXTAPOI || 'Only'; 
+      ELSIF (WORD IS NOT NULL AND EXTAPOI IS NULL) 
+      THEN 
+         WORD := 'Taka ' || WORD || ' Only'; 
+      ELSIF (EXTAPOI IS NOT NULL AND WORD IS NULL) 
+      THEN 
+         WORD := WORD || 'No BDT' || EXTAPOI || 'Only'; 
+      ELSIF (EXTAPOI IS NULL AND WORD IS NULL) 
+      THEN 
+         WORD := WORD || ' Amount Nil '; 
+      END IF; 
+ 
+      WORD := EXTA || WORD; 
+      RETURN WORD; 
+   END; 
+ 
+--**************************
+
+   FUNCTION F99 (VAL NUMBER) 
+      RETURN VARCHAR2 
+   IS 
+      STWORD   VARCHAR (100); 
+      X        NUMBER; 
+      DIGIT    NUMBER; 
+   BEGIN 
+      STWORD := ''; 
+ 
+      IF (VAL < 20) 
+      THEN 
+         X := VAL;                                                    --% 20; 
+ 
+         IF (X = 1) 
+         THEN 
+            STWORD := 'One'; 
+         ELSIF (X = 2) 
+         THEN 
+            STWORD := 'Two'; 
+         ELSIF (X = 3) 
+         THEN 
+            STWORD := 'Three'; 
+         ELSIF (X = 4) 
+         THEN 
+            STWORD := 'Four'; 
+         ELSIF (X = 5) 
+         THEN 
+            STWORD := 'Five'; 
+         ELSIF (X = 6) 
+         THEN 
+            STWORD := 'Six'; 
+         ELSIF (X = 7) 
+         THEN 
+            STWORD := 'Seven'; 
+         ELSIF (X = 8) 
+         THEN 
+            STWORD := 'Eight'; 
+         ELSIF (X = 9) 
+         THEN 
+            STWORD := 'Nine'; 
+         ELSIF (X = 10) 
+         THEN 
+            STWORD := 'Ten'; 
+         ELSIF (X = 11) 
+         THEN 
+            STWORD := 'Eleven'; 
+         ELSIF X = 12 
+         THEN 
+            STWORD := 'Twelve'; 
+         ELSIF X = 13 
+         THEN 
+            STWORD := 'Thirteen'; 
+         ELSIF X = 14 
+         THEN 
+            STWORD := 'Fourteen'; 
+         ELSIF X = 15 
+         THEN 
+            STWORD := 'Fifteen'; 
+         ELSIF X = 16 
+         THEN 
+            STWORD := 'Sixteen'; 
+         ELSIF X = 17 
+         THEN 
+            STWORD := 'Seventeen'; 
+         ELSIF X = 18 
+         THEN 
+            STWORD := 'Eighteen'; 
+         ELSIF X = 19 
+         THEN 
+            STWORD := 'Nineteen'; 
+         END IF; 
+      ELSIF (VAL < 100 AND VAL > 19) 
+      THEN 
+         X := VAL; 
+         X := FLOOR (X / 10); 
+ 
+         IF (X = 2) 
+         THEN 
+            STWORD := 'Twenty'; 
+         ELSIF (X = 3) 
+         THEN 
+            STWORD := 'Thirty'; 
+         ELSIF (X = 4) 
+         THEN 
+            STWORD := 'Forty'; 
+         ELSIF (X = 5) 
+         THEN 
+            STWORD := 'Fifty'; 
+         ELSIF (X = 6) 
+         THEN 
+            STWORD := 'Sixty'; 
+         ELSIF (X = 7) 
+         THEN 
+            STWORD := 'Seventy'; 
+         ELSIF (X = 8) 
+         THEN 
+            STWORD := 'Eighty'; 
+         ELSIF (X = 9) 
+         THEN 
+            STWORD := 'Ninety'; 
+         END IF; 
+ 
+         X := MOD (VAL, 10); 
+ 
+         IF (X > 0) 
+         THEN 
+            IF (X = 1) 
+            THEN 
+               STWORD := STWORD || ' One'; 
+            ELSIF (X = 2) 
+            THEN 
+               STWORD := STWORD || ' Two'; 
+            ELSIF (X = 3) 
+            THEN 
+               STWORD := STWORD || ' Three'; 
+            ELSIF (X = 4) 
+            THEN 
+               STWORD := STWORD || ' Four'; 
+            ELSIF (X = 5) 
+            THEN 
+               STWORD := STWORD || ' Five'; 
+            ELSIF (X = 6) 
+            THEN 
+               STWORD := STWORD || ' Six'; 
+            ELSIF (X = 7) 
+            THEN 
+               STWORD := STWORD || ' Seven'; 
+            ELSIF (X = 8) 
+            THEN 
+               STWORD := STWORD || ' Eight'; 
+            ELSIF (X = 9) 
+            THEN 
+               STWORD := STWORD || ' Nine'; 
+            END IF; 
+         END IF; 
+      END IF; 
+ 
+      RETURN STWORD; 
+   END F99; 
+
+-- ---------------------------------------------------------------------------------------------- 
+-- --       FUNCTION F99bn() SUBFUNCTION OF IN_WORD() FUNCTION 
+-- ---------------------------------------------------------------------------------------------- 
+   FUNCTION F99bn (VAL NUMBER) 
+      RETURN VARCHAR2 
+   IS 
+      STWORD   VARCHAR (100); 
+      X        NUMBER := VAL; 
+      DIGIT    NUMBER; 
+   BEGIN 
+      STWORD := ''; 
+ 
+         if X = 1 then STWORD := 'এক';
+		 elsif X = 2 then STWORD := 'দুই';
+		 elsif X = 3 then STWORD := 'তিন';
+		 elsif X = 4 then STWORD := 'চার';
+		 elsif X = 5 then STWORD := 'পাঁচ';
+		 elsif X = 6 then STWORD := 'ছয়';
+		 elsif X = 7 then STWORD := 'সাত';
+		 elsif X = 8 then STWORD := 'আট';
+		 elsif X = 9 then STWORD := 'নয়';
+		 elsif X = 10 then STWORD := 'দশ';
+		 elsif X = 11 then STWORD := 'এগার';
+		 elsif X = 12 then STWORD := 'বার';
+		 elsif X = 13 then STWORD := 'তের';
+		 elsif X = 14 then STWORD := 'চৌদ্দ';
+		 elsif X = 15 then STWORD := 'পনের';
+		 elsif X = 16 then STWORD := 'ষোল';
+		 elsif X = 17 then STWORD := 'সতের';
+		 elsif X = 18 then STWORD := 'আঠার';
+		 elsif X = 19 then STWORD := 'ঊনিশ';
+		 elsif X = 20 then STWORD := 'বিশ';
+		 elsif X = 21 then STWORD := 'একুশ';
+		 elsif X = 22 then STWORD := 'বাইশ';
+		 elsif X = 23 then STWORD := 'তেইশ';
+		 elsif X = 24 then STWORD := 'চব্বিশ';
+		 elsif X = 25 then STWORD := 'পঁচিশ';
+		 elsif X = 26 then STWORD := 'ছাব্বিশ';
+		 elsif X = 27 then STWORD := 'সাতাশ';
+		 elsif X = 28 then STWORD := 'আঠাশ';
+		 elsif X = 29 then STWORD := 'ঊনত্রিশ';
+		 elsif X = 30 then STWORD := 'ত্রিশ';
+		 elsif X = 31 then STWORD := 'একত্রিশ';
+		 elsif X = 32 then STWORD := 'বত্রিশ';
+		 elsif X = 33 then STWORD := 'তেত্রিশ';
+		 elsif X = 34 then STWORD := 'চৌত্রিশ';
+		 elsif X = 35 then STWORD := 'পঁয়ত্রিশ';
+		 elsif X = 36 then STWORD := 'ছত্রিশ';
+		 elsif X = 37 then STWORD := 'সাঁইত্রিশ';
+		 elsif X = 38 then STWORD := 'আটত্রিশ';
+		 elsif X = 39 then STWORD := 'ঊনচল্লিশ';
+		 elsif X = 40 then STWORD := 'চল্লিশ';
+		 elsif X = 41 then STWORD := 'একচল্লিশ';
+		 elsif X = 42 then STWORD := 'বিয়াল্লিশ';
+		 elsif X = 43 then STWORD := 'তেতাল্লিশ';
+		 elsif X = 44 then STWORD := 'চুয়াল্লিশ';
+		 elsif X = 45 then STWORD := 'পঁয়তাল্লিশ';
+		 elsif X = 46 then STWORD := 'ছেচল্লিশ';
+		 elsif X = 47 then STWORD := 'সাতচল্লিশ';
+		 elsif X = 48 then STWORD := 'আটচল্লিশ';
+		 elsif X = 49 then STWORD := 'ঊনপঞ্চাশ';
+		 elsif X = 50 then STWORD := 'পঞ্চাশ';
+		 elsif X = 51 then STWORD := 'একান্ন';
+		 elsif X = 52 then STWORD := 'বায়ান্ন';
+		 elsif X = 53 then STWORD := 'তিপ্পান্ন';
+		 elsif X = 54 then STWORD := 'চুয়ান্ন';
+		 elsif X = 55 then STWORD := 'পঞ্চান্ন';
+		 elsif X = 56 then STWORD := 'ছাপ্পান্ন';
+		 elsif X = 57 then STWORD := 'সাতান্ন';
+		 elsif X = 58 then STWORD := 'আটান্ন';
+		 elsif X = 59 then STWORD := 'ঊনষাট';
+		 elsif X = 60 then STWORD := 'ষাট';
+		 elsif X = 61 then STWORD := 'একষট্টি';
+		 elsif X = 62 then STWORD := 'বাষট্টি';
+		 elsif X = 63 then STWORD := 'তেষট্টি';
+		 elsif X = 64 then STWORD := 'চৌষট্টি';
+		 elsif X = 65 then STWORD := 'পঁয়ষট্টি';
+		 elsif X = 66 then STWORD := 'ছেষট্টি';
+		 elsif X = 67 then STWORD := 'সাতষট্টি';
+		 elsif X = 68 then STWORD := 'আটষট্টি';
+		 elsif X = 69 then STWORD := 'ঊনসত্তর';
+		 elsif X = 70 then STWORD := 'সত্তর';
+		 elsif X = 71 then STWORD := 'একাত্তর';
+		 elsif X = 72 then STWORD := 'বাহাত্তর';
+		 elsif X = 73 then STWORD := 'তিয়াত্তর';
+		 elsif X = 74 then STWORD := 'চুয়াত্তর';
+		 elsif X = 75 then STWORD := 'পঁচাত্তর';
+		 elsif X = 76 then STWORD := 'ছিয়াত্তর';
+		 elsif X = 77 then STWORD := 'সাতাত্তর';
+		 elsif X = 78 then STWORD := 'আটাত্তর';
+		 elsif X = 79 then STWORD := 'ঊনআশি';
+		 elsif X = 80 then STWORD := 'আশি';
+		 elsif X = 81 then STWORD := 'একাশি';
+		 elsif X = 82 then STWORD := 'বিরাশি';
+		 elsif X = 83 then STWORD := 'তিরাশি';
+		 elsif X = 84 then STWORD := 'চুরাশি';
+		 elsif X = 85 then STWORD := 'পঁচাশি';
+		 elsif X = 86 then STWORD := 'ছিয়াশি';
+		 elsif X = 87 then STWORD := 'সাতাশি';
+		 elsif X = 88 then STWORD := 'আটাশি';
+		 elsif X = 89 then STWORD := 'ঊননব্বই';
+		 elsif X = 90 then STWORD := 'নব্বই';
+		 elsif X = 91 then STWORD := 'একানব্বই';
+		 elsif X = 92 then STWORD := 'বিরানব্বই';
+		 elsif X = 93 then STWORD := 'তিরানব্বই';
+		 elsif X = 94 then STWORD := 'চুরানব্বই';
+		 elsif X = 95 then STWORD := 'পঁচানব্বই';
+		 elsif X = 96 then STWORD := 'ছিয়ানব্বই';
+		 elsif X = 97 then STWORD := 'সাতানব্বই';
+		 elsif X = 98 then STWORD := 'আটানব্বই';
+		 elsif X = 99 then STWORD := 'নিরানব্বই';
+		 end if;
+ 
+      RETURN STWORD; 
+   END F99bn; 
+  FUNCTION IN_WORD_bn (VALUE_IN NUMBER) 
+      RETURN VARCHAR2 
+   IS 
+      WORD      VARCHAR2 (500); 
+      X         NUMBER (25); 
+      TEMP      NUMBER (25); 
+      VAL       NUMBER (25); 
+      EXTA      VARCHAR2 (20); 
+      EXTAPOI   VARCHAR2 (200); 
+   BEGIN 
+      TEMP := VALUE_IN * 100; 
+      VAL := NVL (TEMP, 0); 
+      WORD := ''; 
+      EXTA := ''; 
+      EXTAPOI := ''; 
+ 
+      IF VAL < 0 
+      THEN 
+         EXTA := ' Minus ' || EXTA; 
+         VAL := VAL * (-1); 
+      END IF; 
+ 
+      VAL := FLOOR (VAL); 
+ 
+      ----------------- FOR POISA --------------- 
+      IF VAL > 0 
+      THEN 
+         X := MOD (VAL, 100); 
+         VAL := FLOOR (VAL / 100); 
+ 
+         IF (X > 0) 
+         THEN 
+            EXTAPOI := ' এবং ' || F99bn (X) || ' পয়সা '; 
+         END IF; 
+      END IF; 
+ 
+      IF VAL > 0 
+      THEN 
+         X := MOD (VAL, 100); 
+         VAL := FLOOR (VAL / 100); 
+ 
+         IF (X > 0) 
+         THEN 
+            WORD := F99bn (X) || WORD; 
+         END IF; 
+      END IF; 
+ 
+      WHILE (VAL > 0) 
+      LOOP 
+         IF (NVL (VAL, 0) > 0) 
+         THEN 
+            X := MOD (VAL, 10); 
+            VAL := FLOOR (VAL / 10); 
+ 
+            IF (X > 0) 
+            THEN 
+               WORD := F99bn (X) || ' শত ' || WORD; 
+            END IF; 
+         END IF; 
+ 
+         IF (NVL (VAL, 0) > 0) 
+         THEN 
+            X := MOD (VAL, 100); 
+            VAL := FLOOR (VAL / 100); 
+ 
+            IF (X > 0) 
+            THEN 
+               WORD := F99bn (X) || ' হাজার ' || WORD; 
+            END IF; 
+         END IF; 
+ 
+         IF (NVL (VAL, 0) > 0) 
+         THEN 
+            X := MOD (VAL, 100); 
+            VAL := FLOOR (VAL / 100); 
+ 
+            IF (X > 0) 
+            THEN 
+               WORD := F99bn (X) || ' লক্ষ ' || WORD; 
+            END IF; 
+         END IF; 
+ 
+         IF (NVL (VAL, 0) > 0) 
+         THEN 
+            X := MOD (VAL, 100); 
+            VAL := FLOOR (VAL / 100); 
+ 
+            IF (X > 0) 
+            THEN 
+               WORD := F99bn (X) || ' কোটি ' || WORD; 
+            ELSIF (VAL > 0 AND X = 0) 
+            THEN 
+               WORD := ' কোটি ' || WORD; 
+            END IF; 
+         END IF; 
+      END LOOP; 
+ 
+      IF (EXTAPOI IS NOT NULL AND WORD IS NOT NULL) 
+      THEN 
+         WORD := WORD|| ' টাকা' || EXTAPOI || ' মাত্র'; 
+      ELSIF (WORD IS NOT NULL AND EXTAPOI IS NULL) 
+      THEN 
+         WORD := WORD || ' টাকা মাত্র'; 
+      ELSIF (EXTAPOI IS NOT NULL AND WORD IS NULL) 
+      THEN 
+         WORD := WORD || 'No BDT' || EXTAPOI || 'মাত্র'; 
+      ELSIF (EXTAPOI IS NULL AND WORD IS NULL) 
+      THEN 
+         WORD := WORD || ' শূন্য '; 
+      END IF; 
+ 
+      WORD := EXTA || WORD; 
+      RETURN WORD; 
+   END; 
+   
+   
+ ---------------------------------------------------------------------------------------------- 
+ --          FUNCTION DATEDIFF TITLE: DATE DIFFERENCE 
+ ---------------------------------------------------------------------------------------------- 
+  /*  FUNCTION DATEDIFF (P_WHAT IN VARCHAR2, P_D1 IN DATE, P_D2 IN DATE) 
+       RETURN NUMBER 
+    AS 
+       L_RESULT   NUMBER; 
+    BEGIN 
+       SELECT   (P_D2 - P_D1) 
+              * DECODE (UPPER (P_WHAT), 
+                        'SS', 24 * 60 * 60, 
+                        'MI', 24 * 60, 
+                        'HH', 24, 
+                        'DD', 1, 
+                        'YY', 1 / 365, 
+                        'MM', 1 / 30 
+                       ) 
+         INTO L_RESULT 
+         FROM DUAL; 
+
+       RETURN L_RESULT; 
+    END; */
+
+    FUNCTION F_INTIME (P_DATE_TIME IN DATE, P_CARD_NO IN VARCHAR2) 
+       RETURN NUMBER 
+    IS 
+       V_OFFICE_TIME_CODE   NUMBER (10); 
+       V_DUTY_TYPE_ID       VARCHAR2 (10); 
+       V_LOW_IN_TIME        NUMBER; 
+       V_CID_NO             NUMBER; 
+    BEGIN 
+    
+    SELECT OFFICE_TIME_CODE, A.CID_NO 
+         INTO V_OFFICE_TIME_CODE, V_CID_NO 
+         FROM EMP_INFO A 
+        WHERE A.SID_NO = P_CARD_NO; 
+
+       IF V_OFFICE_TIME_CODE <> 98 
+       THEN 
+          SELECT DUTY_TYPE_ID 
+            INTO V_DUTY_TYPE_ID 
+            FROM PR_OFFICE_TIME B 
+           WHERE OFFICE_TIME_CODE = V_OFFICE_TIME_CODE 
+             AND B.FROM_DATE < P_DATE_TIME 
+             AND NVL (B.TO_DATE, SYSDATE) + 1 > P_DATE_TIME 
+             AND ROWNUM = 1; 
+       ELSE 
+          SELECT DUTY_TYPE_ID 
+            INTO V_DUTY_TYPE_ID 
+            FROM PR_OFFICE_TIME B 
+           WHERE OFFICE_TIME_CODE = V_OFFICE_TIME_CODE 
+             AND B.FROM_DATE < P_DATE_TIME 
+             AND B.CID_NO = V_CID_NO 
+             AND NVL (B.TO_DATE, SYSDATE) + 1 > P_DATE_TIME 
+             AND ROWNUM = 1; 
+       END IF; 
+
+       SELECT LOW_IN_TIME 
+         INTO V_LOW_IN_TIME 
+         FROM PR_DUTY_CATEGORY 
+        WHERE DUTY_TYPE_ID = V_DUTY_TYPE_ID; 
+ 
+       RETURN V_LOW_IN_TIME / 24; 
+    EXCEPTION 
+       WHEN OTHERS 
+       THEN 
+          RETURN 0; 
+    END; 
+
+    PROCEDURE DATA_FILTER (P_USER_ID IN NUMBER) 
+    AS 
+    BEGIN 
+      -- DELETE FROM PR_FILTER_PANCH_DATA; 
+
+ --      COMMIT; 
+
+ ------------------------------------------------------------------------------ 
+ --- PUNCH CARD DATA LOAD -- FORMNAT  --  "0020016247928:20080125:062656:0" 
+  --------------------------------------------------------------------- 
+    
+   INSERT INTO PR_FILTER_PANCH_DATA 
+                   (NODE_ID, CARD_NO, DATE_TIME, ENTRY_BY, ENTRY_DATE) 
+          SELECT NODE_ID, SID_NO, DATE_TIME, P_USER_ID, SYSDATE 
+            FROM (SELECT CARD_ID NODE_ID, 
+                         CARD_ID SID_NO, 
+                         CARD_DATA DATE_TIME 
+                    FROM PR_PANCH_CARD_DATA) V 
+           WHERE NOT EXISTS ( 
+                       SELECT 1 
+                         FROM PR_FILTER_PANCH_DATA A 
+                        WHERE V.SID_NO = A.CARD_NO 
+                              AND V.DATE_TIME = A.DATE_TIME); 
+
+      UPDATE PR_FILTER_PANCH_DATA A SET A.CID_NO = 
+      (SELECT B.CID_NO FROM EMP_INFO B WHERE B.SID_NO=A.CARD_NO ) 
+      WHERE A.CID_NO IS NULL ; 
+commit;
+
+delete from PR_PANCH_CARD_DATA;
+
+       ------------------------------------------------------------------------------ 
+ --- PUNCH CARD DATA LOAD -- FORMNAT  --  "000022","20080303","000712" 
+  --------------------------------------------------------------------- 
+ /* 
+       INSERT INTO PR_FILTER_PANCH_DATA 
+                   (NODE_ID, CARD_NO, DATE_TIME, ENTRY_BY, ENTRY_DATE) 
+          SELECT NODE_ID, SID_NO, DATE_TIME, P_USER_ID, SYSDATE 
+            FROM (SELECT '111' NODE_ID, SUBSTR (CARD_DATA, 2, 6) SID_NO, 
+                         TO_DATE (   SUBSTR (CARD_DATA, 11, 8) 
+                                  || SUBSTR (CARD_DATA, 22, 6), 
+                                  'RRRRMMDDHH24MISS' 
+                                 ) DATE_TIME 
+                    FROM PR_PANCH_CARD_DATA 
+                   WHERE LENGTH (CARD_DATA) = 28 AND CARD_DATA NOT LIKE '%y%') V 
+           WHERE NOT EXISTS ( 
+                       SELECT 1 
+                         FROM PR_FILTER_PANCH_DATA A 
+                        WHERE V.SID_NO = A.CARD_NO 
+                              AND V.DATE_TIME = A.DATE_TIME); 
+  */ 
+  NULL; 
+    EXCEPTION 
+       WHEN OTHERS 
+       THEN 
+          NULL; 
+    END; 
+
+ ----------------------------------------------------------- 
+    PROCEDURE DAILY_ATTENDANCE ( 
+       P_USER_ID   IN   NUMBER, 
+       P_FDATE     IN   DATE, 
+       P_TDATE     IN   DATE ,
+       p_org_id    in   number
+    ) 
+    AS 
+    BEGIN 
+
+    /*IF P_FDATE >COM.CLOSING AND P_TDATE > COM.CLOSING 
+    THEN 
+        UPDATE PR_FILTER_PANCH_DATA A 
+      SET A.CID_NO = 
+      (SELECT B.CID 
+      FROM emp_info  B 
+      WHERE B.SID_NO=A.CARD_NO 
+      AND TRUNC(TRANS_DATE) BETWEEN P_FDATE AND P_TDATE 
+   AND ROWNUM=1) 
+      WHERE A.CID_NO IS NULL; 
+
+   COMMIT; */
+    DELETE FROM PR_DAILY_ATTENDANCE A 
+             WHERE A.TRANS_DATE BETWEEN P_FDATE AND P_TDATE;----MOBIFIED ON 031209 
+
+       COMMIT; 
+
+
+       INSERT INTO PR_DAILY_ATTENDANCE 
+                   (CARD_NO, IN_TIME, OUT_TIME, TRANS_DATE, CID_NO, STATUS, 
+                    SL, OFFICE_IN_TIME, OFFICE_OUT_TIME,org_id) 
+          SELECT A.CARD_NO, A.IN_TIME, A.OUT_TIME, A.TRANS_DATE, A.CID_NO, 1, 
+                 SL, 
+                 TO_DATE (TO_CHAR (A.TRANS_DATE, 'RRRRMMDD') || OFF_IN_TIME, 
+                          'RRRRMMDDHH24MI' 
+                         ), 
+                   TO_DATE (TO_CHAR (A.TRANS_DATE, 'RRRRMMDD') || OFF_IN_TIME, 
+                            'RRRRMMDDHH24MI' 
+                           ) 
+                 + OFF_HR / 24 ,
+                 p_org_id
+            FROM (
+                /*SELECT   EI.CID_NO CID_NO, CARD_NO, MIN (DATE_TIME) IN_TIME, 
+                           TRUNC (DATE_TIME - C.LOW_IN_TIME / 24) TRANS_DATE, 
+                           MAX (DATE_TIME) OUT_TIME, B.SL, 
+                           C.IN_TIME OFF_IN_TIME, C.DUTY_HR OFF_HR 
+                      FROM EMP_INFO EI, 
+                           PR_FILTER_PANCH_DATA A, 
+                           PR_OFFICE_TIME B, 
+                           PR_DUTY_CATEGORY C 
+                     WHERE TRUNC (DATE_TIME) BETWEEN P_FDATE-1 AND P_TDATE + 1 
+                       AND COM.F_OFFICE_TIME_SL (EI.CID_NO, TRUNC (DATE_TIME - C.LOW_IN_TIME / 24)) = B.SL 
+                       AND B.DUTY_TYPE_ID = C.DUTY_TYPE_ID 
+                       AND EI.CID_NO = A.CID_NO 
+                       and ei.org_id = p_org_id
+                  GROUP BY EI.CID_NO, 
+                           CARD_NO, 
+                           B.SL, 
+                           C.IN_TIME, 
+                           C.DUTY_HR, 
+                           TRUNC (DATE_TIME - C.LOW_IN_TIME / 24)*/
+        SELECT  
+        	a.CARD_NO, TRUNC (a.DATE_TIME) TRANS_DATE, 
+        	MIN (a.DATE_TIME) IN_TIME, 	
+        	MAX (a.DATE_TIME) OUT_TIME,
+        	 EI.CID_NO CID_NO, B.SL,
+        	C.IN_TIME OFF_IN_TIME, 
+        	C.DUTY_HR OFF_HR 
+        FROM PR_FILTER_PANCH_DATA A, 
+        	EMP_INFO EI JOIN PR_DUTY_CATEGORY c ON 1=1
+        	JOIN PR_OFFICE_TIME B ON  B.DUTY_TYPE_ID = C.DUTY_TYPE_ID 
+        WHERE TRUNC (a.DATE_TIME) BETWEEN P_FDATE-1 AND P_TDATE+1
+        AND EI.CID_NO = A.CID_NO 
+        	and ei.org_id = p_org_id
+        GROUP BY EI.CID_NO, 
+        	a.CARD_NO	, 
+        	C.IN_TIME , 
+        	C.DUTY_HR ,B.SL ,TRUNC (a.DATE_TIME)
+        ORDER BY 1	
+        )A 
+         WHERE TRANS_DATE BETWEEN P_FDATE AND P_TDATE  ; 
+
+
+
+
+ -- END IF; 
+
+       COMMIT; 
+
+    END; 
+    ----------------------------------------
+    FUNCTION F_WEEKEND (P_CID IN NUMBER, P_TRANS_DATE IN DATE) 
+       RETURN VARCHAR2 
+    IS 
+       V_OFFICE_TIME_CODE   VARCHAR2 (100); 
+       V_DUTY_TYPE_ID       VARCHAR2 (100); 
+       V_HOLIDAY            VARCHAR2 (20); 
+    BEGIN 
+     
+    /*SELECT OFFICE_TIME_CODE 
+         INTO V_OFFICE_TIME_CODE 
+         FROM EMP_INFO 
+        WHERE CID_NO = P_CID; 
+
+       SELECT DUTY_TYPE_ID 
+         INTO V_DUTY_TYPE_ID 
+         FROM PR_OFFICE_TIME A 
+        WHERE A.OFFICE_TIME_CODE = V_OFFICE_TIME_CODE 
+          AND P_TRANS_DATE BETWEEN FROM_DATE AND NVL (TO_DATE, SYSDATE); 
+
+       SELECT HOLI_DAY 
+         INTO V_HOLIDAY 
+         FROM PR_DUTY_CATEGORY A 
+        WHERE A.DUTY_TYPE_ID = V_DUTY_TYPE_ID; 
+ */ 
+       RETURN V_HOLIDAY; 
+    EXCEPTION 
+       WHEN OTHERS 
+       THEN 
+          RETURN 'UND'; 
+    END; 
+
+    FUNCTION F_OFFICE_TIME_SL (P_CID IN NUMBER, P_TRANS_DATE IN DATE) 
+       RETURN NUMBER 
+    IS 
+       V_OFFICE_TIME_CODE   VARCHAR2 (100); 
+       V_DUTY_TYPE_ID       VARCHAR2 (100); 
+       V_HOLIDAY            VARCHAR2 (20); 
+       V_ROASTER_CODE       NUMBER         := 99; 
+       V_SL                 NUMBER; 
+    BEGIN 
+    
+   SELECT OFFICE_TIME_CODE 
+         INTO V_OFFICE_TIME_CODE 
+         FROM EMP_INFO 
+        WHERE CID_NO = P_CID; 
+
+       IF V_OFFICE_TIME_CODE > V_ROASTER_CODE 
+       THEN 
+          SELECT DUTY_TYPE_ID, A.SL 
+            INTO V_DUTY_TYPE_ID, V_SL 
+            FROM PR_OFFICE_TIME A 
+           WHERE A.OFFICE_TIME_CODE = V_OFFICE_TIME_CODE 
+             AND P_TRANS_DATE BETWEEN FROM_DATE AND NVL (TO_DATE, SYSDATE); 
+       ELSE 
+          SELECT DUTY_TYPE_ID, A.SL 
+            INTO V_DUTY_TYPE_ID, V_SL 
+            FROM PR_OFFICE_TIME A 
+           WHERE A.CID_NO = P_CID 
+             AND P_TRANS_DATE BETWEEN FROM_DATE AND NVL (TO_DATE, SYSDATE); 
+       END IF; 
+
+       RETURN V_SL; 
+    EXCEPTION 
+       WHEN OTHERS 
+       THEN 
+          RETURN V_SL; 
+    END; 
+/*
+    FUNCTION GET_ORACLE_SID 
+       RETURN VARCHAR2 
+    IS 
+       V   VARCHAR2 (200); 
+    BEGIN 
+       SELECT PARA_CHAR_VAL 
+         INTO V 
+         FROM SM_SYSTEM_PARAMETER 
+        WHERE PARAMETER_ID = 6; 
+
+       RETURN V; 
+    EXCEPTION 
+       WHEN OTHERS 
+       THEN 
+          NULL; 
+    END; 
+
+    FUNCTION GET_ORACLE_HOME 
+       RETURN VARCHAR2 
+    IS 
+       V   VARCHAR2 (200); 
+    BEGIN 
+       SELECT PARA_CHAR_VAL 
+         INTO V 
+         FROM SM_SYSTEM_PARAMETER 
+        WHERE PARAMETER_ID = 5; 
+
+       RETURN V; 
+    EXCEPTION 
+       WHEN OTHERS 
+       THEN 
+          NULL; 
+    END; 
+
+    FUNCTION GET_ORACLE_USERID 
+       RETURN VARCHAR2 
+    IS 
+       V   VARCHAR2 (200); 
+    BEGIN 
+       SELECT PARA_CHAR_VAL 
+         INTO V 
+         FROM SM_SYSTEM_PARAMETER 
+        WHERE PARAMETER_ID = 7; 
+
+       RETURN V; 
+    EXCEPTION 
+       WHEN OTHERS 
+       THEN 
+          NULL; 
+    END; 
+
+    FUNCTION GET_PUNCHDATA 
+       RETURN VARCHAR2 
+    IS 
+       V   VARCHAR2 (200); 
+    BEGIN 
+       SELECT PARA_CHAR_VAL 
+         INTO V 
+         FROM SM_SYSTEM_PARAMETER 
+        WHERE PARAMETER_ID = 8; 
+
+       RETURN V; 
+    EXCEPTION 
+       WHEN OTHERS 
+       THEN 
+          NULL; 
+    END; 
+
+
+    FUNCTION IN_WORD_B (VALUE_IN NUMBER) 
+       RETURN VARCHAR2 
+    IS 
+       WORD      VARCHAR2 (500); 
+       X         NUMBER (25); 
+       TEMP      NUMBER (25); 
+       VAL       NUMBER (25); 
+       EXTA      VARCHAR2 (20); 
+       EXTAPOI   VARCHAR2 (200); 
+    BEGIN 
+       TEMP := VALUE_IN * 100; 
+       VAL := NVL (TEMP, 0); 
+       WORD := ''; 
+       EXTA := ''; 
+       EXTAPOI := ''; 
+
+       IF VAL < 0 
+       THEN 
+          EXTA := ' Minus ' || EXTA; 
+          VAL := VAL * (-1); 
+       END IF; 
+
+       VAL := FLOOR (VAL); 
+
+       ----------------- FOR POISA --------------- 
+       IF VAL > 0 
+       THEN 
+          X := MOD (VAL, 100); 
+          VAL := FLOOR (VAL / 100); 
+
+          IF (X > 0) 
+          THEN 
+             EXTAPOI := ' Ges ' || FB99 (X) || ' cqmv '; 
+          END IF; 
+       END IF; 
+
+       IF VAL > 0 
+       THEN 
+          X := MOD (VAL, 100); 
+          VAL := FLOOR (VAL / 100); 
+
+          IF (X > 0) 
+          THEN 
+             WORD := FB99 (X) || WORD; 
+          END IF; 
+       END IF; 
+
+       WHILE (VAL > 0) 
+       LOOP 
+          IF (NVL (VAL, 0) > 0) 
+          THEN 
+             X := MOD (VAL, 10); 
+             VAL := FLOOR (VAL / 10); 
+
+             IF (X > 0) 
+             THEN 
+                WORD := FB99 (X) || ' kZ ' || WORD; 
+             END IF; 
+          END IF; 
+
+          IF (NVL (VAL, 0) > 0) 
+          THEN 
+             X := MOD (VAL, 100); 
+             VAL := FLOOR (VAL / 100); 
+
+             IF (X > 0) 
+             THEN 
+                WORD := FB99 (X) || ' nvRvi ' || WORD; 
+             END IF; 
+          END IF; 
+
+          IF (NVL (VAL, 0) > 0) 
+          THEN 
+             X := MOD (VAL, 100); 
+             VAL := FLOOR (VAL / 100); 
+
+             IF (X > 0) 
+             THEN 
+                WORD := FB99 (X) || 'j? ' || WORD; 
+             END IF; 
+          END IF; 
+
+          IF (NVL (VAL, 0) > 0) 
+          THEN 
+             X := MOD (VAL, 100); 
+             VAL := FLOOR (VAL / 100); 
+
+             IF (X > 0) 
+             THEN 
+                WORD := FB99 (X) || ' ?KvwU ' || WORD; 
+             ELSIF (VAL > 0 AND X = 0) 
+             THEN 
+                WORD := ' ?KvwU ' || WORD; 
+             END IF; 
+          END IF; 
+       END LOOP; 
+
+       IF (EXTAPOI IS NOT NULL AND WORD IS NOT NULL) 
+       THEN 
+          WORD := 'UvKv ' || WORD || EXTAPOI || 'gvI'; 
+       ELSIF (WORD IS NOT NULL AND EXTAPOI IS NULL) 
+       THEN 
+          WORD := 'UvKv ' || WORD || ' gvI'; 
+       ELSIF (EXTAPOI IS NOT NULL AND WORD IS NULL) 
+       THEN 
+          WORD := WORD || 'UvKv' || EXTAPOI || 'gvI'; 
+       ELSIF (EXTAPOI IS NULL AND WORD IS NULL) 
+       THEN 
+          WORD := WORD || ' Amount Nil '; 
+       END IF; 
+
+       WORD := EXTA || WORD; 
+       RETURN WORD; 
+    END; 
+
+ ---------------------------------------------------------------------------------------------- 
+ --       FUNCTION F99() SUBFUNCTION OF IN_WORD() FUNCTION 
+ ---------------------------------------------------------------------------------------------- 
+    FUNCTION FB99 (VAL NUMBER) 
+       RETURN VARCHAR2 
+    IS 
+       STWORD   VARCHAR (100); 
+       X        NUMBER; 
+       DIGIT    NUMBER; 
+    BEGIN 
+       STWORD := ''; 
+       SELECT NTEXT INTO STWORD  
+    FROM SM_IW_LIST 
+    WHERE SL=VAL;  
+       RETURN STWORD; 
+    EXCEPTION WHEN OTHERS THEN RETURN NULL; 
+    END FB99; 
+
+    FUNCTION BANG_DATE (P_ENG_DATE DATE) 
+       RETURN VARCHAR2 
+    IS 
+       STWORD   VARCHAR (100); 
+       X        NUMBER; 
+       DIGIT    NUMBER; 
+    BEGIN 
+       STWORD := ''; 
+       SELECT BDATE INTO STWORD  
+    FROM SM_BDATE_LIST 
+    WHERE EDATE=P_ENG_DATE;  
+       RETURN STWORD; 
+    EXCEPTION WHEN OTHERS THEN RETURN NULL; 
+     END ; */
+  
+END COM;
+/
+

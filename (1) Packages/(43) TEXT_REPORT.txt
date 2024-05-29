@@ -1,0 +1,87 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "TEXT_REPORT" as 
+procedure Tax_Certificate(p_project_code number, p_from_date date, p_to_date date, p_ORG_ID number); 
+end "TEXT_REPORT"; 
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "TEXT_REPORT" as 
+procedure Tax_Certificate(p_project_code number, p_from_date date, p_to_date date, p_ORG_ID number)
+ IS 
+    v_sl                number    := 0; 
+    v_tot_sl            number    := 0; 
+    v_basic             number    := 0; 
+    v_total_basic       number    := 0; 
+    v_rent              number    := 0; 
+    v_total_rent        number    := 0;  
+    v_conv              number    := 0; 
+    v_total_conv        number    := 0; 
+    v_medical           number    := 0; 
+    v_total_medical     number    := 0; 
+    v_sp_all            number    := 0; 
+    v_total_sp_all      number    := 0; 
+    v_total             number    := 0; 
+    v_g_total           number    := 0; 
+    v_pf                number    := 0; 
+    v_total_pf          number    := 0; 
+    v_gross             number    := 0; 
+    v_total_gross       number    := 0; 
+    v_bonus             number    := 0; 
+    v_total_bonus       number    := 0; 
+    v_advance_d         number    := 0; 
+    v_advance_total_d   number    := 0; 
+    v_tds               number    := 0; 
+    v_total_tds         number    := 0; 
+    v_n_s_payable       number    := 0; 
+    v_n_s_total_payable number    := 0; 
+    v_gross             number    := 0; 
+    v_payable           number    := 0; 
+    v_count             number    := 0; 
+    v_salry_title 	varchar2(200); 
+
+	BEGIN       
+ 
+          for i in (select text_1 
+                        ,text_2 
+                    	,text_3 
+                     	,text_4 
+                   	,text_5 
+                        ,text_6 
+                     	,text_7 
+                     	,text_8 
+                     	,text_9 
+                     	,text_10 
+                     	,text_11 
+                     	,text_12 
+                from  TEXTE_REPORT 
+                where TEXTE_REPORT.org_id = p_ORG_ID 
+                and    text_id      =1) 
+ 
+             loop 
+ htp.p (' 
+<p style="margin-top:100px; margin-left:200px"><b>'||' '||htf.escape_sc(i.text_1)||'</b></p>');  
+
+htp.p(' 
+ <p style="text-align:left;margin-left: 80px;margin-top: 50px">'||' '||htf.escape_sc(i.text_2)||'</p> 
+ <p style="text-align:left;margin-left: 85px">'||' '||htf.escape_sc(nvl(i.text_3,' .'))||'</p>   
+ <p style="text-align:left;margin-left: 85px">'||' '||htf.escape_sc(nvl(i.text_4,'. '))||'</p> 
+ <p style="text-align:left;margin-left: 85px">'||' '||htf.escape_sc(nvl(i.text_5,' .'))||'</p> 
+ <p style="text-align:left;margin-left: 85px">'||' '||htf.escape_sc(nvl(i.text_6,' .'))||'</p> 
+ <p style="text-align:left;margin-left: 85px">'||' '||htf.escape_sc(nvl(i.text_7,' .'))||'</p> 
+ <p style="text-align:left;margin-left: 85px">'||' '||htf.escape_sc(nvl(i.text_8,' .'))||'</p> 
+ <p style="text-align:left;margin-left: 85px">'||' '||htf.escape_sc(nvl(i.text_9,' .'))||'</p> 
+ <p style="text-align:left;margin-left: 85px">'||' '||htf.escape_sc(nvl(i.text_10,' .'))||'</p> 
+ <p style="text-align:left;margin-left: 85px">'||' '||htf.escape_sc(nvl(i.text_11,' .'))||'</p> 
+ <p style="text-align:left;margin-left: 85px">'||' '||htf.escape_sc(nvl(i.text_12,' .'))||'</p>');  
+end loop; 
+
+htp.p('<BR> <BR> <BR><BR><BR><BR><BR><BR><BR><BR><BR> 
+<div style= "float: left; width: 25%; text-align: center;padding-left:150px;"><p >Officer </p></div>') ; 
+END; 
+end "TEXT_REPORT"; 
+/
+

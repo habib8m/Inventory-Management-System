@@ -1,0 +1,348 @@
+
+create or replace PROCEDURE PR_SALARY_PROCESS(
+   P_USER_ID   IN   NUMBER,
+   P_FDATE     IN   DATE,
+   P_TDATE     IN   DATE
+)
+AS
+   V_SL          NUMBER;
+   V_TOTAL_DAY   NUMBER;
+    ----LEAVE----
+   V_LEAVE_CL            NUMBER;
+   V_LEAVE_SL            NUMBER;
+   V_LEAVE_ML            NUMBER;
+   V_LEAVE_EL            NUMBER;
+   V_LEAVE_LWP            NUMBER;
+   V_stamp                number(10);
+  
+    
+   CURSOR C1 IS    
+      SELECT *  
+      FROM  PR_PUBLIC_HOLI_DAY 
+      WHERE HOLI_DATE BETWEEN P_FDATE AND P_TDATE
+      AND   ABSENT_DATE IS NOT NULL;
+      
+ -------------------------------------------------------
+------------------- Start : Loan System --------------- off 010823
+-------------------------------------------------------
+      
+BEGIN
+ 
+ BEGIN
+       IF P_TDATE < TRUNC(LAST_DAY(P_FDATE)) THEN 
+            V_stamp := 0;
+      ELSE
+         V_stamp := 10;
+      END IF;         
+ END;
+ 
+ BEGIN
+         ---START: TO CHECK THE PROJECT CODE IS AVAILABLE OR NOT------------  
+           SELECT LEAVE_TYPE_ID INTO V_LEAVE_CL
+        FROM LEAVE_TYPE_INFO
+        where ROWNUM=1;
+        ---END: TO CHECK THE PROJECT CODE IS AVAILABLE OR NOT------------
+
+        SELECT     SUM(CL_ID)CL_ID,
+                SUM(SL_ID)SL_ID,
+                SUM(EL_ID)EL_ID,
+                SUM(ML_ID)ML_ID,
+                SUM(LWP_ID)LWP_ID
+        INTO           V_LEAVE_CL,V_LEAVE_SL,V_LEAVE_EL, V_LEAVE_ML, V_LEAVE_LWP
+        FROM(
+        SELECT  DECODE(LEAVE_TYPE, 'CL',LEAVE_TYPE_ID)CL_ID,
+        DECODE(LEAVE_TYPE, 'SL',LEAVE_TYPE_ID)SL_ID,
+        DECODE(LEAVE_TYPE, 'EL',LEAVE_TYPE_ID)EL_ID,
+        DECODE(LEAVE_TYPE, 'ML',LEAVE_TYPE_ID)ML_ID,
+        DECODE(LEAVE_TYPE, 'LWP',LEAVE_TYPE_ID)LWP_ID 
+        FROM LEAVE_TYPE_INFO        
+        );            
+   END;
+
+      DELETE FROM PR_MONTH_END A
+      WHERE SALARY_DATE BETWEEN P_FDATE AND P_TDATE
+     -- and SEC_CODE in (308,2572) ----210119
+      ;
+
+      COMMIT;
+      
+      SELECT TO_NUMBER(TO_CHAR(LAST_DAY(P_TDATE),'DD')) --(P_TDATE - P_FDATE + 1)
+        INTO V_TOTAL_DAY
+      FROM DUAL;
+      INSERT INTO PR_MONTH_END
+                  (CID_NO, UID_NO,old_uid_no,promo_date, SID_NO, EMP_NAME,PROJECT_CODE, DEPT_CODE,
+                   DESIG_CODE, SEC_CODE,SALARY_GRADE, BUILDING_CODE, FLOOR_CODE,
+                   LINE_CODE,  JOINING_DATE, JOINING_SAL,
+                   PRESENT_SAL, TAX_SAL,EMP_OUT_DATE,RATE_BASE,
+                   OFFICE_TIME_CODE, PAY_TYPE, IT_PAYEE, EMP_TYPE, EMP_OUT,OT_TYPE,                   
+                    PRESENT, LATE_MIN, LATE_CNT, OVER_TIME_MIN,OT_HR_FAC,FAC_OT_MIN2,OT_HR,week_ot,
+                   OVER_TIME_CNT, EARLY_MIN, EARLY_CNT, ENTRY_BY,
+                   SALARY_DATE, LEAVE_CL, LEAVE_ML, LEAVE_EL, LEAVE_SL,
+                   LEAVE_LWP, WEEKEND_HOLIDAY, ABSENT, GOVT_HOLIDAY,
+                   HOLIDAY_PRESENT, SALARY_DAY,WORKING_DAY, RUN_STATUS,
+                   HOLIDAY_WORK_MIN,BANK_ACCOUNT_NO,BANK_SALARY_ON_OFF,NIGHT_ALLOWANCE,NIGHT_day)
+         SELECT   CID_NO, UID_NO,old_uid_no,promo_date, SID_NO, EMP_NAME, PROJECT_CODE, DEPT_CODE,
+                  DESIG_CODE, SEC_CODE,SALARY_GRADE, BUILDING_CODE, FLOOR_CODE, LINE_CODE,
+                   JOINING_DATE, JOINING_SAL, PRESENT_SAL, TAX_SAL,
+                  EMP_OUT_DATE,RATE_BASE, OFFICE_TIME_CODE,
+                  PAY_TYPE, IT_PAYEE, EMP_TYPE, EMP_OUT, OT_TYPE,                  
+                  SUM (PRESENT_CNT) PRESENT_CNT, SUM (LATE_MIN) LATE_MIN,
+                  SUM (LATE_CNT) LATE_CNT, SUM (OVER_TIME_MIN) OVER_TIME_MIN,
+                  ROUND(SUM (FAC_OT_MIN)/60,2) FAC_OT_HR,
+                  ROUND(SUM (FAC_OT_MIN2)/60,2) FAC_OT_HR2,
+                   ROUND(SUM (OT_MIN)/60,2) OT_HR,
+                  ROUND(SUM (week_ot)/60,2) week_ot, 
+                  SUM (OVER_TIME_CNT) OVER_TIME_CNT,
+                  SUM (EARLY_MIN) EARLY_MIN, SUM (EARLY_CNT) EARLY_CNT,
+                  ENTRY_BY, SALARY_DATE, SUM (LEAVE_CL) LEAVE_CL,
+                  SUM (LEAVE_ML) LEAVE_ML, SUM (LEAVE_EL) LEAVE_EL,
+                  SUM (LEAVE_SL) LEAVE_SL, SUM (LEAVE_LWP) LEAVE_LWP,
+                  SUM (WEEKEND_HOLIDAY) WEEKEND_HOLIDAY, SUM (ABSENT) ABSENT,
+                  SUM (GOVT_HOLIDAY) GOVT_HOLIDAY,
+                  SUM (HOLIDAY_PRESENT) HOLIDAY_PRESENT,V_TOTAL_DAY,
+                  SUM (WORKING_DAY) WORKING_DAY, 'R',
+                  SUM (HOLIDAY_WORK_MIN) HOLIDAY_WORK_MIN,BANK_ACCOUNT_NO,BANK_SALARY_ON_OFF,
+                  sum(NIGHT_ALLOWANCE) NIGHT_ALLOWANCE,sum(NIGHT_day) NIGHT_day
+             FROM (SELECT EI.CID_NO,ei.old_uid_no,ei.promo_date, EI.UID_NO, EI.SID_NO, EI.EMP_NAME,
+                          EI.PROJECT_CODE, EI.DEPT_CODE, EI.DESIG_CODE,
+                          EI.SEC_CODE,EI.SALARY_GRADE,EI.BUILDING_CODE, EI.FLOOR_CODE,
+                          EI.LINE_CODE, EI.JOINING_DATE,
+                          EI.JOINING_SAL, EI.PRESENT_SAL, EI.TAX_SAL,
+                           EI.EMP_OUT_DATE,EI.RATE_BASE,
+                          EI.OFFICE_TIME_CODE, EI.PAY_TYPE, EI.IT_PAYEE,
+                          EI.EMP_TYPE, EI.EMP_OUT, EI.OT_TYPE,
+                          DECODE (V.ATT_STATUS, 1,1, 0) PRESENT_CNT,
+                          V.LATE_MIN LATE_MIN,
+                          DECODE (V.ATT_STATUS,
+                                  1, DECODE (LATE_MIN, 0, 0, 1),
+                                  0
+                                 ) LATE_CNT,
+                          DECODE (EI.OT_TYPE,
+                                  'Y', V.OVER_TIME_MIN,
+                                  0
+                                 ) OVER_TIME_MIN,
+                          DECODE (EI.OT_TYPE,
+                                  'Y', V.OT_MIN,
+                                  0
+                                 ) OT_MIN,                                 
+                         -- DECODE (EI.OT_TYPE,'Y',DECODE (to_char(V.TRANS_DATE,'day'),'fri', V.OT_MIN,0),0) week_ot, 
+                        DECODE (EI.OT_TYPE,'Y',DECODE (TRIM(UPPER(TO_CHAR(V.TRANS_DATE,'day'))),TRIM(UPPER('friday')) , V.OT_MIN,0),0) week_ot,          
+                         DECODE (EI.OT_TYPE,
+                                  'Y', V.FAC_OT_MIN,
+                                  0
+                                 ) FAC_OT_MIN,
+                                 DECODE (EI.OT_TYPE,
+                                  'Y', V.FAC_OT_MIN2,
+                                  0
+                                 ) FAC_OT_MIN2,
+                          DECODE (EI.OT_TYPE,
+                                  'Y', DECODE (V.OVER_TIME_MIN, 0, 1, 0),
+                                  0
+                                 ) OVER_TIME_CNT,
+                         CASE
+                         WHEN  MOD(NVL(V.EARLY_MIN,0),60) BETWEEN 50 AND 59
+                         THEN  FLOOR(NVL(V.EARLY_MIN,0)/60)*60+60
+                         WHEN  MOD(NVL(V.EARLY_MIN,0),60) BETWEEN 29 AND 49
+                         THEN  FLOOR(NVL(V.EARLY_MIN,0)/60)*60+30
+                         WHEN  NVL(V.EARLY_MIN,0)<0 THEN 0
+                         ELSE FLOOR(NVL(V.EARLY_MIN,0)/60)*60
+                         END EARLY_MIN,
+                          DECODE (LATE_MIN, 0, 0, 1) EARLY_CNT,
+                          P_USER_ID ENTRY_BY, P_TDATE SALARY_DATE,
+                            DECODE (V.ATT_STATUS, V_LEAVE_CL, 1, 0) LEAVE_CL,
+                          DECODE (V.ATT_STATUS, V_LEAVE_ML, 1, 0) LEAVE_ML,
+                          DECODE (V.ATT_STATUS, V_LEAVE_EL, 1, 0) LEAVE_EL,
+                          DECODE (V.ATT_STATUS, V_LEAVE_SL, 1, 0) LEAVE_SL,
+                          DECODE (V.ATT_STATUS, V_LEAVE_LWP, 1, 0) LEAVE_LWP,
+                       --  DECODE (V.ATT_STATUS, 7, 1,1,DECODE(V.ATT_STATUS_FAC,7,1,0),0)  WEEKEND_HOLIDAY,--20130322
+                         DECODE (V.ATT_STATUS, 7, 1,1,DECODE(V.ATT_STATUS_FAc,7,1,0),0,DECODE(V.ATT_STATUS_FAC,7,1,0),0) WEEKEND_HOLIDAY,--20130322
+                          DECODE (V.ATT_STATUS, 8, 1, 0) GOVT_HOLIDAY,
+                          DECODE (V.ATT_STATUS,7,DECODE (V.HOLIDAY_WORK, 0, 0, 1),8,DECODE (V.HOLIDAY_WORK, 0, 0, 1),0) HOLIDAY_PRESENT,
+                          DECODE (V.ATT_STATUS, 0,1,0) ABSENT,
+                          V.HOLIDAY_WORK HOLIDAY_WORK_MIN,
+                          DECODE (V.ATT_STATUS,1,1,0,1,V_LEAVE_LWP,1,V_LEAVE_CL,1,V_LEAVE_EL,1,V_LEAVE_SL,1, 7,1,8,1,0
+                                 ) WORKING_DAY,
+                        EI.BANK_ACCOUNT_NO,EI.BANK_SALARY_ON_OFF, 0 NIGHT_ALLOWANCE,0 NIGHT_day
+                     FROM EMP_INFO EI, PR_DAY_WISE_ATTENDENCE V
+                    WHERE EI.CID_NO = V.CID_NO
+                      AND RUN_STATUS = 'Y'
+                       AND  NVL(EI.RATE_BASE,'N')<>'Y'                       
+                      AND V.TRANS_DATE BETWEEN P_FDATE AND P_TDATE
+                      and EI.JOINING_DATE < P_TDATE
+                                            )
+         GROUP BY CID_NO,
+                  UID_NO,
+                  old_uid_no,
+                  promo_date,
+                  SID_NO,
+                  EMP_NAME,
+                  PROJECT_CODE,
+                  DEPT_CODE,
+                  DESIG_CODE,
+                  SEC_CODE,
+                  SALARY_GRADE,
+                  BUILDING_CODE,
+                  FLOOR_CODE,
+                  LINE_CODE,
+                  JOINING_DATE,
+                  JOINING_SAL,
+                  PRESENT_SAL,
+                  TAX_SAL,
+                  EMP_OUT_DATE,
+                  OFFICE_TIME_CODE,
+                  PAY_TYPE,
+                  IT_PAYEE,
+                  EMP_TYPE,
+                  EMP_OUT,
+                  OT_TYPE,
+                  RATE_BASE,
+                  BANK_ACCOUNT_NO,
+                  BANK_SALARY_ON_OFF,
+                  ENTRY_BY,
+                  SALARY_DATE;
+      COMMIT;
+      
+      
+      -- SALARY PROCESS RUN   ----------------
+      --- 'S' START OF SALARY PROCESS
+      UPDATE PR_MONTH_END A
+         SET A.RUN_STATUS = 'S'
+       WHERE A.SALARY_DATE BETWEEN P_FDATE AND P_TDATE;
+
+      ------------------------------BASIC SALARY PROCESSING--------------
+      V_SL := 1;                                               -- BASIC SALARY
+      COMMIT;
+
+     UPDATE   PR_MONTH_END A
+         SET   A.LOAN_PAYMENT_AMT =
+                  (SELECT   SUM (NVL (B.PAID_AMOUNT, 0))
+                     FROM   LOAN_PAYMENT  B
+                    WHERE   B.PAYMENT_DATE BETWEEN P_FDATE AND P_TDATE
+                            AND A.CID_NO = B.CID_NO),
+               a.LOAN_AMOUNT =(SELECT   SUM (NVL (B.PAID_AMOUNT, 0))
+                     FROM   LOAN_PAYMENT  B
+                    WHERE   B.PAYMENT_DATE BETWEEN P_FDATE AND P_TDATE
+                            AND A.CID_NO = B.CID_NO)             
+       WHERE       A.SALARY_DATE BETWEEN P_FDATE AND P_TDATE
+               AND A.RUN_STATUS = 'S';
+
+      COMMIT;
+
+      ---
+      ---BASIC CALCULATION
+      --
+  
+      UPDATE PR_MONTH_END U
+         SET U.BASIC_SAL =ROUND ((NVL(U.PRESENT_SAL, 0)-1100)/1.4),
+                      U.TP_Amount           = 0,
+                     U.MEDICAL =250--ROUND (NVL(U.PRESENT_SAL, 0) * 0.075)                                                                      
+       WHERE U.SALARY_DATE BETWEEN P_FDATE AND P_TDATE
+            AND U.RUN_STATUS = 'S';
+         
+    commit;
+      UPDATE PR_MONTH_END U
+         SET U.CON_ALLOW_N = 200, --ROUND (NVL(U.PRESENT_SAL, 0) * 0.05),
+             U.CON_ALLOW_BN = 200, --ROUND (NVL(U.PRESENT_SAL, 0) * 0.05),
+             u.Food_allow = 650,
+             U.Food_allow_B = 650,
+             U.HOUSE_MENT =  ROUND (NVL(U.BASIC_SAL, 0) * 0.4),
+             U.UTILITY = ROUND (NVL(U.PRESENT_SAL, 0) * 0.1)                                                                              
+       WHERE U.SALARY_DATE BETWEEN P_FDATE AND P_TDATE
+            AND U.RUN_STATUS = 'S';
+       
+         
+    commit;
+
+      ----- FOR OFFICE
+      UPDATE PR_MONTH_END U
+         SET
+          U.HOUSE_RENT =  ROUND (NVL(U.BASIC_SAL, 0) * 0.4),
+             U.STAMP                = V_STAMP,
+             U.OT_RATE               = ROUND((NVL(U.PRESENT_SAL,0)/1000)*4)
+       WHERE U.SALARY_DATE BETWEEN P_FDATE AND P_TDATE
+        AND U.RUN_STATUS = 'S';
+
+      COMMIT;
+
+             
+    --------------------------------------------------------------------------------------
+    --------Other's Amount Adjust : when adjust flag 1 then it will be + other wise ------    
+    -------------------------------------------------------------------------------------
+
+     ----- LWP AMOUNT
+      UPDATE PR_MONTH_END U
+         SET U.LWP_AMOUNT  = (U.BASIC_SAL/U.SALARY_DAY)*U.LEAVE_LWP
+       WHERE U.SALARY_DATE BETWEEN P_FDATE AND P_TDATE
+         AND U.RUN_STATUS = 'S';
+
+         COMMIT;
+      ----- ABSENT 1 WORK AMOUNT
+      UPDATE PR_MONTH_END U
+         SET U.ABSENT_AMOUNT = (U.PRESENT_SAL/U.SALARY_DAY)*U.ABSENT
+       WHERE U.SALARY_DATE BETWEEN P_FDATE AND P_TDATE
+         AND U.RUN_STATUS = 'S';
+
+         COMMIT;
+     
+  --------------End : Extra ot entry adjust----------------
+
+    
+    UPDATE PR_MONTH_END U
+        SET U.OT_AMOUNT =ROUND(nvl(U.OT_HR,0) * U.OT_RATE,2)
+        where U.SALARY_DATE BETWEEN P_FDATE AND P_TDATE
+       AND U.OT_TYPE = 'Y';
+        commit; 
+   
+        ------------- GROSS  
+       UPDATE PR_MONTH_END U
+         SET U.MIN_PAY_SAL   = (U.PRESENT_SAL/U.SALARY_DAY)*(NVL(U.WORKING_DAY,0)-NVL(U.ABSENT,0)),
+              U.TOTAL_DEDUCT     = NVL(U.LOAN_AMOUNT,0)+NVL(DINING_BILL,0)+NVL(TAX_SAL,0)+NVL(U.ABSENT_AMOUNT,0)+NVL(U.LWP_AMOUNT,0)+NVL(OTHER_AMT_MINUS,0)
+                                +NVL(U.ADVANCE_AMT,0),
+             U.GROSS_PAY     = ((U.PRESENT_SAL/U.SALARY_DAY)*NVL(U.WORKING_DAY,0))
+                                 -(NVL(U.LOAN_AMOUNT,0)+NVL(U.ABSENT_AMOUNT,0)+NVL(U.LWP_AMOUNT,0)
+                                  +NVL(OTHER_AMT_MINUS,0)+NVL(U.ADVANCE_AMT,0)+NVL(DINING_BILL,0)+NVL(TAX_SAL,0))+NVL(OTHER_AMT_PLUS,0),
+             U.NET_PAY         = ((U.PRESENT_SAL/U.SALARY_DAY)*NVL(U.WORKING_DAY,0))-(NVL(U.LOAN_AMOUNT,0)
+                                +NVL(U.ABSENT_AMOUNT,0)+NVL(U.LWP_AMOUNT,0)+NVL(OTHER_AMT_MINUS,0)+NVL(U.ADVANCE_AMT,0)
+                               +NVL(DINING_BILL,0)+NVL(TAX_SAL,0))
+                               +NVL(U.ATT_BONUS,0)+NVL(OTHER_AMT_PLUS,0)
+                               +NVL(U.OT_AMOUNT,0),
+             U.INCENTIVE_AMOUNT=0
+       WHERE U.SALARY_DATE BETWEEN P_FDATE AND P_TDATE
+       AND  NVL(U.RATE_BASE,'N')<>'Y'
+         AND U.RUN_STATUS = 'S';
+         COMMIT;        
+--------Leave Ml-----02-04-17------
+UPDATE PR_MONTH_END U
+         SET
+          U.GROSS_PAY  = 0,
+             U.STAMP                = 0,
+             U.NET_PAY               = 0
+       WHERE U.SALARY_DATE BETWEEN P_FDATE AND P_TDATE
+        AND U.RUN_STATUS = 'S'
+        and WORKING_DAY = 0 ;
+       -- and u.present = 0; --021017
+
+   
+      COMMIT;
+      
+----emp_out----02-04-17-----
+delete from PR_MONTH_END u 
+where u.present = 0
+and U.EMP_OUT is not null
+and U.EMP_OUT_DATE < P_FDATE
+and U.SALARY_DATE BETWEEN P_FDATE AND P_TDATE
+ AND U.RUN_STATUS = 'S';
+------------------------------------------------------------------------
+---------------End: Holiday Allowance for staff--------------------------
+------------Only Staff Non OT valid for this rule--------------------------
+----------but not management top level------------------------------------
+------------------------------------------------------------------------
+
+         
+      UPDATE PR_MONTH_END A
+         SET A.RUN_STATUS = 'D'
+       WHERE A.RUN_STATUS = 'S';
+         COMMIT;
+END;
+/
+

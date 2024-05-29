@@ -1,0 +1,250 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "INVENTORY_REPORT_3S" as 
+    procedure opening_report(p_item_code number,p_from_date date,p_to_date date,p_org_id number,p_warehouse_code number); 
+    procedure sales_return_report(p_item_code number,p_from_date date,p_to_date date,p_org_id number,p_warehouse_code number); 
+end "INVENTORY_REPORT_3S";
+/
+
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "INVENTORY_REPORT_3S" as 
+    procedure opening_report(p_item_code number,p_from_date date,p_to_date date,p_org_id number,p_warehouse_code number) 
+    is 
+    v_sl NUMBER         := 0; 
+     v_total NUMBER         := 0; 
+     v_tot_sl NUMBER     := 0; 
+     v_qty    NUMBER     := 0; 
+     v_qty_g  NUMBER     := 0; 
+     v_exp    NUMBER     := 0; 
+     v_exp_g  NUMBER     := 0; 
+     v_usd    NUMBER     := 0; 
+     v_usd_g  NUMBER     := 0; 
+     v_bdt    NUMBER     := 0; 
+     v_bdt_g  NUMBER     := 0; 
+     v_count NUMBER      := 0; 
+ 
+BEGIN 
+    report_utils.header_without_boarder (NULL, 'Opening Report '); 
+    HTP.p ( 
+           '<h4 style="margin-top: 0px; text-align: center">Date From : ' 
+        || HTF.escape_sc (P_from_date) 
+        || ' To ' 
+        || HTF.escape_sc (P_To_date) 
+        || '</h4>'); 
+ 
+ 
+    HTP.p ('<table style="width:100%"> 
+    <tr> 
+			<th style="width:1%">SL</th>  
+			<th style="width:6%">Date</th> 
+            <th style="width:5%">Opening No</th>  
+            <th style="width:5%">Item Code</th>  
+            <th style="width:10%">Item Name</th>  
+            <th style="width:5%">Packing</th>  
+            <th style="width:5%">Rate</th>  
+            <th style="width:5%">Qty</th>  
+            <th style="width:5%">Total</th>  
+            <th style="width:8%">Warehouse</th>  
+    </tr>'); 
+            v_tot_sl := 0; 
+            v_qty    := 0; 
+            v_total  := 0; 
+              for i in   (  select sm.trans_id, 
+                                   substr(sm.INVOICE_NO,5) INVOICE_NO, 
+                                   sm.TRANS_DATE, 
+                                   (select CODE_DESC from G_UNI_CODES where code = PROJECT_CODE) PROJECT, 
+                                   gi.code_desc item_name, 
+                                   gi.other_desc item_codes, 
+                                   d.qty qty, 
+                                   d.rate, 
+                                   gi.packing, 
+                                   d.total toTal, 
+                                   d.qty*d.rate total_amount, 
+                                   (select code_desc from g_uni_codes where code = sm.depot_id) warehouse, 
+                                   sm.depot_id, 
+                                   d.EXPIRY_DATE 
+                              from SP_STORE_M sm, sp_store_d d,g_inv_codes gi 
+                              where sm.trans_id = d.trans_id 
+                              and   d.item_code = gi.code 
+                              and  sm.TRANS_TYPE = 'OP' 
+                              and sm.org_id = p_org_id 
+                              and sm.depot_id = nvl(p_warehouse_code,sm.depot_id) 
+                              and d.item_code = nvl(p_item_code,d.item_code) 
+                              and sm.trans_date between p_from_date and p_to_date 
+                              ORDER BY INVOICE_NO DESC  
+                        ) 
+ 
+                loop 
+                        v_sl := v_sl + 1; 
+                        v_total    := v_total + nvl(i.toTal,0); 
+                    --    v_tot_sl :=v_tot_sl+nvl(i.TOATAL,0); 
+                    HTP.p ( 
+                           '<tr> 
+                            <td style="text-align: Center">' 
+                        || HTF.escape_sc (v_sl) 
+                        || '</td> 
+                            <td style="text-align: center">' 
+                        || HTF.escape_sc (i.TRANS_DATE) 
+                        || '</td> 
+                        <td style="text-align: center">' 
+                        || HTF.escape_sc (i.INVOICE_NO) 
+                        || '</td> 
+                        <td style="text-align: center">' 
+                        || HTF.escape_sc (i.item_codes) 
+                        || '</td> 
+                        <td style="text-align: left">' 
+                        || HTF.escape_sc (i.item_name) 
+                        || '</td> 
+                        <td style="text-align: center">' 
+                        || HTF.escape_sc (i.packing) 
+                        || '</td> 
+                        <td style="text-align: center">' 
+                        || HTF.escape_sc (i.rate) 
+                        || '</td> 
+                        <td style="text-align: center">' 
+                        || HTF.escape_sc (i.qty) 
+                        || '</td> 
+                        <td style="text-align: right">' 
+                        || HTF.escape_sc (to_char(i.toTal,'99,99,99,99,99,99,999.00')) 
+                        || '</td> 
+                        <td style="text-align: center">' 
+                        || HTF.escape_sc (i.warehouse) 
+                        || '</td> 
+ 
+                            <tr>'); 
+                    --v_bdt_g := v_bdt_g + i.total; 
+                END LOOP; 
+
+              HTP.p ( 
+                    '<tr> 
+                            <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+                           <td style="text-align: right;"><b>' 
+                    || HTF.escape_sc (to_char(v_total,'99,99,99,99,99,999.00')) 
+                    ||'</td>                      
+                    </tr>'); 
+ 
+                HTP.p ('</table>'); 
+END; 
+
+--**************************
+
+procedure sales_return_report(p_item_code number,p_from_date date,p_to_date date,p_org_id number,p_warehouse_code number) 
+    is 
+    v_sl NUMBER         := 0; 
+     v_total NUMBER         := 0; 
+     v_tot_sl NUMBER     := 0; 
+     v_qty    NUMBER     := 0; 
+     v_qty_g  NUMBER     := 0; 
+     v_exp    NUMBER     := 0; 
+     v_exp_g  NUMBER     := 0; 
+     v_usd    NUMBER     := 0; 
+     v_usd_g  NUMBER     := 0; 
+     v_bdt    NUMBER     := 0; 
+     v_bdt_g  NUMBER     := 0; 
+     v_count NUMBER      := 0; 
+ 
+BEGIN 
+    report_utils.header_without_boarder (NULL, 'Sales Return Report '); 
+    HTP.p ( 
+           '<h4 style="margin-top: 0px; text-align: center">Date From : ' 
+        || HTF.escape_sc (P_from_date) 
+        || ' To ' 
+        || HTF.escape_sc (P_To_date) 
+        || '</h4>'); 
+ 
+ 
+    HTP.p ('<table style="width:100%"> 
+    <tr> 
+			<th style="width:1%">SL</th>  
+			<th style="width:6%">Date</th> 
+            <th style="width:5%">Invoice No</th>  
+            <th style="width:5%">Item Code</th>  
+            <th style="width:10%">Item Name</th>  
+            <th style="width:5%">Packing</th>  
+            <th style="width:5%">Rate</th>  
+            <th style="width:5%">Qty</th>  
+            <th style="width:5%">Total</th>  
+    </tr>'); 
+            v_tot_sl := 0; 
+            v_qty    := 0; 
+            v_total  := 0; 
+              for i in   (  select sm.trans_id, 
+                                   substr(sm.INVOICE_NO,5) INVOICE_NO, 
+                                   sm.TRANS_DATE, 
+                                   (select CODE_DESC from G_UNI_CODES where code = PROJECT_CODE) PROJECT, 
+                                   gi.code_desc item_name, 
+                                   gi.other_desc item_codes, 
+                                   d.RETURN_QTY qty, 
+                                   d.rate, 
+                                   gi.packing, 
+                                   d.total toTal, 
+                                   d.RETURN_QTY*d.rate total_amount, 
+                                   (select code_desc from g_uni_codes where code = sm.depot_id) warehouse, 
+                                   sm.depot_id, 
+                                   d.EXPIRY_DATE 
+                              from SP_STORE_M sm, sp_store_d d,g_inv_codes gi 
+                              where sm.trans_id = d.trans_id 
+                              and   d.item_code = gi.code 
+                              and  sm.TRANS_TYPE = 'SR' 
+                              and sm.org_id = 7 
+                              and d.item_code = nvl(p_item_code,d.item_code) 
+                              and sm.trans_date between p_from_date and p_to_date 
+                              ORDER BY INVOICE_NO DESC  
+                        ) 
+ 
+                loop 
+                        v_sl := v_sl + 1; 
+                        v_total    := v_total + nvl(i.total_amount,0); 
+                    --    v_tot_sl :=v_tot_sl+nvl(i.TOATAL,0); 
+                    HTP.p ( 
+                           '<tr> 
+                            <td style="text-align: Center">' 
+                        || HTF.escape_sc (v_sl) 
+                        || '</td> 
+                            <td style="text-align: center">' 
+                        || HTF.escape_sc (i.TRANS_DATE) 
+                        || '</td> 
+                        <td style="text-align: center">' 
+                        || HTF.escape_sc (i.INVOICE_NO) 
+                        || '</td> 
+                        <td style="text-align: center">' 
+                        || HTF.escape_sc (i.item_codes) 
+                        || '</td> 
+                        <td style="text-align: left">' 
+                        || HTF.escape_sc (i.item_name) 
+                        || '</td> 
+                        <td style="text-align: center">' 
+                        || HTF.escape_sc (i.packing) 
+                        || '</td> 
+                        <td style="text-align: center">' 
+                        || HTF.escape_sc (i.rate) 
+                        || '</td> 
+                        <td style="text-align: center">' 
+                        || HTF.escape_sc (i.qty) 
+                        || '</td> 
+                        <td style="text-align: right">' 
+                        || HTF.escape_sc (to_char(i.total_amount,'99,99,99,99,99,99,999.00')) 
+                        || '</td> 
+ 
+                            <tr>'); 
+                END LOOP; 
+              HTP.p ( 
+                    '<tr> 
+                            <td colspan="8" style="text-align: right;"><b>Total</b> :</td> 
+                           <td style="text-align: right;"><b>' 
+                    || HTF.escape_sc (to_char(v_total,'99,99,99,99,99,999.00')) 
+                    ||'</td>                      
+                    </tr>'); 
+ 
+                HTP.p ('</table>'); 
+END; 
+ 
+end "INVENTORY_REPORT_3S";
+/
+
+
+

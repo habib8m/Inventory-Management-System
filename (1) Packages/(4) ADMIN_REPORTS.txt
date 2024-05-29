@@ -1,0 +1,81 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace PACKAGE admin_reports 
+AS 
+	procedure system_information (P_SYSTEM_CODE NUMBER); 
+ 
+end; 
+/
+
+
+
+
+                                                  ===============================BODY=============================
+
+create or replace PACKAGE BODY admin_reports 
+AS 
+	procedure system_information (P_SYSTEM_CODE NUMBER) 
+	is 
+	v_sl     number := 0; 
+    	v_count  number :=0;
+
+	BEGIN 
+		report_utils.header_without_boarder(null, 'System Information');
+ 
+		FOR r in (select distinct CODE, CODE_DESC  
+					from G_UNI_CODES  
+					where org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+                    			and P_CODE = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')||'0000' 
+					and code = nvl(P_SYSTEM_CODE, code) 
+					order by code) 
+		LOOP 
+ 
+        	select count(*) 
+		INTO v_count 
+		from G_UNI_CODES  
+		where org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+                and P_CODE = TO_CHAR(r.code)  
+		order by code_level;
+
+            IF v_count > 0 THEN 
+ 
+			htp.p('<h3>' ||htf.escape_sc(r.CODE_DESC)|| '</h3>');
+ 
+			htp.p('<table style="width:100%"> 
+			<tr> 
+			<th style="width: 80px" style="width:5%">SL No.</th> 
+			<th>Head Name</th>  
+			<th style="width: 160px">Level</th> 
+			</tr>'); 
+            END IF; 
+
+			v_sl := 0; 
+
+			FOR i in (select CODE, CODE_DESC, code_level  
+			from G_UNI_CODES  
+			where org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID')  
+                        and P_CODE = TO_CHAR(r.code)  
+			order by code_level)
+ 
+			LOOP 
+			v_sl := v_sl + 1;
+ 
+				htp.p('<tr> 
+				<td style="text-align: center"> '||htf.escape_sc(v_sl)||' </td> 
+				<td style="text-align: Left"> '||htf.escape_sc(i.CODE_DESC)||' </td> 
+				<td style="text-align: center"> '||htf.escape_sc(i.code_level)||' </td> 
+				<tr>'); 
+			END LOOP; 
+			 
+			htp.p('</table>'); 
+			 
+		end loop; 
+		report_utils.footer; 
+	END; 
+
+--******************************
+
+END; 
+/
+

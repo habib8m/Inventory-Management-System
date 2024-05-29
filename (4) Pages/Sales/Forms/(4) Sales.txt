@@ -1,0 +1,51 @@
+
+SELECT TRANS_ID, PARTY_CODE, substr(INVOICE_NO, 5) INVOICE_NO, CODE_DESC customer_name, TRANS_DATE, U.LOGIN_ID
+FROM sp_store_m s, g_acc_codes a, SM_USER_LIST U, SALES_CHANEL C
+where s.PARTY_CODE = a.code
+AND S.ENTRY_BY = U.USER_ID (+)
+AND A.TERRITORY_CODE = C.TERRITORY_ID(+)
+and s.TRANS_TYPE = 'SV'
+and s.org_id = :app_org_id
+and (exists (select ei.cid_no, ei.TERRITORY_ID, ei.AREA_ID, ei.WAREHOUSE_ID
+                from  emp_info ei 
+                where ei.org_id = c.org_id
+                and ei.cid_no = :APP_CID_NO
+                and c.TERRITORY_ID = nvl(ei.TERRITORY_ID,c.TERRITORY_ID)
+                and c.AREA_ID = nvl(ei.AREA_ID,c.AREA_ID)
+                and c.WAREHOUSE_ID = nvl(ei.WAREHOUSE_ID,c.WAREHOUSE_ID)) 
+OR :APP_CID_NO = 10123)
+and INVOICE_NO like nvl('%'||:P211_SEARCH||'%', '%')
+and CODE_DESC like nvl('%'||:P211_SEARCH||'%', '%')
+order by s.TRANS_DATE desc, INVOICE_NO desc
+
+----------------------------------
+
+--dynamic action--
+
+declare
+v_amt number := nvl(:qty,0) * nvl(:rate,0);
+v_disc number := (v_amt * NVL(:DISCOUNT,0))/100;
+
+begin
+    return trunc(v_amt - v_disc, 2);
+end;
+
+--------------------------------
+
+var model = apex.region("SALES").widget().interactiveGrid("getViews", "grid").model;
+var n_amt, n_totamt = 0;
+col_amt = model.getFieldKey("TOTAL");
+model.forEach(function(igrow) {
+    n_amt =  parseFloat(igrow[col_amt]);  
+    //alert(n_amt);   
+    if (!isNaN(n_amt)) {
+        n_totamt += n_amt;
+    }
+});
+fullvalue = parseFloat(n_totamt).toFixed(2);
+apex.item("P211_TOTAL").setValue(fullvalue);
+
+
+
+
+

@@ -1,0 +1,200 @@
+
+--process insert master--
+
+DECLARE
+   V_TYPE         VARCHAR2 (30);
+   V_INVOICE_NO   VARCHAR2 (30);
+
+BEGIN
+   IF :P222_TRANS_ID IS NULL
+   THEN
+      SELECT NVL (MAX (trans_id), 0) + 1 
+      INTO :P222_TRANS_ID 
+      FROM sp_store_m;
+
+      BEGIN
+         SELECT TO_CHAR (NVL (MAX (TO_NUMBER (SUBSTR (INVOICE_NO, 8))), 0) + 1)
+           INTO V_TYPE
+           FROM sp_store_m
+           WHERE TRANS_TYPE = 'SO'
+           and org_id = :app_org_id
+           AND TRANS_DATE BETWEEN (SELECT FIN_FDATE
+                                      FROM ACC_FIN_YEAR
+                                      WHERE STATUS = 1
+                                      and ORG_ID = :APP_ORG_ID)
+
+                              AND (SELECT FIN_TDATE
+                                      FROM ACC_FIN_YEAR
+                                      WHERE STATUS = 1
+                                      and ORG_ID = :APP_ORG_ID);
+      EXCEPTION
+         WHEN OTHERS THEN
+         raise_application_error (-20111, 'Please Check Financial year....!!!!!');
+      END;
+
+      V_INVOICE_NO := TO_CHAR (SYSDATE, 'yymm') || 'SO-' || TRIM (TO_CHAR (V_TYPE));
+
+      INSERT INTO sp_store_m (trans_id,
+                              trans_type,
+                              trans_date,
+                              invoice_no,
+                              remarks,
+                              PARTY_CODE,
+                              EXPORT_NO,
+                              FACTORY_DELIVERY_DATE,
+                              EXPORT_VALUE,
+                              PROJECT_CODE,
+                              ORG_ID,
+                              ENTRY_BY,
+                              DELETE_STATUS)
+           VALUES ( :P222_TRANS_ID,
+                   'SO',
+                   :P222_date,
+                    V_INVOICE_NO,
+                   :p222_remarks,
+                   :P222_PARTY_NAME,
+                   :P222_EXPORT_NO,
+                   :P222_FACTORY_DELIVERY_DATE,
+                   :P222_EXPORT_VALUE,
+                   :P222_PROJECT_CODE,
+                   :APP_ORG_ID,
+                   (select USER_ID from SM_USER_LIST where upper(LOGIN_ID) = upper(v('APP_USER')) and ORG_ID = :APP_ORG_ID),
+                   0);
+
+      	SELECT SUBSTR (V_INVOICE_NO, 5) 
+	INTO :P222_INVOICE_NO 
+	FROM DUAL;
+
+      --------------------------------------------------
+
+   ELSE
+      ------------- update main table
+      UPDATE sp_store_m
+          SET trans_date = :P222_DATE,
+              remarks = :P222_REMARKS,
+              PARTY_CODE = :P222_PARTY_NAME,
+              EXPORT_NO = :P222_EXPORT_NO,
+              FACTORY_DELIVERY_DATE = :P222_FACTORY_DELIVERY_DATE,
+              EXPORT_VALUE = :P222_EXPORT_VALUE,
+              EDIT_BY = (select USER_ID from SM_USER_LIST where upper(LOGIN_ID) = upper(v('APP_USER')) and ORG_ID = :APP_ORG_ID)
+       	  WHERE trans_id = :P222_TRANS_ID;
+
+   ---------------------------------------------------
+   END IF;
+END;
+
+--******************************
+
+--insert detail process--
+
+DECLARE
+    V_C_VALUE   VARCHAR2 (50);
+    v_amt 	number := 0;
+    v_disc 	number := 0;
+    V_TOTAL 	NUMBER := 0;
+    V_RATE  	NUMBER := 0;
+
+BEGIN
+   IF :ITEM_CODE IS NULL AND ( :QTY IS NOT NULL OR :RATE IS NOT NULL)
+   THEN
+      raise_application_error (-20111, 'You must select Items.');
+   ELSE
+      NULL;
+   END IF;
+
+   CASE :apex$row_status
+      WHEN 'C'
+      THEN
+         IF :ITEM_CODE IS NOT NULL
+         THEN
+             SELECT  NVL(SALES_PRICE,0) 
+		 INTO V_RATE
+                 FROM g_inv_codes a
+                 WHERE code = :ITEM_CODE
+                 and org_id = :app_org_id;
+
+          v_amt := nvl(:qty,0) * nvl(V_RATE,0);
+          v_disc := (v_amt * NVL(:DISCOUNT,0))/100;
+          V_TOTAL := v_amt - v_disc;
+
+          INSERT INTO SP_STORE_D (TRANS_ID,
+                                  ITEM_CODE,
+                                  ORDER_QTY,
+                                  QTY,
+                                  RATE,
+                                  TOTAL,
+                                  SL,
+                                  ORG_ID)
+
+          VALUES ( :P222_TRANS_ID,
+                   :ITEM_CODE,
+                   :QTY,
+                   :QTY,
+                    V_RATE,
+                    V_TOTAL,
+                    (SELECT MAX (NVL (SL, 0)) + 1 FROM SP_STORE_D),
+                    :APP_ORG_ID);
+         END IF;
+
+      WHEN 'U'
+      THEN
+         IF :ITEM_CODE IS NOT NULL
+         THEN
+             SELECT  NVL(SALES_PRICE,0) 
+		INTO V_RATE
+                FROM g_inv_codes a
+                WHERE code = :ITEM_CODE
+                and org_id = :app_org_id;
+
+         v_amt := nvl(:qty,0)*nvl(V_RATE,0);
+         v_disc := (v_amt*NVL(:DISCOUNT,0))/100;
+         V_TOTAL := v_amt-v_disc;
+
+             UPDATE SP_STORE_D
+             SET ITEM_CODE = :ITEM_CODE, 
+	         ORDER_QTY = :QTY, 
+		 QTY = :QTY, 
+		 RATE = V_RATE, 
+		 TOTAL = V_TOTAL
+             WHERE ROWID = :ROWID;
+
+         END IF;
+
+      WHEN 'D'
+      THEN
+         DELETE SP_STORE_D
+         WHERE ROWID = :ROWID;
+   END CASE;
+
+END;
+
+--*******************
+
+--dynamic action--
+
+SELECT  pkg_inventory.get_inv_item_group_list (code) disp, 
+        PKG_INVENTORY.GET_INV_UNIT (code) UNIT, VAT_PERSENT, NVL(SALES_PRICE,0),UNIT_PRICE
+    FROM g_inv_codes a
+    WHERE code = :ITEM_CODE
+    and org_id = :app_org_id
+
+--**********
+
+apex.region( "SALES" ).widget().interactiveGrid( "getActions" ).invoke( "selection-add-row" );
+
+--*************
+
+javascript:goSearch('regSearch')
+
+--*************
+
+sys.dbms_session.sleep(.1);
+
+
+
+
+
+
+
+
+

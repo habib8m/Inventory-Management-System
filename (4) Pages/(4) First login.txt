@@ -1,0 +1,17 @@
+
+--process--
+
+apex_authentication.send_login_username_cookie (
+    p_username => lower(:P9931_USERNAME),
+    p_consent  => :P9931_REMEMBER = 'Y' );
+
+--*********************
+
+--process--
+
+apex_authentication.login(
+    p_username => :P9931_USERNAME,
+    p_password => :P9931_PASSWORD||'||'||:P9931_ORG_ID
+    );
+
+

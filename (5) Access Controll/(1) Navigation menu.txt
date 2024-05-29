@@ -1,0 +1,82 @@
+
+select -- Menu options, don't link anywhere to aid touch devices
+   distinct 1  lvl
+  ,substr(page_group_name, 1, instr(page_group_name,'_')-1) label
+  ,'#' target
+  ,null  is_current_list_entry
+  ,null  image
+  ,null  image_attribute
+  ,null  image_alt_attribute
+  ,case when page_group_name like 'ADMIN%' then 1 
+    when page_group_name like 'ACCOUNTS%' then 2 
+    when page_group_name like 'HRM%' then 7 
+    when page_group_name like 'PRODUCTION%' then 6 
+    when page_group_name like 'INVENTORY%' then 3 
+    when page_group_name like 'SALES%' then 4
+    when page_group_name like 'PURCHASE%' then 5
+    when page_group_name like 'EXPORT%' then 8
+    when page_group_name like 'BOOKING%' then 9
+  else 99 end ||substr(page_group_name,1,instr(page_group_name,'_')-1)  order1
+
+from apex_application_page_groups pg
+where application_id = :APP_ID
+and page_group_name <> 'MAIN_MENU'
+and page_group_name in (select distinct page_group from SM_OBJECT_PRIVILEGE join apex_application_pages app on OBJ_ID = app.page_id
+                where org_id = :APP_ORG_ID
+                and USER_ID = (SELECT USER_ID FROM SM_USER_LIST where ORG_ID  = :APP_ORG_ID AND UPPER(LOGIN_ID) = UPPER(V('APP_USER'))))
+union all
+select -- Menu options, don't link anywhere to aid touch devices
+   2        lvl
+  ,case when page_group_name like '%_FRM' then 'Forms' 
+        when page_group_name like '%_RPT' then 'Reports' 
+        else page_group_name end label
+  ,'#' target
+  ,null  is_current_list_entry
+  ,null  image
+  ,null  image_attribute
+  ,null  image_alt_attribute
+  ,case when page_group_name like 'ADMIN%' then 1 
+    when page_group_name like 'ACCOUNTS%' then 2 
+    when page_group_name like 'HRM%' then 7 
+    when page_group_name like 'PRODUCTION%' then 6 
+    when page_group_name like 'INVENTORY%' then 3 
+    when page_group_name like 'SALES%' then 4
+    when page_group_name like 'PURCHASE%' then 5
+    when page_group_name like 'EXPORT%' then 8
+    when page_group_name like 'BOOKING%' then 9
+  else 99 end ||page_group_name  order1
+
+from apex_application_page_groups pg
+where application_id = :APP_ID
+and page_group_name <> 'MAIN_MENU'
+and page_group_name in (select distinct page_group from SM_OBJECT_PRIVILEGE join apex_application_pages app on OBJ_ID = app.page_id
+                where org_id = :APP_ORG_ID
+                and USER_ID = (SELECT USER_ID FROM SM_USER_LIST where ORG_ID  = :APP_ORG_ID AND UPPER(LOGIN_ID) = UPPER(V('APP_USER'))))
+union all
+select -- drop down menu options - pages belonging to groups
+   case when page_group = 'MAIN_MENU' then 1 else 3 end       lvl
+  ,page_title   label
+  ,'f?p='||:APP_ID||':'||page_id||':'||:APP_SESSION||':::'||page_id||'::'||:DEBUG  target
+  ,null  is_current_list_entry
+  ,null  image
+  ,null  image_attribute
+  ,null  image_alt_attribute
+  ,case when page_group like 'ADMIN%' then 1 
+    when page_group like 'ACCOUNTS%' then 2 
+    when page_group like 'HRM%' then 7 
+    when page_group like 'PRODUCTION%' then 6 
+    when page_group like 'INVENTORY%' then 3 
+    when page_group like 'SALES%' then 4
+    when page_group like 'PURCHASE%' then 5
+    when page_group like 'EXPORT%' then 8 
+    when page_group like 'BOOKING%' then 9
+  else 99 end ||page_group||nvl(PAGE_COMMENT,'9999') order1
+
+from apex_application_pages ap
+where application_id = :APP_ID
+and page_group is not null -- you may limit this to set groups, allowing further management of utility pages, popups etc
+and exists (select 1 from SM_OBJECT_PRIVILEGE 
+                where org_id = :APP_ORG_ID
+                and USER_ID = (SELECT USER_ID FROM SM_USER_LIST where ORG_ID  = :APP_ORG_ID AND UPPER(LOGIN_ID) = UPPER(V('APP_USER')))
+                and OBJ_ID = ap.page_id)
+order by  order1, lvl,label

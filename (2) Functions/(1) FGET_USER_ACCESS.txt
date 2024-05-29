@@ -1,0 +1,33 @@
+
+create or replace FUNCTION "FGET_USER_ACCESS" (p_user_id in varchar2, p_page_id in number) return boolean 
+is   
+    l_count number; 
+    l_user_role varchar2 (50); 
+
+begin 
+		select count(*) 
+		into l_count 
+		from SM_OBJECT_PRIVILEGE op 
+		join SM_USER_LIST sul on sul.USER_ID = op.USER_ID  
+		where trim(upper(sul.LOGIN_ID)) = trim(upper(p_user_id)) 
+		and op.obj_id  = p_page_id 
+        	and sul.org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID'); 
+ 
+        	select max(POSITION) 
+		into l_user_role 
+		from SM_USER_LIST sul 
+		where trim(upper(sul.LOGIN_ID)) = trim(upper(p_user_id)) 
+        	and sul.org_id = APEX_UTIL.FETCH_APP_ITEM('APP_ORG_ID'); 
+ 
+    if l_user_role = 'SYSTEM_ADMIN' then  
+        return true; 
+    end if; 
+ 
+	if l_count > 0 then  
+	   	return true; 
+	else  
+		return false; 
+	end if; 
+end; 
+/
+

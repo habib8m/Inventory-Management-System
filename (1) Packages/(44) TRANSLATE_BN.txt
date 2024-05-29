@@ -1,0 +1,87 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace PACKAGE translate_bn 
+AS 
+	function  only_num    (p_value number) return varchar2; 
+	function  num_formate (p_value number, p_formate    varchar2) return varchar2; 
+    	function  bangla_date (p_date date) return varchar2; 
+end; 
+/
+
+                                                  ===============================BODY=============================
+
+create or replace PACKAGE BODY translate_bn 
+AS 
+	function  only_num (p_value number) return varchar2 
+	is
+ 
+    	v_result    varchar2(100); 
+    	v_check     number; 
+
+	BEGIN 
+         
+        select substr(to_char(p_value,'fm99G99G99G99G99G99G990d00'),-2) 
+	into v_check from dual; 
+ 
+        if v_check > 0 then 
+    		select translate(to_char(p_value,'99999999999999999999999D99','nls_numeric_characters=''.,'''), '0123456789','০১২৩৪৫৬৭৮৯') 
+		into v_result 
+            	from dual; 
+        else         
+    		select translate(to_char(p_value,'99999999999999999999999','nls_numeric_characters=''.,'''), '0123456789','০১২৩৪৫৬৭৮৯') 
+		into v_result 
+            	from dual; 
+        end if;
+ 
+    return v_result; 
+	end; 
+
+--***********************************
+ 
+	function  num_formate (p_value number, p_formate    varchar2) 
+    	return varchar2 
+	is
+ 
+    	v_result    varchar2(100); 
+    	v_check     number; 
+
+	BEGIN 
+         
+        select substr(to_char(p_value,'fm99G99G99G99G99G99G990d00'),-2) 
+		into v_check 
+		from dual; 
+ 
+        if v_check > 0 then 
+    		select translate(to_char(p_value,nvl(p_formate,'99999999999999999999999D99'),'nls_numeric_characters=''.,'''), '0123456789','০১২৩৪৫৬৭৮৯') 
+		into v_result 
+            	from dual; 
+        else         
+    		select translate(to_char(p_value,nvl(p_formate,'99999999999999999999999'),'nls_numeric_characters=''.,'''), '0123456789','০১২৩৪৫৬৭৮৯') 
+		into v_result 
+            	from dual; 
+        end if;
+ 
+    return v_result; 
+ end; 
+
+--*************************************
+ 
+    function  bangla_date (p_date date)  
+    return varchar2 
+	is 
+     v_result    varchar2(100);
+ 
+	BEGIN 
+    	SELECT translate(TO_CHAR(p_date, 'DD/MM/YYYY','NLS_DATE_LANGUAGE=bangla'),'0123456789','০১২৩৪৫৬৭৮৯') 
+           into v_result 
+           FROM dual; 
+ 
+    return v_result; 
+	end; 
+end translate_bn;
+/
+
+
+
+

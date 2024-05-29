@@ -1,0 +1,150 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace PACKAGE bangla 
+AS 
+	function   num (p_value number) return varchar2; 
+	function   num (p_value number, p_formate varchar2) return varchar2; 
+	procedure  ware_house (p_value number); 
+end; 
+/
+
+
+
+
+                                                  ===============================BODY=============================
+
+create or replace PACKAGE BODY bangla 
+AS 
+	function  num (p_value number) 
+    	return varchar2 
+	is
+ 
+    	v_result    varchar2 (100); 
+    	v_check     number;
+ 
+	BEGIN 
+        select substr(to_char(p_value,'fm99G99G99G99G99G99G990d00'), -2) 
+	into v_check 
+	from dual; 
+ 
+        if v_check > 0 then 
+    	select translate(to_char(p_value,'99999999999999999999999D99','nls_numeric_characters=''.,'''), '0123456789','০১২৩৪৫৬৭৮৯') 
+	into v_result 
+        from dual;
+ 
+        else         
+    	select translate(to_char(p_value,'99999999999999999999999','nls_numeric_characters=''.,'''), '0123456789','০১২৩৪৫৬৭৮৯') 
+	into v_result 
+        from dual; 
+        end if;
+ 
+    	return v_result;
+ 
+	END;
+
+--*******************************
+ 
+function  num (p_value number, p_formate varchar2) 
+    return varchar2 
+    is
+ 
+    v_result    varchar2 (100); 
+    v_check     number;
+ 
+	BEGIN 
+        select substr(to_char(p_value,'fm99G99G99G99G99G99G990d00'), -2) 
+	into v_check 
+	from dual; 
+ 
+        if v_check > 0 then 
+    	select translate(to_char(p_value,nvl(p_formate,'99999999999999999999999D99'),'nls_numeric_characters=''.,'''), '0123456789','০১২৩৪৫৬৭৮৯') 
+	into v_result 
+        from dual;
+ 
+        else         
+    	select translate(to_char(p_value,nvl(p_formate,'99999999999999999999999'),'nls_numeric_characters=''.,'''), '0123456789','০১২৩৪৫৬৭৮৯') 
+	into v_result 
+        from dual; 
+        end if;
+ 
+    return v_result; 
+end;
+ 
+--*******************************
+
+procedure  ware_house (p_value number) 
+	is 
+    	v_sl    number  := 0; 
+    	v_qty   number  := 0;
+ 
+	BEGIN 
+		report_utils.header_without_boarder(p_value, 'Ware house'); 
+ 
+			htp.p('<table style="width:100%"> 
+			<tr> 
+			<th style="width: 80px" style="width:5%">SL No.</th> 
+			<th>Date</th> ');
+ 
+        for i in (select CODE, CODE_DESC 
+		from g_uni_codes 
+		where org_id = 7 
+		and p_code = '700067' 
+		order by code)
+ 
+        loop 
+            htp.p(' 
+		<th>'||htf.escape_sc(i.CODE_DESC)||'</th>'); 
+        end loop;
+ 
+			htp.p('</tr>');
+ 
+        for j in (select distinct TRANS_DATE  
+                from SP_STORE_m 
+		where org_id = 7)
+ 
+       loop 
+        v_sl := v_sl + 1; 
+				htp.p('<tr> 
+				<td style="text-align: center">'||htf.escape_sc(v_sl)||'</td> 
+				<td style="text-align: Left">'||htf.escape_sc(j.TRANS_DATE)||'</td>');
+ 
+                    for r in (select CODE, CODE_DESC 
+				from g_uni_codes 
+				where org_id = 7 
+				and p_code = '700067' 
+				order by code)
+ 
+                    loop 
+                            begin 
+                                select (select nvl(sum(QTY), 0) 
+				from SP_STORE_d 
+				where TRANS_ID = m.TRANS_ID) qty  
+                                into v_qty 
+                                from SP_STORE_m m where org_id = 7 
+                                and TRANS_TYPE = 'ST' 
+                                and TRANS_DATE = j.TRANS_DATE 
+                                and DEPOT_FROM = r.code; 
+                            exception 
+                                when others then  
+                                v_qty := 0; 
+                            end;
+ 
+                        htp.p('<td style="text-align: center">'||htf.escape_sc(v_qty)||'</td>'); 
+ 
+                    end loop; 
+			htp.p('</tr>'); 
+      end loop; 
+ 
+			htp.p('</table>'); 
+             
+		report_utils.footer; 
+	end;
+ 
+--***************************
+
+end;
+/
+
+
+

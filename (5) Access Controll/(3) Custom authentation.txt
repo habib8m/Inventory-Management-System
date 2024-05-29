@@ -1,0 +1,26 @@
+
+function my_authentication (
+    p_username in varchar2,
+    p_password in varchar2 )
+    return boolean
+is
+    l_user SM_USER_LIST.LOGIN_ID%type := trim(upper(p_username)); --substr(p_username,1,instr(p_username,'#',1)-1)    
+    l_password varchar2(500) := substr(p_password,1,instr(p_password,'||',1)-1);
+    l_org_id number := replace(p_password,l_password||'||','');
+    l_id   SM_USER_LIST.USER_ID%type;
+    l_user_role varchar2(200);
+begin
+    :APP_ORG_ID := l_org_id;
+    begin
+        select USER_ID, POSITION
+          into l_id, l_user_role
+          from SM_USER_LIST
+         where trim(upper(LOGIN_ID)) = l_user
+		 and pwd = l_password
+         and org_id = l_org_id;
+         :APP_USER_ROLE := l_user_role;
+    exception when others then
+        return false;
+    end;
+    return true;
+end;

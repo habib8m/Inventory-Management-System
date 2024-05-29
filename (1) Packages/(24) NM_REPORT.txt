@@ -1,0 +1,844 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace package "NM_REPORT" as 
+procedure WAGES_SALARY_SHEET(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_sec_code number,p_desig_code number,p_cid_no number,
+                                p_ot_type varchar2,p_pay_type varchar2);--page : 338 
+procedure SUMEMERY_SHEET_OF_WAGES_AND_SALARY(p_project_code number,p_from_date date,p_to_date date);--page : 339 
+procedure attendance_report(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_sec_code number,dept_code number,p_desig_code number
+                                ,p_cid_no number, p_ot_type varchar2); 
+
+    procedure bonus_sheet(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_sec_code number,p_desig_code number,p_cid_no number,
+                                p_ot_type varchar2,p_pay_type varchar2) ; 
+procedure SUMEMERY_SHEET_OF_EIDULFITAR(p_project_code number,p_from_date date,p_to_date date) ;                                                              
+end "NM_REPORT";
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace package body "NM_REPORT" as 
+procedure WAGES_SALARY_SHEET(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_sec_code number,p_desig_code number,p_cid_no number,
+                                p_ot_type varchar2,p_pay_type varchar2) 
+    IS 
+	v_sl                number    := 0;  
+    v_sl_g              number    := 0; 
+    v_count             number    := 0;
+    v_basic_sal         number := 0;
+    v_basic_sal_g         number := 0;
+    v_h_rent            number := 0;
+    v_h_rent_g            number := 0;
+    v_m_amt             number := 0;
+    v_m_amt_g             number := 0;
+    v_con_amt           number := 0;
+    v_con_amt_g           number := 0;
+    v_food_amt          number := 0;
+    v_food_amt_g          number := 0;
+    v_gr_amt            number := 0;
+    v_gr_amt_g            number := 0;
+    v_pay_sal           number := 0;
+    v_pay_sal_g           number := 0;
+    v_net_sal           number := 0;
+    v_net_sal_g           number := 0;
+    v_absnt_amt         number  := 0;
+    v_absnt_amt_g        number  := 0;
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'WAGES & SALARY SHEET (Factory)'); 
+        htp.p('<h4 style="margin-top: 10px; text-align: center;text-decoration: underline">For The Month Of : '
+                                                                        ||htf.escape_sc(to_char(P_from_date,'Month-YYYY'))||'</h4>'); 
+
+    			htp.p('<table style="width:100%;font-size:11px;"><tr>             
+        			<th style="width:1%">SL</th> 
+                    <th style="width:1%">ID</th> 
+                    <th style="width:50%">Employee Name</th> 
+        			<th style="width:30%">Designation</th> 
+        			<th style="width:10%">Joining Date</th>  
+                    <th style="width:1%">Basic</th> 
+        			<th style="width:1%">House Rent</th> 
+        			<th style="width:1%">Medical</th> 
+                    <th style="width:1%">Conveyance</th> 
+        			<th style="width:1%">Food</th> 
+                    <th style="width:1%">Gross</th> 
+                    <th style="width:1%">Leave days</th> 
+                    <th style="width:1%">Atandance</th> 
+                    <th style="width:1%">Payable salary</th> 
+                    <th style="width:1%">Absent days</th> 
+                    <th style="width:1%">Absent Deduction</th> 
+                    <th style="width:1%">Deduction (Advance)</th> 
+                    <th style="width:1%">Net Salary</th> 
+                    <th style="width:1%">Signature</th>  
+        			</tr>'); 
+
+            FOR r in (SELECT CODE, CODE_DESC  
+                        FROM G_UNI_CODES  
+                        WHERE P_CODE = p_org_id||'0003' 
+                        -- AND code = nvl(v_section_code,code) 
+                        AND org_id = p_org_id  ) 
+            loop 
+                   SELECT COUNT(*) INTO V_COUNT 
+                    from V_SALARY_sheet
+                    where SEC_CODE = r.code
+                    and sec_code = nvl(p_sec_code,sec_code)
+                    and desig_code = nvl(p_desig_code,desig_code)
+                    and cid_no = nvl(p_cid_no,cid_no)
+                    and ot_type = nvl(p_ot_type,ot_type)
+                    and pay_type = nvl(p_pay_type,pay_type)
+                    and SALARY_DATE between p_from_date and p_to_date; 
+            IF V_COUNT > 0 THEN 
+                HTP.p ('<tr> 
+                            <td colspan="5"  style="text-align: left;padding-top:4px;padding-bottom:4px;border-right:none;"><b>' 
+                           || HTF.escape_sc (r.CODE_DESC) 
+                           || ' Section</b></td>  
+                        <tr>');
+            end if;
+ 
+            v_sl := 0; 
+            v_basic_sal := 0;
+            v_h_rent    := 0; 
+            v_m_amt     := 0;
+            v_con_amt   := 0;
+            v_food_amt  := 0;
+            v_gr_amt    := 0;
+            v_pay_sal   := 0;
+            v_absnt_amt := 0;
+            v_net_sal   := 0;
+        
+            for i in (select rownum,
+                            UID_NO,
+                            EMP_NAME,
+                            DESIG_NAME,
+                            JOINING_DATE,
+                            BASIC_SAL,
+                            HOUSE_RENT,
+                            MEDICAL,
+                            CON_ALLOW_N,
+                            FOOD_ALLOW,
+                            GROSS_SALARY, 
+                            NVL (LEAVE_SL, 0)+ NVL (LEAVE_EL, 0)+ NVL (LEAVE_CL, 0)+ NVL (LEAVE_LWP, 0)+NVL (LEAVE_ML, 0) t_leave,
+                             PRESENT,
+                             gross_pay pay_salary,
+                             ABSENT,
+                             DEDUCT_ABSENT_AMOPUNT absent_deduct,
+                             null Advance_deduct,
+                             NET_PAY
+                        from V_SALARY_sheet
+                        where SEC_CODE = r.code
+                        and sec_code = nvl(p_sec_code,sec_code)
+                        and desig_code = nvl(p_desig_code,desig_code)
+                        and cid_no = nvl(p_cid_no,cid_no)
+                        and ot_type = nvl(p_ot_type,ot_type)
+                        and pay_type = nvl(p_pay_type,pay_type)
+                        and SALARY_DATE between p_from_date and p_to_date 
+                        ) 
+            loop 
+ 
+                v_sl := v_sl + 1;
+                v_sl_g := v_sl_g + 1;
+                v_basic_sal := v_basic_sal + nvl(i.BASIC_SAL,0);
+                v_basic_sal_g := v_basic_sal_g + nvl(i.BASIC_SAL,0);
+                v_h_rent    := v_h_rent + nvl(i.HOUSE_RENT,0); 
+                v_h_rent_g    := v_h_rent_g + nvl(i.HOUSE_RENT,0); 
+                v_m_amt     := v_m_amt + nvl(i.MEDICAL,0);
+                v_m_amt_g     := v_m_amt_g + nvl(i.MEDICAL,0);
+                v_con_amt   := v_con_amt + nvl(i.CON_ALLOW_N,0);
+                v_con_amt_g   := v_con_amt_g + nvl(i.CON_ALLOW_N,0);
+                v_food_amt  := v_food_amt + nvl(i.FOOD_ALLOW,0);
+                v_food_amt_g  := v_food_amt_g + nvl(i.FOOD_ALLOW,0);
+                v_gr_amt    := v_gr_amt + nvl(i.GROSS_SALARY,0);
+                v_gr_amt_g    := v_gr_amt_g + nvl(i.GROSS_SALARY,0);
+                v_pay_sal   := v_pay_sal + nvl(i.pay_salary,0);
+                v_pay_sal_g   := v_pay_sal_g + nvl(i.pay_salary,0);
+                v_absnt_amt := v_absnt_amt + nvl(i.absent_deduct,0);
+                v_absnt_amt_g := v_absnt_amt_g + nvl(i.absent_deduct,0);
+                v_net_sal   := v_net_sal + nvl(i.NET_PAY,0);
+                v_net_sal_g   := v_net_sal_g + nvl(i.NET_PAY,0);
+             	 
+                HTP.p ('<tr> 
+                       <td style="text-align: center">' 
+                   || HTF.escape_sc (V_SL) 
+                   || '</td>                  
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.UID_NO) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (i.EMP_NAME) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (i.DESIG_NAME) 
+                   || '</td>                     
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (to_char(i.JOINING_DATE,'dd-mm-yy')) 
+                   || '</td> 
+                   <td style="text-align: right">' 
+                   || HTF.escape_sc(I.BASIC_SAL) 
+                   || '</td> 
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (i.HOUSE_RENT) 
+                   || '</td> 
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (i.MEDICAL) 
+                   || '</td> 
+                   <td style="text-align: right">'
+                   || HTF.escape_sc (i.CON_ALLOW_N) 
+                   ||'</td> 
+                    <td style="text-align: right">'
+                    ||HTF.escape_sc (i.FOOD_ALLOW) 
+                   ||'</td> 
+                    <td style="text-align: right">'
+                    ||HTF.escape_sc (i.GROSS_SALARY) 
+                   ||'</td> 
+                   <td style="text-align: center">'
+                   ||HTF.escape_sc (i.t_leave) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (i.PRESENT) 
+                   ||'</td>                    
+                   <td style="text-align: right">'
+                   ||HTF.escape_sc (i.pay_salary) 
+                   ||'</td> 
+                   <td style="text-align: center">'
+                   ||HTF.escape_sc (i.ABSENT) 
+                   ||'</td> 
+                   <td style="text-align: right">'||HTF.escape_sc (i.absent_deduct) 
+                   ||'</td> 
+                   <td style="text-align: right">'
+                   ||HTF.escape_sc (i.Advance_deduct) 
+                   ||'</td> 
+                   <td style="text-align: right">'
+                   ||HTF.escape_sc (i.NET_PAY) 
+                   ||'</td> 
+                   <td>'||HTF.escape_sc (null) 
+                   ||'</td> 
+                    </tr>');  
+    			end loop;
+           IF V_COUNT > 0 THEN  
+                HTP.p ('<tr> 
+                    <td colspan="5" style="text-align: right;"><b>Total '||HTF.escape_sc(r.code_desc)||' Section</b> :</td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_basic_sal,'99,99,999')) 
+                   ||'</b></td>  
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_h_rent,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_m_amt,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_con_amt,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_food_amt,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_gr_amt,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_pay_sal,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_absnt_amt,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_net_sal,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td>
+                    </tr>');   
+            end if;
+        end loop;    
+         HTP.p ('<tr> 
+                    <td colspan="3" style="text-align: left;"><b>Total Employee : '||(v_sl_g)||'</b> </td> 
+                    <td colspan="2" style="text-align: right;"><b>Grand Total </b> :</td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_basic_sal_g,'99,99,999')) 
+                   ||'</b></td>  
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_h_rent_g,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_m_amt_g,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_con_amt_g,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_food_amt_g,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_gr_amt_g,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_pay_sal_g,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_absnt_amt_g,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_net_sal_g,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td>
+                    </tr>'); 
+        htp.p('</table>'); 
+         HTP.p ('<div style="float:left;margin-bottom:20px;"> 
+                            <p><b>In word:</b> 
+                            ' 
+            ||COM.IN_WORD(null) 
+            || '</div>'); 
+ 
+        report_utils.footer; 
+     
+    END; 
+
+--*****************************
+
+    procedure SUMEMERY_SHEET_OF_WAGES_AND_SALARY(p_project_code number,p_from_date date,p_to_date date) 
+    IS 
+	v_sl            number    := 0;
+    v_count         number    := 0;
+    v_tot_emp       number := 0;
+    v_gr_sal        number := 0;
+    v_net_sal       number := 0;
+    v_pay_sal       number := 0;
+    v_ot_amt        number := 0;
+    v_deduct_adv    number := 0;
+    v_gross_pay     number := 0; 
+ 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'TOTAL SUMEMERY SHEET OF WAGES & SALARY'); 
+        htp.p('<h4 style="margin-top: 10px; text-align: center;text-decoration: underline">For The Month Of : '||htf.escape_sc(to_char(P_from_date,'Month-YYYY'))||'</h4>');
+
+			htp.p('<table style="width:100%"><tr>             
+    			<th style="width:1%">SL No</th> 
+    			<th style="width:10%">Description</th> 
+    			<th style="width:5%">Man Power </th>  
+                <th style="width:10%">Gross Salary</th>
+                <th style="width:10%">Payable Salary</th>
+                <th style="width:10%">OT Amount</th> 
+                <th style="width:10%">Gross Payable</th>
+    			<th style="width:5%">Deduct Advance</th> 
+                <th style="width:5%">Net Payable</th> 
+                <th style="width:5%">Remarks</th> 
+    			</tr>'); 
+--END IF; 
+            v_sl := 0; 
+            v_tot_emp := 0;
+            v_gr_sal  := 0;
+            v_net_sal := 0;
+            v_pay_sal := 0;
+            v_ot_amt  := 0;
+            for i in ( select CODE,
+                            CODE_DESC,
+                            count(CID_NO) no_of_emp,
+                            sum(GROSS_SALARY)  gross_sal,
+                            sum(gross_pay) pay_salary,
+                            sum(NET_PAY) Net_Payable,
+                            SUM(VS.OT_AMOUNT) OT_AMT,
+                            SUM(TOTAL_DEDUCT) DEDUCT_ADV,
+                            (sum(gross_pay)  + SUM(VS.OT_AMOUNT)) GROSS_PAYABLE
+                     from V_SALARY_sheet VS,G_UNI_CODES GI
+                     WHERE VS.SEC_CODE = GI.CODE
+                     AND OT_TYPE = 'Y'
+                     AND NVL(VS.OT_AMOUNT,0) <> 0
+                     AND SALARY_DATE BETWEEN P_FROM_DATE AND P_TO_DATE
+                     group by CODE,CODE_DESC 
+                        ) 
+            loop 
+                v_sl := v_sl + 1; 
+             	 
+                HTP.p ('<tr> 
+                       <td style="text-align: center">' 
+                   || HTF.escape_sc (V_SL) 
+                   || '</td>                  
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (i.CODE_DESC) 
+                   || '</td> 
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.no_of_emp) 
+                   || '</td> 
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (to_char(i.gross_sal,'99,99,99,999')) 
+                   || '</td>                     
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (to_char(i.pay_salary,'99,99,99,999')) 
+                   || '</td> 
+                   <td style="text-align: right">' 
+                   || HTF.escape_sc(to_char(I.OT_AMT,'99,99,99,999')) 
+                   || '</td> 
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (to_char(i.GROSS_PAYABLE,'99,99,99,999')) 
+                   || '</td> 
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (NULL) 
+                   || '</td> 
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (to_char(i.Net_Payable,'99,99,99,999')) 
+                   || '</td> 
+                    <td style="text-align: left">' 
+                   || HTF.escape_sc (null) 
+                   || '</td> 
+                    </tr>'); 
+                 v_tot_emp := v_tot_emp + nvl(i.no_of_emp,0);
+                v_gr_sal := v_gr_sal + nvl(i.gross_sal,0);
+                v_net_sal := v_net_sal + nvl(i.Net_Payable,0);
+                v_pay_sal := v_pay_sal + nvl(i.pay_salary,0);
+                 v_ot_amt := v_ot_amt + nvl(i.ot_amt,0);
+                 v_gross_pay := v_gross_pay + nvl(i.GROSS_PAYABLE,0);
+    	    end loop; 
+        HTP.p ('<tr> 
+            <td colspan="2" style="text-align: right;"><b>Grand Total</b> :</td> 
+           <td><b>'|| HTF.escape_sc (v_tot_emp)
+           ||'</b></td> 
+           <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_gr_sal,'99,99,999')) 
+           ||'</b></td> 
+           <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_pay_sal,'99,99,999')) 
+           ||'</b></td> 
+           <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_ot_amt,'99,99,999')) 
+           ||'</b></td> 
+           <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_gross_pay,'99,99,999')) 
+           ||'</b></td> 
+           <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+           ||'</b></td> 
+           <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_net_sal,'99,99,999')) 
+           ||'</b></td>                 
+            </tr>'); 
+        htp.p('</table>'); 
+         HTP.p ('<div style="float:left;margin-bottom:20px;margin-top:10px;"> 
+                            <p><b>IN Word:</b> 
+                            ' 
+            ||COM.IN_WORD(v_net_sal) 
+            || '</div>'); 
+ 
+        report_utils.footer; 
+     
+    END; 
+
+--*****************************
+     
+    procedure attendance_report(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_sec_code number,dept_code number,p_desig_code number
+                                ,p_cid_no number, p_ot_type varchar2) 
+    is 
+    v_sl                number    := 0; 
+	v_tot_sl            number    := 0; 
+    v_basic             number    := 0; 
+    v_total_basic       number    := 0; 
+    v_count             number    := 0; 
+    v_days             number    := p_to_date-p_from_date+1; 
+ 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'Attendance Report'); 
+        htp.p('<h4 style="margin-top: 0px; text-align: center">Date from : '||htf.escape_sc(P_from_date)||' to '||htf.escape_sc(P_To_date)||'</h4>');  
+		htp.p('<table style="width:100%"><tr>             
+			<th style="width:2%">SL</th> 
+			<th style="width:2%">ID No</th> 
+			<th style="width:10%">Name</th>  
+            <th style="width:16%">Designation</th> 
+			<th style="width:4%">In Time</th> 
+			<th style="width:4%">Out Time</th> 
+            <th style="width:4%">Late</th> 
+            <th style="width:4%">Early</th> 
+            <th style="width:4%">Over Time</th> 
+            <th style="width:4%">Status</th> 
+			</tr>'); 
+       
+        if v_days < 1 then v_days := 1; end if;
+        for d in 1..v_days loop
+         v_sl := 0;
+            for j in (select code,code_desc  
+                        from g_uni_codes gi
+                        where gi.code in (select distinct ei.sec_code from emp_info ei where ei.org_id = p_org_id)
+                        and gi.org_id = p_org_id
+                        and code = nvl(p_sec_code,code)
+                        order by gi.code
+                    ) 
+            loop 
+                select count(*) into v_count
+                        FROM emp_info ei, 
+                         g_uni_codes duc, 
+                         g_uni_codes puc, 
+                         pr_day_wise_attendence pt, 
+                         g_uni_codes pp 
+                   WHERE ei.sec_code = duc.code 
+                     AND ei.sec_code = j.code 
+                     AND ei.project_code = pp.code 
+                     AND ei.desig_code = puc.code 
+                     and ei.org_id = p_org_id 
+                     AND ei.cid_no = pt.cid_no 
+                     AND NVL (ei.emp_out, 'N') <> 'Y' 
+                     AND ei.project_code = NVL (p_project_code, ei.project_code)
+                     and ei.ot_type = nvl(p_ot_type,ei.ot_type)
+                     and ei.cid_no = nvl(p_cid_no,ei.cid_no) 
+                    --  AND NVL (ei.dept_code, 0) = NVL (:p_dept_code, NVL (ei.dept_code, 0)) 
+                     AND NVL (ei.sec_code, 0) = NVL (p_sec_code, NVL (ei.sec_code, 0)) 
+                     AND NVL (ei.desig_code, 0) = NVL (p_desig_code, NVL (ei.desig_code, 0)) 
+                    --  AND NVL (ei.line_code, 0) = NVL (:p_line_code, NVL (ei.line_code, 0)) 
+                     AND pt.trans_date = p_from_date+d-1 
+                     AND pt.trans_date <= NVL (ei.emp_out_date, p_to_date) 
+                     AND pt.trans_date >= ei.joining_date 
+                ORDER BY ei.uid_no ASC, 
+                         duc.code_level, 
+                         puc.code_level;
+            if v_count > 0 then
+                HTP.p ('<tr> 
+                            <th colspan="7"  style="text-align: left;border-right:none;padding-top:10px;padding-bottom:10px;">Section: ' 
+                           || HTF.escape_sc (j.CODE_DESC) 
+                           || '</th> 
+                            <th colspan="3"  style="text-align: right;border-left:none;">Attendance Date: ' 
+                           || HTF.escape_sc (p_from_date+d-1) 
+                           || '</th> 
+                        <tr>'); 
+            end if;
+                for i in (SELECT   pp.code_level project_leve, pp.code_desc project_name, pt.trans_date, 
+                                         duc.code_level sec_level, puc.code_level desig_level, 
+                                         duc.code_desc sec_name, ei.cid_no, '  ' || ei.uid_no emp_code, 
+                                         '  ' || emp_name emp_name, '  ' || puc.code_desc designation, 
+                                         in_time, pt.out_time, 
+                                            TO_CHAR (ROUND (TRUNC ((pt.late_min / 60), 0), '00')) 
+                                         || ':' 
+                                         || TO_CHAR (ROUND (MOD (pt.late_min, 60)), '00') late, 
+                                            TO_CHAR (ROUND (TRUNC ((pt.early_min / 60), 0), '00')) 
+                                         || ':' 
+                                         || TO_CHAR (ROUND (MOD (pt.early_min, 60)), '00') early, 
+                                         DECODE (ei.ot_type, 
+                                                 'Y', TO_CHAR (ROUND (TRUNC ((pt.over_time_min / 60), 0), 
+                                                                      '00' 
+                                                                     ) 
+                                                              ) 
+                                                  || ':' 
+                                                  || TO_CHAR (ROUND (MOD (pt.over_time_min, 60)), '00'), 
+                                                 '' 
+                                                ) over_time, 
+                                            (CASE 
+                                                WHEN att_status IN (SELECT leave_type_id 
+                                                                      FROM leave_type_info 
+                                                                     WHERE leave_type = 'CL') 
+                                                   THEN 'Casual Leave' 
+                                                WHEN att_status IN (SELECT leave_type_id 
+                                                                      FROM leave_type_info 
+                                                                     WHERE leave_type = 'SL') 
+                                                   THEN 'Sick Leave' 
+                                                WHEN att_status IN (SELECT leave_type_id 
+                                                                      FROM leave_type_info 
+                                                                     WHERE leave_type = 'EL') 
+                                                   THEN 'Earn Leave' 
+                                                WHEN att_status IN (SELECT leave_type_id 
+                                                                      FROM leave_type_info 
+                                                                     WHERE leave_type = 'ML') 
+                                                   THEN 'Maternity Leave' 
+                                                WHEN att_status IN (SELECT leave_type_id 
+                                                                      FROM leave_type_info 
+                                                                     WHERE leave_type = 'LWP') 
+                                                   THEN 'Leave Without Pay' 
+                                                WHEN att_status IN (0) 
+                                                   THEN 'Absent' 
+                                                WHEN att_status IN (1) 
+                                                   THEN    pt.remarks 
+                                                        || DECODE (NVL (late_min, 0), 0, NULL, ' Late') 
+                                                WHEN att_status IN (7) 
+                                                   THEN 'Weekend' 
+                                                WHEN att_status IN (8) 
+                                                   THEN (SELECT g.description 
+                                                           FROM pr_public_holi_day g 
+                                                          WHERE g.holi_date = trans_date 
+                                                            AND g.project_code = p_project_code) 
+                                                ELSE NULL 
+                                             END 
+                                            ) 
+                                         || DECODE (NVL (holiday_work, 0), 0, '', ' & Present') 
+                                         || DECODE (TO_CHAR (in_time, 'DDMMRRRRHH24MISS'), 
+                                                    NULL, NULL, 
+                                                    TO_CHAR (out_time, 'DDMMRRRRHH24MISS'), ' Error Data', 
+                                                    NULL 
+                                                   ) status 
+                                    FROM emp_info ei, 
+                                         g_uni_codes duc, 
+                                         g_uni_codes puc, 
+                                         pr_day_wise_attendence pt, 
+                                         g_uni_codes pp 
+                                   WHERE ei.sec_code = duc.code 
+                                     AND ei.sec_code = j.code 
+                                     AND ei.project_code = pp.code 
+                                     AND ei.desig_code = puc.code 
+                                     and ei.org_id = p_org_id 
+                                     AND ei.cid_no = pt.cid_no 
+                                     AND NVL (ei.emp_out, 'N') <> 'Y' 
+                                     and att_status <> 0
+                                     AND ei.project_code = NVL (p_project_code, ei.project_code) 
+                                     and ei.ot_type = nvl(p_ot_type,ei.ot_type)
+                                     and ei.cid_no = nvl(p_cid_no,ei.cid_no)
+                                    --  AND NVL (ei.dept_code, 0) = NVL (:p_dept_code, NVL (ei.dept_code, 0)) 
+                                     AND NVL (ei.sec_code, 0) = NVL (p_sec_code, NVL (ei.sec_code, 0)) 
+                                     AND NVL (ei.desig_code, 0) = NVL (p_desig_code, NVL (ei.desig_code, 0)) 
+                                    --  AND NVL (ei.line_code, 0) = NVL (:p_line_code, NVL (ei.line_code, 0)) 
+                                     AND pt.trans_date = p_from_date+d-1 
+                                     AND pt.trans_date <= NVL (ei.emp_out_date, p_to_date) 
+                                     AND pt.trans_date >= ei.joining_date 
+                                ORDER BY ei.uid_no ASC, 
+                                         duc.code_level, 
+                                         puc.code_level 
+                            ) 
+                loop 
+     
+                    v_sl := v_sl + 1; 
+                    HTP.p ('<tr> 
+                           <td style="text-align: center">' 
+                       || HTF.escape_sc (V_SL) 
+                       || '</td>                  
+                        <td style="text-align: center">' 
+                       || HTF.escape_sc (i.emp_code) 
+                       || '</td> 
+                        <td style="text-align: Left">' 
+                       || HTF.escape_sc (i.emp_name) 
+                       || '</td> 
+                        <td style="text-align: Left">' 
+                       || HTF.escape_sc (i.designation) 
+                       || '</td>                     
+                        <td style="text-align: center">' 
+                       || HTF.escape_sc (to_char(i.in_time,'hh24:mi AM')) 
+                       || '</td> 
+                       <td style="text-align: CENTER">' 
+                       || HTF.escape_sc(to_char(i.out_time,'hh24:mi AM')) 
+                       || '</td> 
+                        <td style="text-align: center">' 
+                       || HTF.escape_sc (i.late) 
+                       || '</td> 
+                        <td style="text-align: center">' 
+                       || HTF.escape_sc (i.early) 
+                       || '</td> 
+                        <td style="text-align: center">' 
+                       || HTF.escape_sc (i.over_time) 
+                       || '</td> 
+                       <td style="text-align: center">'|| HTF.escape_sc (i.status) 
+                       ||'</td> 
+                        </tr>'); 
+        		end loop; 
+                v_sl := 0;
+           end loop;
+        end loop;    
+        htp.p('</table>');                   
+    END; 
+
+--*****************************
+
+    procedure bonus_sheet(p_project_code number,p_from_date date,p_to_date date,p_org_id number,p_sec_code number,p_desig_code number,p_cid_no number,
+                                p_ot_type varchar2,p_pay_type varchar2) 
+    IS 
+	v_sl                number := 0;  
+    v_sl_g              number := 0; 
+    v_count             number := 0;
+    v_basic_sal         number := 0;
+    v_basic_sal_g       number := 0;
+    v_groos_sal         number := 0;
+    v_groos_sal_g       number := 0;
+    v_BONUS             number := 0;
+    v_BONUS_g           number := 0;
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'EID-UL-FITAR BONUS SHEET'); 
+        htp.p('<h4 style="margin-top: 10px; text-align: center;text-decoration: underline">For The Year Of : '
+                                                                        ||htf.escape_sc(to_char(P_from_date,'YYYY'))||'</h4>'); 
+
+    			htp.p('<table style="width:100%;font-size:12px;"><tr>             
+        			<th style="width:2%">SL</th> 
+                    <th style="width:4%">Card No</th> 
+                    <th style="width:12%">Employee Name</th> 
+        			<th style="width:15%">Designation</th> 
+        			<th style="width:6%">Joining Date</th>  
+                    <th style="width:5%">Grade</th> 
+        			<th style="width:5%">Gross</th> 
+        			<th style="width:5%">Basic Salary</th> 
+        			<th style="width:5%">Bonus Pay %</th> 
+                    <th style="width:5%">Net Pay</th> 
+        			<th style="width:5%">Signature</th>   
+        			</tr>'); 
+
+            FOR r in (SELECT CODE, CODE_DESC  
+                        FROM G_UNI_CODES  
+                        WHERE P_CODE = p_org_id||'0003' 
+                        -- AND code = nvl(v_section_code,code) 
+                        AND org_id = p_org_id  ) 
+            loop 
+                   SELECT COUNT(*) INTO V_COUNT 
+                    FROM PR_BONUS_D BD,EMP_INFO EI, G_UNI_CODES GI,PR_BONUS_SETUP BS
+                    WHERE BD.CID_NO = EI.CID_NO
+                    AND EI.DESIG_CODE = GI.CODE
+                    AND BD.BONUS_NO = BS.BONUS_NO
+                    AND EI.SEC_CODE = R.CODE
+                    AND EI.ORG_ID = p_org_id;
+            IF V_COUNT > 0 THEN 
+                HTP.p ('<tr> 
+                            <td colspan="5"  style="text-align: left;padding-top:4px;padding-bottom:4px;border-right:none;"><b>' 
+                           || HTF.escape_sc (r.CODE_DESC) 
+                           || ' Section</b></td>  
+                        <tr>');
+            end if;
+ 
+            v_sl        := 0; 
+            v_basic_sal := 0;
+            v_groos_sal := 0; 
+            v_BONUS     := 0;
+        
+            for i in (SELECT BD.UID_NO,
+                            BD.JOINING_DATE,
+                            BD.PRESEN_SALARY,
+                            BD.BONUS,
+                            BD.BASIC_SAL,
+                            EI.EMP_NAME,
+                            GI.CODE_DESC DESIGNATION,
+                            BS.BANUS_RATE
+                    FROM PR_BONUS_D BD,EMP_INFO EI, G_UNI_CODES GI,PR_BONUS_SETUP BS
+                    WHERE BD.CID_NO = EI.CID_NO
+                    AND EI.DESIG_CODE = GI.CODE
+                    AND BD.BONUS_NO = BS.BONUS_NO
+                    AND EI.SEC_CODE = R.CODE
+                    AND EI.ORG_ID = p_org_id
+                    order by to_number(substr(bd.uid_no,3))
+                        ) 
+            loop 
+ 
+                v_sl            := v_sl + 1;
+        --         v_sl_g := v_sl_g + 1;
+                v_basic_sal     := v_basic_sal   + nvl(i.BASIC_SAL,0);
+                v_basic_sal_g   := v_basic_sal_g + nvl(i.BASIC_SAL,0);
+                v_groos_sal     := v_groos_sal   + nvl(i.PRESEN_SALARY,0); 
+                v_groos_sal_g   := v_groos_sal_g + nvl(i.PRESEN_SALARY,0); 
+                v_BONUS         := v_BONUS       + nvl(i.BONUS,0);
+                v_BONUS_g       := v_BONUS_g     + nvl(i.BONUS,0);
+             	 
+                HTP.p ('<tr> 
+                       <td style="text-align: center">' 
+                   || HTF.escape_sc (V_SL) 
+                   || '</td>                  
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (i.UID_NO) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (i.EMP_NAME) 
+                   || '</td> 
+                    <td style="text-align: Left">' 
+                   || HTF.escape_sc (i.DESIGNATION) 
+                   || '</td>                     
+                    <td style="text-align: center">' 
+                   || HTF.escape_sc (to_char(i.JOINING_DATE,'dd-mm-yy')) 
+                   || '</td> 
+                   <td style="text-align: CENTER">' 
+                   || HTF.escape_sc(NULL) 
+                   || '</td> 
+                    <td style="text-align: right">' 
+                   || HTF.escape_sc (i.PRESEN_SALARY) 
+                   || '</td> 
+                   <td style="text-align: right">' 
+                   || HTF.escape_sc(i.basic_sal) 
+                   || '</td> 
+                    <td style="text-align: CENTER">' 
+                   || HTF.escape_sc (i.BANUS_RATE) 
+                   || '%'||'</td> 
+                   <td style="text-align: right">'
+                   || HTF.escape_sc (i.BONUS) 
+                   ||'</td>
+                    <td style="text-align: CENTER">' 
+                   || HTF.escape_sc (NULL) 
+                   || '</td>   
+                    </tr>');  
+    			end loop;
+           IF V_COUNT > 0 THEN  
+                HTP.p ('<tr> 
+                    <td colspan="6" style="text-align: right;"><b>Total</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_groos_sal,'99,99,999')) 
+                   ||'</b></td>  
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_basic_sal,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_BONUS,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td>
+                    </tr>');   
+            end if;
+        end loop;
+                HTP.p ('<tr> 
+                    <td colspan="6" style="text-align: right;"><b>Grand Total</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_groos_sal_g,'99,99,999')) 
+                   ||'</b></td>  
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_basic_sal_g,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(v_BONUS_g,'99,99,999')) 
+                   ||'</b></td> 
+                   <td style="text-align: right;"><b>'|| HTF.escape_sc (to_char(null,'99,99,999')) 
+                   ||'</b></td>
+                    </tr>');
+        htp.p('</table>'); 
+     
+    END; 
+
+--*****************************
+
+    procedure SUMEMERY_SHEET_OF_EIDULFITAR(p_project_code number,p_from_date date,p_to_date date) 
+    IS 
+	v_sl            number    := 0;
+    v_count         number    := 0;
+    v_tot_emp       number := 0;
+    v_gr_sal        number := 0;
+    v_net_sal       number := 0;
+    v_pay_sal       number := 0;
+    v_ot_amt        number := 0;
+    v_deduct_adv    number := 0;
+    v_gross_pay     number := 0; 
+ 
+    v_salry_title varchar2(200)	; 
+	BEGIN 
+		report_utils.header_without_boarder(NULL ,'EID-UL-FITAR'); 
+
+			htp.p('<table style="width:100%"><tr>             
+    			<th style="width:1%">SL No</th> 
+    			<th style="width:10%">Section Name</th> 
+    			<th style="width:5%">No. Of Employee</th>  
+                <th style="width:10%">Gross Salary</th>
+                <th style="width:10%">Bank Amount</th>
+                <th style="width:10%">Cash Amount</th> 
+                <th style="width:10%">Total Amount</th>
+    			</tr>'); 
+            v_sl := 0; 
+            v_tot_emp := 0;
+            v_gr_sal  := 0;
+            v_net_sal := 0;
+            v_pay_sal := 0;
+            v_ot_amt  := 0;
+            for i in ( select CODE,
+                            CODE_DESC,
+                            count(CID_NO) no_of_emp,
+                            sum(GROSS_SALARY)  gross_sal,
+                            sum(gross_pay) pay_salary,
+                            sum(NET_PAY) Net_Payable,
+                            SUM(VS.OT_AMOUNT) OT_AMT,
+                            SUM(TOTAL_DEDUCT) DEDUCT_ADV,
+                            (sum(gross_pay)  + SUM(VS.OT_AMOUNT)) GROSS_PAYABLE
+                     from V_SALARY_sheet VS,G_UNI_CODES GI
+                     WHERE VS.SEC_CODE = GI.CODE
+                     AND OT_TYPE = 'Y'
+                     AND NVL(VS.OT_AMOUNT,0) <> 0
+                     AND SALARY_DATE BETWEEN P_FROM_DATE AND P_TO_DATE
+                     group by CODE,CODE_DESC 
+                        ) 
+            loop 
+                v_sl := v_sl + 1; 
+             	 
+
+                 v_tot_emp := v_tot_emp + nvl(i.no_of_emp,0);
+                v_gr_sal := v_gr_sal + nvl(i.gross_sal,0);
+                v_net_sal := v_net_sal + nvl(i.Net_Payable,0);
+                v_pay_sal := v_pay_sal + nvl(i.pay_salary,0);
+                 v_ot_amt := v_ot_amt + nvl(i.ot_amt,0);
+                 v_gross_pay := v_gross_pay + nvl(i.GROSS_PAYABLE,0);
+    	    end loop; 
+
+        htp.p('</table>'); 
+     
+    END;
+
+--*****************************
+ 
+end "NM_REPORT";
+/
+

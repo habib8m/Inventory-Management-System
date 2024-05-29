@@ -1,0 +1,33 @@
+
+create or replace FUNCTION          "PROCESS_TRNS_TO_BALANCE" (p_org_id number,p_trn_pk_id number,p_TRANS_CODE number,p_TRAN_ID number 
+            ) RETURN VARCHAR2 
+IS 
+	V_return VARCHAR2(20) := 'SUCCESS'; 
+	v_parent_code number; 
+BEGIN 
+	begin 
+		select P_CODE into v_parent_code from g_acc_codes  
+		where org_id = p_org_id and code = p_TRANS_CODE;  
+        IF  v_parent_code = 0 THEN v_parent_code := NULL; END IF; 
+	exception when no_data_found then v_parent_code:= null; end; 
+	 
+	 
+	if v_parent_code is not null then  
+    --htp.p('v_parent_code:'||v_parent_code||'p_trn_pk_id:'||p_trn_pk_id||'p_TRANS_CODE:'||p_TRANS_CODE||'p_TRAN_ID:'||p_TRAN_ID); 
+		V_return := process_trns_to_balance(p_org_id,p_trn_pk_id ,v_parent_code ,p_TRAN_ID ); --function call is ok with v_parent 
+	end if; 
+	 
+	begin 
+   -- htp.p('inserting... v_parent_code:'||v_parent_code||'p_trn_pk_id:'||p_trn_pk_id||'p_TRANS_CODE:'||p_TRANS_CODE||'p_TRAN_ID:'||p_TRAN_ID); 
+		insert into acc_balance (acc_balance_ID,ORG_ID,TRAN_DATE,DR_AMOUNT,CR_AMOUNT,TRAN_ID,TRANS_CODE,ACC_PK_ID,PROJECT_CODE) 
+		select acc_bal_seq.nextval,d.org_id,m.TDATE,d.damount,d.camount,d.TRAN_ID,p_TRANS_CODE,d.pk_id,m.PROJECT_CODE 
+		from tmp_tran_d D, TMP_TRAN_M M 
+		WHERE D.TRAN_ID = M.TRAN_ID 
+		and d.PK_ID = p_trn_pk_id; 
+		exception when others then null; 
+    end; 
+    RETURN V_return; 
+	 
+  END;
+/
+

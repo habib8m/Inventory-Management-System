@@ -1,0 +1,43 @@
+
+<style>
+    .t-Body-main
+    {
+	        background: url(#APP_IMAGES#bg-page.jpg); 
+        background-repeat-x: repeat;
+        background-repeat-y: repeat;
+	        background-size: auto;
+    }
+    .t-Header-branding, .t-Footer
+    {
+        background: url(#APP_IMAGES#bg-footer.png); 
+        background-repeat-x: repeat;
+        background-repeat-y: repeat;
+	        background-size: cover;
+        color: white
+    }
+</style>
+
+<script type="text/javascript">
+function closeDialogClickOutside(elem){
+   $('.ui-widget-overlay').click(function(){
+      $(elem).dialog('close');
+   });
+}
+</script>
+<script type="text/javascript">
+    if (window.location.hash && window.location.hash == '#_=_') {
+        window.location.hash = '';
+    }
+</script>
+
+--****************
+
+--Rokit Cookibar--
+
+<style>
+	    #cookie-bar 
+	    {
+        		background: #303941 !important;
+    	}
+</style>
+

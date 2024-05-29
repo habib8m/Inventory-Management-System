@@ -1,0 +1,96 @@
+
+                                                  ===============================SPAC=============================
+
+create or replace PACKAGE ACC_UTIL 
+AS 
+    function num_in_word (p_value number) return varchar2;
+    FUNCTION ins_acc_balance(p_org_id number, P_TRAN_ID NUMBER, P_TRANS_CODE NUMBER, P_parent_CODE NUMBER, P_damount NUMBER, P_camount NUMBER) RETURN VARCHAR2; 
+end; 
+/
+
+
+                                                  ===============================BODY=============================
+
+create or replace PACKAGE body ACC_UTIL 
+AS 
+    function num_in_word (p_value number) return varchar2 
+    as 
+    v_number 	number; 
+    v_decimal 	number; 
+    v_return 	varchar2 (1000);
+ 
+    begin 
+        v_number := trunc(p_value); 
+        v_return := v_return||to_char(to_Date(v_number, 'J'), 'Jsp')||' taka'; --j means julian date and jsp menas julian date spelled out (January 1, 4712 BC)
+										-- julian date must be between 1 and 5373484
+ 
+        if instr(p_value, '.') > 0 then 
+            v_decimal := substr(p_value, instr(p_value, '.') + 1, 2); 
+            v_return := v_return||' and '||to_char(to_Date(v_decimal, 'J'), 'Jsp')||' paisa'; 
+        end if;
+  
+        return v_return||' only.'; 
+    end;
+ 
+--****************************
+
+FUNCTION ins_acc_balance(p_org_id number, P_TRAN_ID NUMBER, P_TRANS_CODE NUMBER, P_parent_CODE NUMBER, P_damount NUMBER, P_camount NUMBER) RETURN VARCHAR2 
+  AS 
+  V_return 	VARCHAR2 (20) := 'SUCCESS'; 
+  v_parent_code number; 
+  V_TDATE   	DATE;
+ 
+  BEGIN 
+  SELECT TDATE 
+	INTO V_TDATE 
+	FROM TMP_TRAN_M 
+	WHERE TRAN_ID = P_TRAN_ID;
+ 
+	BEGIN 
+	select P_CODE 
+	into v_parent_code 
+	from g_acc_codes  
+	where org_id = p_org_id 
+	and code = P_parent_CODE;
+  
+        IF  v_parent_code = 0 THEN 
+	    v_parent_code := NULL; 
+	END IF;
+ 
+	exception when no_data_found then 
+	v_parent_code:= null; 
+	end;
+ 
+	htp.p('v_parent_code: '||v_parent_code);
+
+	if v_parent_code is not null then  
+	V_return := ins_acc_balance(p_org_id, P_TRAN_ID, P_TRANS_CODE, v_parent_code, P_damount, P_camount); --function call is ok with v_parent 
+	end if; 
+	 
+	insert into acc_balance (acc_balance_ID, 
+				ORG_ID, 
+				TRAN_DATE, 
+				DR_AMOUNT, 
+				CR_AMOUNT, 
+				TRAN_ID, 
+				TRANS_CODE) 
+	VALUES(acc_bal_seq.nextval,
+		p_org_id,
+		V_TDATE,
+		P_damount,
+		P_camount,
+		P_TRAN_ID,
+		P_parent_CODE); 
+
+    RETURN V_return; 
+	 
+  END; 
+
+--*************************
+
+end; 
+/
+
+
+
+
